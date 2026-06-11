@@ -34,19 +34,18 @@
 
   function applyAvatarStyles(img, pos){
     if (!img || !pos) return;
-    const x = `${pos.x}%`;
-    const y = `${pos.y}%`;
+    const normalized = normalizeAvatarPos(pos);
+    const translateX = `${normalized.x - 50}%`;
+    const translateY = `${normalized.y - 50}%`;
     img.style.objectFit = 'cover';
-    img.style.objectPosition = `${x} ${y}`;
+    img.style.objectPosition = '50% 50%';
     img.style.width = '100%';
     img.style.height = '100%';
     img.style.maxWidth = 'none';
     img.style.maxHeight = 'none';
-    img.style.setProperty('--avatar-pos-x', x);
-    img.style.setProperty('--avatar-pos-y', y);
-    img.style.setProperty('--avatar-scale', (pos.scale / 100).toFixed(3));
-    img.style.setProperty('--avatar-origin-x', x);
-    img.style.setProperty('--avatar-origin-y', y);
+    img.style.setProperty('--avatar-translate-x', translateX);
+    img.style.setProperty('--avatar-translate-y', translateY);
+    img.style.setProperty('--avatar-scale', (normalized.scale / 100).toFixed(3));
   }
 
   function isSafeExternalUrl(value){
@@ -161,7 +160,7 @@
   async function compressImage(file){
     const data = await fileToDataURL(file);
     if (!file.type.startsWith('image/')) return data;
-    const shouldNormalizeWithCanvas = file.type === 'image/png' || file.size > IMG_MAX_BYTES;
+    const shouldNormalizeWithCanvas = file.size > IMG_MAX_BYTES;
     if (!shouldNormalizeWithCanvas){
       return data;
     }
