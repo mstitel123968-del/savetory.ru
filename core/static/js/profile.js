@@ -32,21 +32,53 @@
     };
   }
 
+  const AVATAR_FIT_CLASSES = ['avatar-img--landscape', 'avatar-img--portrait', 'avatar-img--square'];
+
+  function updateAvatarImageFit(img){
+    if (!img) return;
+    const width = img.naturalWidth || 0;
+    const height = img.naturalHeight || 0;
+    img.classList.remove(...AVATAR_FIT_CLASSES);
+    if (!width || !height || Math.abs(width - height) <= 1){
+      img.classList.add('avatar-img--square');
+    } else if (height > width){
+      img.classList.add('avatar-img--portrait');
+    } else {
+      img.classList.add('avatar-img--landscape');
+    }
+  }
+
+  function prepareAvatarImage(img){
+    if (!img) return;
+    img.classList.add('avatar-img');
+    if (!img.dataset.avatarFitBound){
+      img.dataset.avatarFitBound = '1';
+      img.addEventListener('load', ()=>updateAvatarImageFit(img));
+    }
+    updateAvatarImageFit(img);
+  }
+
+  function setAvatarImageSource(img, source){
+    if (!img) return;
+    prepareAvatarImage(img);
+    img.classList.remove(...AVATAR_FIT_CLASSES);
+    if (source){
+      if (img.getAttribute('src') !== source){
+        img.src = source;
+      }
+      updateAvatarImageFit(img);
+    } else {
+      img.removeAttribute('src');
+    }
+  }
+
   function applyAvatarStyles(img, pos){
     if (!img || !pos) return;
-    const x = `${pos.x}%`;
-    const y = `${pos.y}%`;
-    img.style.objectFit = 'cover';
-    img.style.objectPosition = `${x} ${y}`;
-    img.style.width = '100%';
-    img.style.height = '100%';
-    img.style.maxWidth = 'none';
-    img.style.maxHeight = 'none';
-    img.style.setProperty('--avatar-pos-x', x);
-    img.style.setProperty('--avatar-pos-y', y);
-    img.style.setProperty('--avatar-scale', (pos.scale / 100).toFixed(3));
-    img.style.setProperty('--avatar-origin-x', x);
-    img.style.setProperty('--avatar-origin-y', y);
+    const normalized = normalizeAvatarPos(pos);
+    img.style.setProperty('--avatar-translate-x', `${normalized.x - 50}%`);
+    img.style.setProperty('--avatar-translate-y', `${normalized.y - 50}%`);
+    img.style.setProperty('--avatar-scale', (normalized.scale / 100).toFixed(3));
+    prepareAvatarImage(img);
   }
 
   function isSafeExternalUrl(value){
@@ -131,12 +163,12 @@
     if (avatar){
       applyAvatarStyles(avatar, pos);
       if (profile.avatar_data){
-        avatar.src = profile.avatar_data;
+        setAvatarImageSource(avatar, profile.avatar_data);
         avatar.style.display = 'block';
         if (placeholder) placeholder.style.display = 'none';
         if (avatarWrap) avatarWrap.classList.add('has-img');
       } else {
-        avatar.removeAttribute('src');
+        setAvatarImageSource(avatar, '');
         avatar.style.display = 'none';
         if (placeholder) placeholder.style.display = '';
         if (avatarWrap) avatarWrap.classList.remove('has-img');
@@ -161,7 +193,7 @@
   async function compressImage(file){
     const data = await fileToDataURL(file);
     if (!file.type.startsWith('image/')) return data;
-    const shouldNormalizeWithCanvas = file.type === 'image/png' || file.size > IMG_MAX_BYTES;
+    const shouldNormalizeWithCanvas = file.size > IMG_MAX_BYTES;
     if (!shouldNormalizeWithCanvas){
       return data;
     }
@@ -252,10 +284,10 @@
       applyAvatarStyles(prev, avatarPos);
       if (zoomValueEl) zoomValueEl.textContent = `${Math.round(avatarPos.scale)}%`;
       if (draftAvatarData){
-        prev.src = draftAvatarData;
+        setAvatarImageSource(prev, draftAvatarData);
         avatarBox.classList.add('has-photo');
       } else {
-        prev.removeAttribute('src');
+        setAvatarImageSource(prev, '');
         avatarBox.classList.remove('has-photo');
       }
       controls.forEach((btn)=>{ btn.disabled = !draftAvatarData; });
