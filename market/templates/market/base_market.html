@@ -1,0 +1,59 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'market/market.css' %}" />
+</head>
+<body>
+  <aside class="sidebar">
+    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
+    <nav class="side-nav">
+      <div class="side-nav-footer">
+        {% include 'includes/side_nav_links.html' with current_section='market' %}
+      </div>
+    </nav>
+  </aside>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo-wrap"><span class="page-title">Маркет</span></div>
+      {% if show_search|default:True %}
+      <div class="search-wrap">
+        <form method="get" class="market-search" data-market-search-form>
+          <input class="search" type="search" name="q" placeholder="Поиск по объявлениям" value="{{ query|default:'' }}" />
+          {% block extra_filters %}{% endblock %}
+        </form>
+      </div>
+      {% else %}
+      <div class="topbar-spacer"></div>
+      {% endif %}
+      <div class="topbar-actions"></div>
+    </div>
+    <nav class="market-tabs" role="tablist">
+      {% for tab in tabs %}
+        <a href="{% url tab.url_name %}" class="market-tab{% if tab.active %} market-tab--active{% endif %}" role="tab" aria-selected="{% if tab.active %}true{% else %}false{% endif %}">
+          {{ tab.label }}
+        </a>
+      {% endfor %}
+      {% block extra_tabs %}{% endblock %}
+    </nav>
+  </header>
+
+  <main class="main market-main">
+    {% if market_error %}
+      <div class="market-error" role="alert">{{ market_error }}</div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{% static 'js/nav.js' %}"></script>
+  <script src="{% static 'js/prefs.js' %}"></script>
+  <script src="{% static 'market/market.js' %}"></script>
+  {% block extra_scripts %}{% endblock %}
+  {% include 'includes/terms_modal.html' %}
+</body>
+</html>

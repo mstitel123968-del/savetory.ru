@@ -1,0 +1,74 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+</head>
+<body>
+  <aside class="sidebar">
+    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
+    <nav class="side-nav">
+      <button id="createRubric" class="side-btn danger">Создать рубрику</button>
+      <div id="rubricCreateWrap" class="rubric-create hidden" aria-hidden="true">
+        <label class="rubric-create__label" for="rubricNameInput">Наименование рубрики</label>
+        <input id="rubricNameInput" class="rubric-create__input" type="text" placeholder="Например, «Картины»" />
+        <button id="rubricNameSave" class="rubric-create__save side-btn" type="button">Сохранить</button>
+        <div id="rubricNameError" class="rubric-create__error" role="alert"></div>
+      </div>
+      <button id="rubricAllButton" class="side-btn hidden" type="button">Все файлы</button>
+      <div class="side-nav-scroll">
+        <div id="rubricButtons" class="rubric-buttons hidden" aria-live="polite"></div>
+      </div>
+      <div class="side-nav-divider" aria-hidden="true"></div>
+      <div class="side-nav-footer">
+        {% include 'includes/side_nav_links.html' with current_section='archive' include_archive=False %}
+      </div>
+    </nav>
+  </aside>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo-wrap"><span class="page-title">Ваш архив</span></div>
+      <div class="search-wrap">
+        <input class="search" type="search" placeholder="Поиск по файлам" />
+        <div class="search-results hidden" role="listbox" aria-live="polite" data-search-results></div>
+      </div>
+      <div class="topbar-actions">
+        <button id="archiveSelectionToggle" class="side-btn topbar-selection-toggle" type="button">Выбрать</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div id="archiveStatusMessage" class="archive-status-message hidden" role="alert" aria-live="polite"></div>
+    <section id="archiveBulkBar" class="archive-bulk-bar hidden" aria-live="polite">
+      <div class="archive-bulk-bar__summary" id="archiveBulkSummary">Выбрано: 0</div>
+      <div class="archive-bulk-bar__actions">
+        <button id="archiveBulkSelectAll" class="side-btn" type="button">Выбрать все</button>
+        <button id="archiveBulkClear" class="side-btn" type="button">Снять выделение</button>
+        <button id="archiveBulkMove" class="side-btn" type="button">Перенести</button>
+        <button id="archiveBulkDelete" class="side-btn danger" type="button">Удалить</button>
+        <button id="archiveBulkClose" class="side-btn" type="button">Готово</button>
+      </div>
+    </section>
+    <section id="archiveEmpty" class="archive-empty">
+      <p>В этом разделе не создано ни одной рубрики.</p>
+    </section>
+    <section id="rubricsContainer" class="rubrics hidden" aria-live="polite"></section>
+  </main>
+
+  <div id="archiveModalHost"></div>
+  {% include 'includes/support_floating_widget.html' %}
+
+  {% include 'includes/terms_modal.html' %}
+
+  <script src="{% static 'js/nav.js' %}"></script>
+  <script src="{% static 'js/search.js' %}"></script>
+  <script src="{% static 'js/archive.js' %}"></script>
+  <script src="{% static 'js/support-widget.js' %}"></script>
+  <script src="{% static 'js/prefs.js' %}"></script>
+</body>
+</html>

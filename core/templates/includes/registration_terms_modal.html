@@ -1,0 +1,15 @@
+<div id="registrationTermsModal" class="reg-terms-modal" aria-hidden="true" data-terms-version="{{ terms_version }}">
+  <div class="reg-terms-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="registrationTermsTitle" tabindex="-1">
+    <h2 id="registrationTermsTitle">Пользовательское соглашение</h2>
+    <p class="reg-terms-modal__subtitle">Чтобы завершить регистрацию, необходимо принять актуальную версию соглашения.</p>
+    <p class="reg-terms-modal__version">Версия: {{ terms_version }}</p>
+    <div class="reg-terms-modal__content">
+      {% include 'includes/terms_content.html' %}
+    </div>
+    <div class="reg-terms-modal__error" role="alert" aria-live="polite"></div>
+    <div class="reg-terms-modal__actions">
+      <button type="button" class="btn ios-button reg-terms-modal__btn" data-action="accept">Принять</button>
+      <button type="button" class="btn reg-terms-modal__btn reg-terms-modal__btn--ghost" data-action="decline">Отклонить</button>
+    </div>
+  </div>
+</div>

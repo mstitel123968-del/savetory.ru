@@ -1,0 +1,13 @@
+{% if page_obj.has_other_pages %}
+<nav class="market-pagination" aria-label="Страницы">
+  {% with base_path=request.path %}
+    {% if page_obj.has_previous %}
+      <a class="market-page-link" href="{{ base_path }}?page={{ page_obj.previous_page_number }}{% if query_string %}&amp;{{ query_string }}{% endif %}">Назад</a>
+    {% endif %}
+    <span class="market-page-current">Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+      <a class="market-page-link" href="{{ base_path }}?page={{ page_obj.next_page_number }}{% if query_string %}&amp;{{ query_string }}{% endif %}">Вперёд</a>
+    {% endif %}
+  {% endwith %}
+</nav>
+{% endif %}

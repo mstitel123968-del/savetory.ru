@@ -1,0 +1,94 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/modal.css' %}">
+  <link rel="stylesheet" href="{% static 'css/settings.css' %}">
+</head>
+<body class="reviews-page">
+  <aside class="sidebar">
+    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
+    <nav class="side-nav">
+      <div class="side-nav-footer">
+        {% include 'includes/side_nav_links.html' with current_section='reviews' %}
+      </div>
+    </nav>
+  </aside>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo-wrap">
+        <span class="page-title">Отзывы</span>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <section class="card settings-card reviews-feed-card">
+      <h2 class="settings-title">Отзывы пользователей</h2>
+      <div id="reviewsList" class="reviews-list" aria-live="polite"></div>
+    </section>
+
+    <section class="card settings-card reviews-form-card" id="reviewFormCard">
+      <h2 class="settings-title">Оставить отзыв</h2>
+      <form id="reviewForm" class="market-form" novalidate>
+        <div class="reviews-stars" role="radiogroup" aria-label="Оценка">
+          <button type="button" class="reviews-stars__star" data-value="1" aria-label="1 звезда">☆</button>
+          <button type="button" class="reviews-stars__star" data-value="2" aria-label="2 звезды">☆</button>
+          <button type="button" class="reviews-stars__star" data-value="3" aria-label="3 звезды">☆</button>
+          <button type="button" class="reviews-stars__star" data-value="4" aria-label="4 звезды">☆</button>
+          <button type="button" class="reviews-stars__star" data-value="5" aria-label="5 звёзд">☆</button>
+        </div>
+        <input type="hidden" id="reviewRating" required>
+        <textarea id="reviewText" rows="4" maxlength="1000" required placeholder="Напишите отзыв…"></textarea>
+        <small id="reviewError" class="error"></small>
+        <button type="submit" class="ios-button">Отправить отзыв</button>
+      </form>
+    </section>
+  </main>
+
+  <div id="authModal" class="modal">
+    <div class="modal-content">
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Войти</button>
+        <button class="tab" data-tab="register">Регистрация</button>
+      </div>
+      <div class="tab-content active" id="login">
+        <input type="text" id="loginUser" placeholder="Логин">
+        <small id="loginAuthError" class="error"></small>
+        <input type="password" id="loginPass" placeholder="Пароль">
+        <button class="btn">Войти</button>
+      </div>
+      <div class="tab-content" id="register">
+        <input type="text" id="regLogin" placeholder="Логин">
+        <small id="loginError" class="error"></small>
+        <input type="password" id="regPass" placeholder="Пароль">
+        <input type="password" id="regPass2" placeholder="Повторите пароль">
+        <small id="passError" class="error"></small>
+        <input type="email" id="regEmail" placeholder="Введите ваш Email" aria-label="Введите ваш Email">
+        <small id="emailError" class="error"></small>
+        <div class="modal-footer">
+          <button id="registerSubmit" type="button" class="btn ios-button">Зарегистрироваться</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% include 'includes/registration_terms_modal.html' %}
+
+  {% include 'includes/support_floating_widget.html' %}
+
+  <script src="{% static 'js/nav.js' %}"></script>
+  <script src="{% static 'js/support-widget.js' %}"></script>
+  <script src="{% static 'js/modal.js' %}"></script>
+  <script src="{% static 'js/reviews.js' %}"></script>
+  <script src="{% static 'js/prefs.js' %}"></script>
+</body>
+</html>

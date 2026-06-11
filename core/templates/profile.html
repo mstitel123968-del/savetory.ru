@@ -1,0 +1,125 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/profile.css' %}" />
+</head>
+<body>
+  <aside class="sidebar">
+    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
+    <nav class="side-nav">
+      <div class="side-nav-divider" aria-hidden="true"></div>
+      <div class="side-nav-footer">
+        {% include 'includes/side_nav_links.html' with current_section='profile' %}
+      </div>
+    </nav>
+  </aside>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo-wrap">
+        <span class="page-title">Профиль</span>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions"></div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="profile-wrap profile-compact">
+      <div class="profile-plain">
+        <div class="profile-header">
+          <div class="profile-header__main">
+            <div class="avatar-wrap"><span class="avatar-placeholder">🖼</span><img id="avatarImg" alt="" draggable="false"></div>
+            <div class="profile-login" id="profileLoginDisplay" aria-live="polite">—</div>
+          </div>
+        </div>
+        <div id="profileView" class="profile-view">
+          <div><strong>Имя:</strong> <span data-f="first">—</span></div>
+          <div><strong>Фамилия:</strong> <span data-f="last">—</span></div>
+          <div><strong>Город:</strong> <span data-f="city">—</span></div>
+          <div><strong>Почта:</strong> <span data-f="email">—</span></div>
+          <div><strong>Ссылка:</strong> <span data-f="link" class="profile-link-value">—</span></div>
+          <div><strong>Интересы:</strong> <span data-f="interests">—</span></div>
+        </div>
+        <div class="profile-footer-actions">
+          <button id="profileEditBtn" class="ios-button light round-btn" title="Редактировать">✏️ Редактировать</button>
+          <button id="profileLogoutBtn" class="ios-button danger round-btn" title="Выйти">
+            <span class="btn-icon btn-icon-exit" aria-hidden="true"></span>
+            <span>Выйти</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="profileEditModal" class="pe-modal" style="display:none;">
+    <div class="pe-dialog-wrap">
+      <div class="pe-dialog">
+        <div class="pe-head">
+          <h3 id="profileEditTitle">Редактирование профиля</h3>
+        </div>
+        <div class="pe-body">
+          <div class="pe-avatar">
+            <div id="pe_avatarBox" class="avatar-box">
+              <img id="pe_prev" alt="" draggable="false"/>
+            </div>
+            <div id="pe_avatarControls" class="avatar-controls" aria-label="Управление положением фото">
+              <div class="avatar-controls-row avatar-controls-row--single" role="group" aria-label="Сместить вверх">
+                <button type="button" class="avatar-ctrl" data-dir="up" aria-label="Сместить вверх">▲</button>
+              </div>
+              <div class="avatar-controls-row" role="group" aria-label="Сместить по горизонтали и вниз">
+                <button type="button" class="avatar-ctrl" data-dir="left" aria-label="Сместить влево">◄</button>
+                <button type="button" class="avatar-ctrl" data-dir="down" aria-label="Сместить вниз">▼</button>
+                <button type="button" class="avatar-ctrl" data-dir="right" aria-label="Сместить вправо">►</button>
+              </div>
+              <div class="avatar-zoom">
+                <button type="button" class="avatar-ctrl" data-zoom="out" aria-label="Уменьшить фото">−</button>
+                <span class="avatar-zoom-value" data-zoom-value>100%</span>
+                <button type="button" class="avatar-ctrl" data-zoom="in" aria-label="Увеличить фото">+</button>
+              </div>
+            </div>
+            <input type="file" id="pe_file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          </div>
+          <div class="pe-right">
+            <div class="pe-grid">
+              <div id="pe_error" class="pe-error full" role="alert" aria-live="polite"></div>
+              <input id="pe_first" placeholder="Имя">
+              <input id="pe_last"  placeholder="Фамилия">
+              <input id="pe_city"  placeholder="Город">
+              <input id="pe_email" placeholder="Почта">
+              <input id="pe_link" placeholder="Ссылка">
+              <textarea id="pe_interests" placeholder="Интересы" class="full"></textarea>
+              <div class="pe-actions" role="group" aria-label="Действия профиля">
+                <button id="pe_save" class="ios-button">Сохранить</button>
+                <button type="button" class="btn" data-close>Отмена</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="profileLogoutModal" class="profile-confirm" hidden>
+    <div class="profile-confirm__dialog" role="dialog" aria-modal="true" aria-labelledby="profileLogoutTitle">
+      <h3 id="profileLogoutTitle" class="profile-confirm__title">Вы точно хотите выйти?</h3>
+      <div class="profile-confirm__actions">
+        <button type="button" class="ios-button" data-action="stay">Остаться</button>
+        <button type="button" class="ios-button danger" data-action="exit">Выйти</button>
+      </div>
+    </div>
+  </div>
+
+  {% include 'includes/support_floating_widget.html' %}
+
+  <script src="{% static 'js/nav.js' %}"></script>
+  <script src="{% static 'js/support-widget.js' %}"></script>
+  <script src="{% static 'js/profile.js' %}"></script>
+  <script src="{% static 'js/prefs.js' %}"></script>
+  {% include 'includes/terms_modal.html' %}
+</body>
+</html>

@@ -1,0 +1,23 @@
+{% with current=current_section|default:"" %}
+<div class="market-dropup{% if current == 'market' %} market-dropup--active{% endif %}" data-market-dropup>
+  <button
+    class="side-btn nav-market side-btn--inactive has-tooltip{% if current == 'market' %} active{% endif %}"
+    type="button"
+    aria-haspopup="true"
+    aria-expanded="false"
+    aria-disabled="true"
+    tabindex="-1"
+    data-disabled
+    data-tooltip="в разработке"
+  >
+    Маркет
+  </button>
+  <div class="market-dropup__list" data-market-list hidden role="menu">
+    <a class="market-dropup__item" href="/market/auction/" role="menuitem">Аукцион</a>
+    <a class="market-dropup__item" href="/market/shop/" role="menuitem">Магазин</a>
+    <a class="market-dropup__item" href="/market/free/" role="menuitem">Даром</a>
+    <a class="market-dropup__item" href="/market/wanted/" role="menuitem">Спрос</a>
+    <a class="market-dropup__item" href="/market/swap/" role="menuitem">Обмен</a>
+  </div>
+</div>
+{% endwith %}

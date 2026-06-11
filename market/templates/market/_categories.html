@@ -1,0 +1,10 @@
+{% if categories %}
+<nav class="market-categories" aria-label="Рубрики">
+  <span class="market-categories__label">Рубрики:</span>
+  <div class="market-categories__list">
+    {% for category in categories %}
+      <a href="{{ category.url }}" class="market-category{% if category.active %} market-category--active{% endif %}">{{ category.label }}</a>
+    {% endfor %}
+  </div>
+</nav>
+{% endif %}

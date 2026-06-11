@@ -1,0 +1,43 @@
+"""Replaces the Java controller route mappings with Django URL patterns."""
+from django.urls import path
+from django.views.generic import RedirectView
+
+from . import views
+
+app_name = 'core'
+
+urlpatterns = [
+    path('', views.landing, name='landing'),
+    path('archive/', views.archive, name='archive'),
+    path('profile/', views.profile, name='profile'),
+    path('settings/', views.settings, name='settings'),
+    path('terms/', views.terms, name='terms'),
+    path('news/', views.news, name='news'),
+    path('reviews/', views.reviews, name='reviews'),
+    path('index.html', RedirectView.as_view(url='/', permanent=True), name='landing-index-redirect'),
+    path('archive.html', RedirectView.as_view(url='/archive/', permanent=True), name='archive-redirect'),
+    path('profile.html', RedirectView.as_view(url='/profile/', permanent=True), name='profile-redirect'),
+    path('settings.html', RedirectView.as_view(url='/settings/', permanent=True), name='settings-redirect'),
+    path('news.html', RedirectView.as_view(url='/news/', permanent=True), name='news-redirect'),
+    path('reviews.html', RedirectView.as_view(url='/reviews/', permanent=True), name='reviews-redirect'),
+    path('api/auth/register/', views.register_user, name='register'),
+    path('api/auth/login/', views.login_user, name='login'),
+    path('api/auth/logout/', views.logout_user, name='logout'),
+
+    path('api/auth/status/', views.auth_status, name='auth-status'),
+    path('api/auth/check-availability/', views.check_auth_availability, name='auth-check-availability'),
+    path('api/profile/', views.profile_api, name='profile-api'),
+    path('api/archive/state/', views.archive_state_api, name='archive-state-api'),
+    path('api/archive/rubrics/list/', views.list_rubrics, name='rubrics-list'),
+    path('api/archive/rubrics/<int:rubric_id>/files/', views.list_rubric_files, name='rubric-files-list'),
+    path('api/archive/files/<int:file_id>/', views.update_archive_file, name='update-file'),
+    path('api/archive/files/move/', views.move_archive_file, name='move-file'),
+    path('api/archive/files/bulk-delete/', views.bulk_delete_archive_files, name='bulk-delete-files'),
+    path('api/archive/files/bulk-move/', views.bulk_move_archive_files, name='bulk-move-files'),
+    path('api/reviews/', views.reviews_api, name='reviews-api'),
+    path('api/reviews/create/', views.reviews_create_api, name='reviews-create-api'),
+    path('api/reviews/<int:review_id>/', views.reviews_update_api, name='reviews-update-api'),
+    path('api/archive/rubrics/', views.create_rubric, name='create-rubric'),
+    path('api/archive/files/', views.create_archive_file, name='create-file'),
+    path('api/terms/accept/', views.accept_terms, name='accept_terms'),
+]

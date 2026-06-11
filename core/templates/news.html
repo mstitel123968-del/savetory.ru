@@ -1,0 +1,90 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/modal.css' %}">
+  <script>
+    (function(){
+      var root = document.documentElement;
+      function applyState(authed){
+        root.classList.add(authed ? 'news-authed' : 'news-guest');
+        window.__newsAuthed = authed;
+        document.title = authed ? 'Техническая информация - СКлад' : '{{ seo_title|escapejs }}';
+      }
+      fetch('/api/auth/status/', { credentials: 'include' })
+        .then(function(resp){ return resp.json(); })
+        .then(function(data){ applyState(Boolean(data && data.authenticated)); })
+        .catch(function(){ applyState(false); });
+    })();
+  </script>
+</head>
+<body class="news-page">
+  <aside class="sidebar">
+    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
+    <nav class="side-nav">
+      <div class="side-nav-footer">
+        {% include 'includes/side_nav_links.html' with current_section='news' %}
+      </div>
+    </nav>
+  </aside>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo-wrap">
+        <span class="page-title" data-page-title>Инструкции по пользованию</span>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions">
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <a class="news-back-btn" href="/" data-news-back hidden>Назад</a>
+    <section class="news-list" id="newsList"></section>
+  </main>
+
+  <div id="authModal" class="modal">
+    <div class="modal-content">
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Войти</button>
+        <button class="tab" data-tab="register">Регистрация</button>
+      </div>
+      <div class="tab-content active" id="login">
+        <input type="text" id="loginUser" placeholder="Логин">
+        <small id="loginAuthError" class="error"></small>
+        <input type="password" id="loginPass" placeholder="Пароль">
+        <button class="btn">Войти</button>
+      </div>
+      <div class="tab-content" id="register">
+        <input type="text" id="regLogin" placeholder="Логин">
+        <small id="loginError" class="error"></small>
+        <input type="password" id="regPass" placeholder="Пароль">
+        <input type="password" id="regPass2" placeholder="Повторите пароль">
+        <small id="passError" class="error"></small>
+        <input type="email" id="regEmail" placeholder="Введите ваш Email" aria-label="Введите ваш Email">
+        <small id="emailError" class="error"></small>
+
+        <div class="modal-footer">
+          <button id="registerSubmit" type="button" class="btn ios-button">Зарегистрироваться</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% include 'includes/registration_terms_modal.html' %}
+
+  {% include 'includes/support_floating_widget.html' %}
+
+  <script src="{% static 'js/nav.js' %}"></script>
+  <script src="{% static 'js/support-widget.js' %}"></script>
+  <script src="{% static 'js/modal.js' %}"></script>
+  <script src="{% static 'js/script.js' %}"></script>
+  <script src="{% static 'js/prefs.js' %}"></script>
+  {% include 'includes/terms_modal.html' %}
+</body>
+</html>

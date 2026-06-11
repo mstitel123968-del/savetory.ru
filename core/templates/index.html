@@ -1,0 +1,77 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/modal.css' %}">
+  <script>
+    (function(){
+      fetch('/api/auth/status/', { credentials: 'include' })
+        .then(function(resp){ return resp.json(); })
+        .then(function(data){
+          if (data && data.authenticated) {
+            window.location.replace('/archive/');
+          }
+        })
+        .catch(function(){});
+    })();
+  </script>
+</head>
+<body class="landing-page">
+  <div class="landing-shell">
+    <header class="landing-top">
+      {% include 'includes/site_logo.html' with brand_class='landing-brand' brand_label='СКлад' %}
+    </header>
+
+    <main class="landing-main">
+      <section class="landing-hero" aria-label="Приветственный слоган">
+        <p class="landing-hero-line" data-landing-slogan aria-live="polite">Твоя коллекция в одном месте.</p>
+      </section>
+      <button class="ios-button landing-start" type="button" data-open-auth>Начать</button>
+    </main>
+    <footer class="landing-footer">
+      <a class="landing-top-link" href="/news/">Инструкции по пользованию</a>
+    </footer>
+  </div>
+
+  <div id="authModal" class="modal">
+    <div class="modal-content">
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Войти</button>
+        <button class="tab" data-tab="register">Регистрация</button>
+      </div>
+      <div class="tab-content active" id="login">
+        <input type="text" id="loginUser" placeholder="Логин">
+        <small id="loginAuthError" class="error"></small>
+        <input type="password" id="loginPass" placeholder="Пароль">
+        <button class="btn">Войти</button>
+      </div>
+      <div class="tab-content" id="register">
+        <input type="text" id="regLogin" placeholder="Логин">
+        <small id="loginError" class="error"></small>
+        <input type="password" id="regPass" placeholder="Пароль">
+        <input type="password" id="regPass2" placeholder="Повторите пароль">
+        <small id="passError" class="error"></small>
+        <input type="email" id="regEmail" placeholder="Введите ваш Email" aria-label="Введите ваш Email">
+        <small id="emailError" class="error"></small>
+
+        <div class="modal-footer">
+          <button id="registerSubmit" type="button" class="btn ios-button">Зарегистрироваться</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% include 'includes/registration_terms_modal.html' %}
+
+  {% include 'includes/support_floating_widget.html' %}
+
+  <script src="{% static 'js/landing.js' %}"></script>
+  <script src="{% static 'js/support-widget.js' %}"></script>
+  <script src="{% static 'js/modal.js' %}"></script>
+  <script src="{% static 'js/prefs.js' %}"></script>
+</body>
+</html>

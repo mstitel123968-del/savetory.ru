@@ -1,0 +1,52 @@
+<article class="market-card" data-listing-id="{{ listing.id }}" data-listing-type="{{ listing.type }}"{% if listing.type == 'auction' %} data-auction-start="{{ listing.auction_start|date:'c' }}" data-auction-end="{{ listing.auction_end|date:'c' }}"{% endif %}>
+  <div class="market-card__media">
+    {% with primary=listing.item.images.all|first %}
+      {% if primary %}
+        <img src="{{ primary.image.url }}" alt="{{ listing.title|default:listing.item.title }}" loading="lazy" />
+      {% else %}
+        <div class="market-card__placeholder">⧉</div>
+      {% endif %}
+    {% endwith %}
+    {% if listing.type == 'auction' %}
+      <div class="market-card__timer-overlay" data-auction-timer-wrap>
+        <span class="market-card__timer-chip" data-auction-timer data-auction-timer-mode="card">—</span>
+      </div>
+    {% endif %}
+  </div>
+  <div class="market-card__body">
+    <h3 class="market-card__title">{{ listing.title|default:listing.item.title }}</h3>
+    <span class="market-card__category">{{ listing.get_category_display }}</span>
+    <p class="market-card__owner">Продавец: {{ listing.seller.get_username }}</p>
+    <p class="market-card__date">{{ listing.created_at|date:'d.m.Y H:i' }}</p>
+    {% if listing.type == 'shop' %}
+      <p class="market-card__price">Цена: {{ listing.price }} ₽</p>
+    {% elif listing.type == 'wanted' %}
+      <p class="market-card__price">Готов купить за: {{ listing.price }} ₽</p>
+    {% elif listing.type == 'free' %}
+      <p class="market-card__label">Отдают бесплатно</p>
+    {% elif listing.type == 'swap' %}
+      <div class="market-card__swap-wrap">
+        <p class="market-card__swap" data-collapsible>{{ listing.swap_wishlist|default:'—' }}</p>
+        {% if listing.swap_wishlist|length > 160 %}
+          <button type="button" class="market-card__toggle" data-collapsible-toggle>Показать ещё</button>
+        {% endif %}
+      </div>
+    {% elif listing.type == 'auction' %}
+      <div class="market-card__auction">
+        <p class="market-card__price">Текущая цена: {{ listing.current_price|default:listing.auction_start_price }} ₽</p>
+        <p class="market-card__timer" data-auction-timer data-auction-timer-mode="body">—</p>
+        {% if listing.auction_start and listing.auction_end %}
+          {% if listing.auction_start > now %}
+            <span class="market-card__badge">Ожидает старта</span>
+          {% elif listing.auction_end <= now %}
+            <span class="market-card__badge market-card__badge--ended">Завершён</span>
+          {% endif %}
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+  <div class="market-card__actions">
+    <a class="ios-button" href="{% url 'market_listing_detail' listing.id %}">Подробнее</a>
+    <a class="ios-button" href="/messages/start/?to={{ listing.seller_id }}&amp;item={{ listing.id }}">Написать</a>
+  </div>
+</article>

@@ -1,0 +1,7 @@
+{% load static %}
+<title>{{ seo_title|default:"СКлад" }}</title>
+<meta name="description" content="{{ seo_description|default:'СКлад — сервис коллекционера для личных архивов, карточек вещей, новостей проекта и отзывов пользователей.' }}" />
+<meta name="robots" content="{{ seo_robots|default:'index,follow' }}" />
+<link rel="canonical" href="{{ canonical_url|default:request.build_absolute_uri }}" />
+<link rel="icon" href="{% static 'img/logo-page.png' %}" type="image/png" />
+<link rel="shortcut icon" href="{% static 'img/logo-page.png' %}" type="image/png" />

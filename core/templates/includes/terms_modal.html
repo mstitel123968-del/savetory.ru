@@ -1,0 +1,17 @@
+{% load static %}
+<div id="termsModal" class="terms-modal" data-required="{{ terms_required|yesno:'true,false' }}" data-accept-url="{{ terms_accept_url }}" data-terms-version="{{ terms_version }}" aria-hidden="true">
+  <div class="terms-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="termsModalTitle" tabindex="-1">
+    <h2 id="termsModalTitle">Пользовательское соглашение</h2>
+    <p>Чтобы продолжить работу с сервисом, примите актуальную версию соглашения.</p>
+    <p class="terms-modal__version">Версия: {{ terms_version }}</p>
+    <div class="terms-modal__links">
+      <a href="{{ terms_page_url }}" target="_blank" rel="noopener" class="terms-modal__link">Открыть полную версию</a>
+    </div>
+    <div class="terms-modal__error" role="alert" aria-live="polite"></div>
+    <div class="terms-modal__actions">
+      <button type="button" class="terms-modal__btn terms-modal__btn--primary" data-action="accept">Принять</button>
+      <button type="button" class="terms-modal__btn terms-modal__btn--ghost" data-action="logout" data-logout-url="{% url 'core:logout' %}">Отклонить и выйти</button>
+    </div>
+  </div>
+</div>
+<script src="{% static 'js/terms.js' %}"></script>

@@ -1,0 +1,38 @@
+{% extends 'market/base_market.html' %}
+
+{% block extra_filters %}{% endblock %}
+
+{% block content %}
+  <section class="market-messages">
+    <header class="market-messages__header">
+      <h1>Сообщения продавцу</h1>
+      {% if listing %}
+        <p class="market-messages__listing">Лот: <a href="{% url 'market_listing_detail' listing.id %}">{{ listing.title|default:listing.item.title }}</a></p>
+      {% endif %}
+      {% if recipient %}
+        <p class="market-messages__recipient">Получатель: {{ recipient.get_username }}</p>
+      {% endif %}
+    </header>
+
+    {% if sent %}
+      <div class="market-messages__success">Сообщение отправлено.</div>
+    {% endif %}
+
+    {% if errors %}
+      <ul class="market-messages__errors">
+        {% for field, message in errors.items %}
+          <li>{{ message }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    <form method="post" class="market-messages__form">
+      {% csrf_token %}
+      <input type="hidden" name="recipient" value="{{ recipient_id }}">
+      <input type="hidden" name="listing_id" value="{{ listing_id }}">
+      <label for="messageText">Сообщение</label>
+      <textarea id="messageText" name="message" rows="4" placeholder="Введите текст сообщения">{{ message_text }}</textarea>
+      <button type="submit" class="ios-button">Отправить</button>
+    </form>
+  </section>
+{% endblock %}

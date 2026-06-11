@@ -1,0 +1,37 @@
+{% extends 'market/base_market.html' %}
+
+{% block extra_filters %}
+  <div class="market-filter-group">
+    <label class="sr-only" for="orderSelect">Сортировка</label>
+    <select id="orderSelect" name="order" class="market-filter" onchange="this.form.submit()">
+      <option value="-date"{% if order == '-date' %} selected{% endif %}>Сначала новые</option>
+      <option value="date"{% if order == 'date' %} selected{% endif %}>Сначала старые</option>
+    </select>
+    <label class="sr-only" for="stateSelect">Статус</label>
+    <select id="stateSelect" name="state" class="market-filter" onchange="this.form.submit()">
+      <option value=""{% if not state %} selected{% endif %}>Все аукционы</option>
+      <option value="active"{% if state == 'active' %} selected{% endif %}>Идут сейчас</option>
+      <option value="upcoming"{% if state == 'upcoming' %} selected{% endif %}>Ожидаются</option>
+      <option value="ended"{% if state == 'ended' %} selected{% endif %}>Завершены</option>
+    </select>
+    <button type="submit" class="ios-button market-filter-apply">Найти</button>
+  </div>
+  {% if active_category %}
+    <input type="hidden" name="category" value="{{ active_category }}" />
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+  <h1 class="market-heading">Аукцион</h1>
+  {% include 'market/_categories.html' %}
+  {% if page_obj.object_list %}
+    <div class="market-grid">
+      {% for listing in page_obj %}
+        {% include 'market/cards/_listing.html' with listing=listing %}
+      {% endfor %}
+    </div>
+    {% include 'market/_pagination.html' %}
+  {% else %}
+    <p class="market-empty">На продаже пока ничего нет.</p>
+  {% endif %}
+{% endblock %}

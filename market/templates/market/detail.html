@@ -1,0 +1,88 @@
+{% extends 'market/base_market.html' %}
+
+{% block extra_filters %}{% endblock %}
+
+{% block content %}
+  <article class="market-detail" data-listing-id="{{ listing.id }}" data-listing-type="{{ listing.type }}"{% if listing.type == 'auction' %} data-auction-start="{{ listing.auction_start|date:'c' }}" data-auction-end="{{ listing.auction_end|date:'c' }}"{% endif %}>
+    <header class="market-detail__header">
+      <h1 class="market-detail__title">{{ listing.title|default:listing.item.title }}</h1>
+      <span class="market-detail__category">{{ listing.get_category_display }}</span>
+      <div class="market-detail__meta">
+        <span>Продавец: {{ listing.seller.get_username }}</span>
+        <span>Размещено: {{ listing.created_at|date:'d.m.Y H:i' }}</span>
+      </div>
+      <div class="market-detail__actions">
+        <a class="ios-button" href="/messages/start/?to={{ listing.seller_id }}&amp;item={{ listing.id }}">Написать</a>
+        <a class="ios-button" href="{{ back_url }}">К списку</a>
+      </div>
+    </header>
+
+    <div class="market-detail__content">
+      <div class="market-detail__media">
+        {% with images=listing.item.images.all %}
+          {% if images %}
+            {% for image in images %}
+              <img src="{{ image.image.url }}" alt="{{ listing.title|default:listing.item.title }}" loading="lazy" />
+            {% endfor %}
+          {% else %}
+            <div class="market-card__placeholder market-detail__placeholder">⧉</div>
+          {% endif %}
+        {% endwith %}
+        {% if listing.type == 'auction' %}
+          <div class="market-detail__timer" data-auction-timer-wrap>
+            <span class="market-detail__timer-label" data-auction-timer-label>до завершения</span>
+            <span class="market-detail__timer-value" data-auction-timer data-auction-timer-mode="detail">—</span>
+          </div>
+        {% endif %}
+      </div>
+      <div class="market-detail__info">
+        {% if listing.type == 'shop' %}
+          <p class="market-detail__price">Цена: {{ listing.price }} ₽</p>
+        {% elif listing.type == 'wanted' %}
+          <p class="market-detail__price">Готов купить за: {{ listing.price }} ₽</p>
+        {% elif listing.type == 'free' %}
+          <p class="market-detail__label">Отдают бесплатно</p>
+        {% elif listing.type == 'swap' %}
+          <div class="market-detail__section">
+            <h2>Пожелания по обмену</h2>
+            <p>{{ listing.swap_wishlist|default:'—' }}</p>
+          </div>
+        {% elif listing.type == 'auction' %}
+          <div class="market-detail__section market-detail__section--auction">
+            <p>Старт: {{ listing.auction_start|date:'d.m.Y H:i' }}</p>
+            <p>Окончание: {{ listing.auction_end|date:'d.m.Y H:i' }}</p>
+            <p>Текущая цена: {{ listing.current_price|default:listing.auction_start_price }} ₽</p>
+            <p>Шаг: {{ listing.auction_step }} ₽</p>
+            <p>Минимальная цена: {{ listing.auction_min_price }} ₽</p>
+          </div>
+        {% endif %}
+
+        {% if listing.description %}
+          <div class="market-detail__section">
+            <h2>Описание</h2>
+            <p>{{ listing.description }}</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if listing.type == 'auction' %}
+      <section class="market-detail__bids">
+        <h2>История ставок</h2>
+        {% if listing.bids.exists %}
+          <ul>
+            {% for bid in listing.bids.all %}
+              <li>
+                <span>{{ bid.created_at|date:'d.m.Y H:i' }}</span>
+                <span>{{ bid.bidder.get_username }}</span>
+                <span>{{ bid.amount }} ₽</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>Ставок пока нет.</p>
+        {% endif %}
+      </section>
+    {% endif %}
+  </article>
+{% endblock %}

@@ -1,0 +1,20 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/terms.css' %}" />
+</head>
+<body class="terms-body">
+  <main class="terms-container">
+    <h1>Пользовательское соглашение сервиса SAVETORY</h1>
+    <p class="terms-version">Версия: {{ terms_version }}</p>
+    {% include 'includes/terms_content.html' %}
+
+    <p class="terms-note">Чтобы продолжить работу с сервисом, примите актуальную редакцию соглашения в модальном окне.</p>
+  </main>
+</body>
+</html>

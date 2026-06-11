@@ -1,0 +1,108 @@
+{% extends 'market/base_market.html' %}
+{% block extra_filters %}
+  <div class="market-filter-group">
+    <label class="sr-only" for="orderSelect">Сортировка</label>
+    <select id="orderSelect" name="order" class="market-filter" onchange="this.form.submit()">
+      <option value="-date"{% if order == '-date' %} selected{% endif %}>Сначала новые</option>
+      <option value="date"{% if order == 'date' %} selected{% endif %}>Сначала старые</option>
+      {% if allow_price_order %}
+        <option value="price"{% if order == 'price' %} selected{% endif %}>По возрастанию цены</option>
+        <option value="-price"{% if order == '-price' %} selected{% endif %}>По убыванию цены</option>
+      {% endif %}
+    </select>
+    {% if active_type == 'auction' %}
+      <label class="sr-only" for="stateSelect">Статус</label>
+      <select id="stateSelect" name="state" class="market-filter" onchange="this.form.submit()">
+        <option value=""{% if not state %} selected{% endif %}>Все аукционы</option>
+        <option value="active"{% if state == 'active' %} selected{% endif %}>Идут сейчас</option>
+        <option value="upcoming"{% if state == 'upcoming' %} selected{% endif %}>Ожидаются</option>
+        <option value="ended"{% if state == 'ended' %} selected{% endif %}>Завершены</option>
+      </select>
+    {% endif %}
+    <button type="submit" class="ios-button market-filter-apply">Найти</button>
+  </div>
+{% endblock %}
+
+{% block content %}
+  {% if page_obj.object_list %}
+    <div class="market-grid">
+      {% for listing in page_obj %}
+        <article class="market-card" data-listing-id="{{ listing.id }}" data-listing-type="{{ listing.type }}"{% if listing.type == 'auction' %} data-auction-start="{{ listing.auction_start|date:'c' }}" data-auction-end="{{ listing.auction_end|date:'c' }}"{% endif %}>
+          <div class="market-card__media">
+            {% if listing.type == 'auction' %}
+              <div class="market-card__timer-overlay">
+                <span class="market-card__timer-chip" data-auction-timer data-auction-timer-mode="card">—</span>
+              </div>
+            {% endif %}
+            {% with primary=listing.item.images.all|first %}
+              {% if primary %}
+                <img src="{{ primary.image.url }}" alt="{{ listing.title|default:listing.item.title }}" loading="lazy" />
+              {% else %}
+                <div class="market-card__placeholder">⧉</div>
+              {% endif %}
+            {% endwith %}
+          </div>
+          <div class="market-card__body">
+            <h3 class="market-card__title">{{ listing.title|default:listing.item.title }}</h3>
+            <p class="market-card__owner">Продавец: {{ listing.seller.get_username }}</p>
+            <p class="market-card__date">{{ listing.created_at|date:'d.m.Y H:i' }}</p>
+            {% if listing.type == 'shop' %}
+              <p class="market-card__price">Цена: {{ listing.price }} ₽</p>
+            {% elif listing.type == 'wanted' %}
+              <p class="market-card__price">Готов купить за: {{ listing.price }} ₽</p>
+            {% elif listing.type == 'swap' %}
+              <div class="market-card__swap-wrap">
+                <p class="market-card__swap" data-collapsible>{{ listing.swap_wishlist|default:'—' }}</p>
+                {% if listing.swap_wishlist|length > 120 %}
+                  <button type="button" class="market-card__toggle" data-collapsible-toggle>Показать ещё</button>
+                {% endif %}
+              </div>
+            {% elif listing.type == 'free' %}
+              <p class="market-card__label">Отдают бесплатно</p>
+            {% elif listing.type == 'auction' %}
+              <div class="market-card__auction">
+                <p class="market-card__price">Текущая цена: {{ listing.current_price|default:listing.auction_start_price }} ₽</p>
+                <p class="market-card__timer" data-auction-timer data-auction-timer-mode="body">—</p>
+                {% if listing.auction_start and listing.auction_end %}
+                  {% if listing.auction_start > now %}
+                    <span class="market-card__badge">Ожидает старта</span>
+                  {% elif listing.auction_end <= now %}
+                    <span class="market-card__badge market-card__badge--ended">Завершён</span>
+                  {% endif %}
+                {% endif %}
+              </div>
+            {% endif %}
+          </div>
+          <div class="market-card__actions">
+            <a class="ios-button" href="{% url 'market_listing_detail' listing.id %}">Подробнее</a>
+            <a class="ios-button" href="/messages/start/?to={{ listing.seller_id }}&amp;item={{ listing.id }}">Написать</a>
+          </div>
+          {% if listing.type == 'auction' and listing.auction_start and listing.auction_end and listing.auction_end > now %}
+            {% if request.user.is_authenticated and listing.seller_id != request.user.id and listing.auction_start <= now %}
+              {% with min_bid=listing.get_minimum_bid_amount %}
+                <form class="market-card__bid" data-auction-form>
+                  <input type="hidden" name="listing_id" value="{{ listing.id }}" />
+                  <label>Ваша ставка
+                    <input type="number" step="0.01" min="{{ min_bid|default:'' }}" name="amount" value="{{ min_bid|default:'' }}" required />
+                  </label>
+                  <button type="submit" class="ios-button">Сделать ставку</button>
+                </form>
+              {% endwith %}
+            {% endif %}
+          {% endif %}
+        </article>
+      {% endfor %}
+    </div>
+    <nav class="market-pagination" aria-label="Страницы">
+      {% if page_obj.has_previous %}
+        <a class="market-page-link" href="?page={{ page_obj.previous_page_number }}&amp;q={{ query }}&amp;order={{ order }}{% if state %}&amp;state={{ state }}{% endif %}">Назад</a>
+      {% endif %}
+      <span class="market-page-current">Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a class="market-page-link" href="?page={{ page_obj.next_page_number }}&amp;q={{ query }}&amp;order={{ order }}{% if state %}&amp;state={{ state }}{% endif %}">Вперёд</a>
+      {% endif %}
+    </nav>
+  {% else %}
+    <p class="market-empty">Пока нет объявлений.</p>
+  {% endif %}
+{% endblock %}
