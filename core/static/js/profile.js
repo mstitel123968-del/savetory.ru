@@ -32,21 +32,123 @@
     };
   }
 
+  const AVATAR_FIT_CLASSES = ['avatar-img--landscape', 'avatar-img--portrait', 'avatar-img--square'];
+
+  function updateAvatarImageFit(img){
+    if (!img) return;
+    const width = img.naturalWidth || 0;
+    const height = img.naturalHeight || 0;
+    img.classList.remove(...AVATAR_FIT_CLASSES);
+    if (!width || !height || Math.abs(width - height) <= 1){
+      img.classList.add('avatar-img--square');
+    } else if (height > width){
+      img.classList.add('avatar-img--portrait');
+    } else {
+      img.classList.add('avatar-img--landscape');
+    }
+  }
+
+  function prepareAvatarImage(img){
+    if (!img) return;
+    img.classList.add('avatar-img');
+    if (!img.dataset.avatarFitBound){
+      img.dataset.avatarFitBound = '1';
+      img.addEventListener('load', ()=>{
+        updateAvatarImageFit(img);
+        if (img.__avatarRequestedPos){
+          applyAvatarStyles(img, img.__avatarRequestedPos);
+        }
+        img.dispatchEvent(new CustomEvent('avatarfitchange'));
+      });
+    }
+    updateAvatarImageFit(img);
+  }
+
+  function setAvatarImageSource(img, source){
+    if (!img) return;
+    prepareAvatarImage(img);
+    img.classList.remove(...AVATAR_FIT_CLASSES);
+    if (source){
+      if (img.getAttribute('src') !== source){
+        img.src = source;
+      }
+      updateAvatarImageFit(img);
+    } else {
+      img.removeAttribute('src');
+    }
+  }
+
+  function getAvatarViewport(img){
+    return img ? img.closest('.avatar-box, .avatar-wrap') : null;
+  }
+
+  function getAvatarMetrics(img){
+    const viewport = getAvatarViewport(img);
+    if (!img || !viewport) return null;
+    const viewportWidth = viewport.clientWidth || 0;
+    const viewportHeight = viewport.clientHeight || 0;
+    if (!viewportWidth || !viewportHeight) return null;
+
+    const naturalWidth = img.naturalWidth || 0;
+    const naturalHeight = img.naturalHeight || 0;
+    let imageWidth = img.offsetWidth || 0;
+    let imageHeight = img.offsetHeight || 0;
+
+    if ((!imageWidth || !imageHeight) && naturalWidth && naturalHeight){
+      if (naturalHeight > naturalWidth){
+        imageWidth = viewportWidth;
+        imageHeight = viewportWidth * (naturalHeight / naturalWidth);
+      } else if (naturalWidth > naturalHeight){
+        imageHeight = viewportHeight;
+        imageWidth = viewportHeight * (naturalWidth / naturalHeight);
+      } else {
+        imageWidth = viewportWidth;
+        imageHeight = viewportHeight;
+      }
+    }
+
+    if (!imageWidth || !imageHeight){
+      imageWidth = viewportWidth;
+      imageHeight = viewportHeight;
+    }
+
+    return { viewportWidth, viewportHeight, imageWidth, imageHeight };
+  }
+
+  function clampAvatarPosForImage(img, pos){
+    const normalized = normalizeAvatarPos(pos);
+    const metrics = getAvatarMetrics(img);
+    if (!metrics) return normalized;
+
+    const scale = normalized.scale / 100;
+    const scaledWidth = metrics.imageWidth * scale;
+    const scaledHeight = metrics.imageHeight * scale;
+    const maxOffsetX = scaledWidth <= metrics.viewportWidth ? 0 : (scaledWidth - metrics.viewportWidth) / 2;
+    const maxOffsetY = scaledHeight <= metrics.viewportHeight ? 0 : (scaledHeight - metrics.viewportHeight) / 2;
+    const requestedOffsetX = ((normalized.x - 50) / 100) * metrics.imageWidth;
+    const requestedOffsetY = ((normalized.y - 50) / 100) * metrics.imageHeight;
+    const offsetX = clamp(requestedOffsetX, -maxOffsetX, maxOffsetX);
+    const offsetY = clamp(requestedOffsetY, -maxOffsetY, maxOffsetY);
+
+    return {
+      x: metrics.imageWidth ? clamp(50 + (offsetX / metrics.imageWidth) * 100, 0, 100) : 50,
+      y: metrics.imageHeight ? clamp(50 + (offsetY / metrics.imageHeight) * 100, 0, 100) : 50,
+      scale: normalized.scale,
+    };
+  }
+
   function applyAvatarStyles(img, pos){
-    if (!img || !pos) return;
-    const x = `${pos.x}%`;
-    const y = `${pos.y}%`;
-    img.style.objectFit = 'cover';
-    img.style.objectPosition = `${x} ${y}`;
-    img.style.width = '100%';
-    img.style.height = '100%';
-    img.style.maxWidth = 'none';
-    img.style.maxHeight = 'none';
-    img.style.setProperty('--avatar-pos-x', x);
-    img.style.setProperty('--avatar-pos-y', y);
-    img.style.setProperty('--avatar-scale', (pos.scale / 100).toFixed(3));
-    img.style.setProperty('--avatar-origin-x', x);
-    img.style.setProperty('--avatar-origin-y', y);
+    if (!img || !pos) return normalizeAvatarPos(pos);
+    img.__avatarRequestedPos = normalizeAvatarPos(pos);
+    prepareAvatarImage(img);
+    const normalized = clampAvatarPosForImage(img, pos);
+    const metrics = getAvatarMetrics(img);
+    const offsetX = metrics ? ((normalized.x - 50) / 100) * metrics.imageWidth : 0;
+    const offsetY = metrics ? ((normalized.y - 50) / 100) * metrics.imageHeight : 0;
+    img.style.setProperty('--avatar-translate-x', `${offsetX.toFixed(3)}px`);
+    img.style.setProperty('--avatar-translate-y', `${offsetY.toFixed(3)}px`);
+    img.style.setProperty('--avatar-scale', (normalized.scale / 100).toFixed(3));
+    return normalized;
   }
 
   function isSafeExternalUrl(value){
@@ -129,14 +231,14 @@
     const placeholder = $('.avatar-placeholder');
     const pos = normalizeAvatarPos(profile.avatar_pos);
     if (avatar){
-      applyAvatarStyles(avatar, pos);
       if (profile.avatar_data){
-        avatar.src = profile.avatar_data;
+        setAvatarImageSource(avatar, profile.avatar_data);
+        applyAvatarStyles(avatar, pos);
         avatar.style.display = 'block';
         if (placeholder) placeholder.style.display = 'none';
         if (avatarWrap) avatarWrap.classList.add('has-img');
       } else {
-        avatar.removeAttribute('src');
+        setAvatarImageSource(avatar, '');
         avatar.style.display = 'none';
         if (placeholder) placeholder.style.display = '';
         if (avatarWrap) avatarWrap.classList.remove('has-img');
@@ -161,7 +263,7 @@
   async function compressImage(file){
     const data = await fileToDataURL(file);
     if (!file.type.startsWith('image/')) return data;
-    const shouldNormalizeWithCanvas = file.type === 'image/png' || file.size > IMG_MAX_BYTES;
+    const shouldNormalizeWithCanvas = file.size > IMG_MAX_BYTES;
     if (!shouldNormalizeWithCanvas){
       return data;
     }
@@ -249,16 +351,24 @@
 
     function syncAvatarPreview(){
       if (!avatarBox || !prev) return;
-      applyAvatarStyles(prev, avatarPos);
-      if (zoomValueEl) zoomValueEl.textContent = `${Math.round(avatarPos.scale)}%`;
       if (draftAvatarData){
-        prev.src = draftAvatarData;
+        setAvatarImageSource(prev, draftAvatarData);
         avatarBox.classList.add('has-photo');
+        avatarPos = applyAvatarStyles(prev, avatarPos);
       } else {
-        prev.removeAttribute('src');
+        setAvatarImageSource(prev, '');
         avatarBox.classList.remove('has-photo');
+        avatarPos = normalizeAvatarPos(avatarPos);
       }
+      if (zoomValueEl) zoomValueEl.textContent = `${Math.round(avatarPos.scale)}%`;
       controls.forEach((btn)=>{ btn.disabled = !draftAvatarData; });
+    }
+
+    if (prev){
+      prev.addEventListener('avatarfitchange', ()=>{
+        if (!draftAvatarData) return;
+        avatarPos = applyAvatarStyles(prev, avatarPos);
+      });
     }
 
     function open(){
@@ -343,6 +453,7 @@
           payload[k] = el ? el.value.trim() : '';
         });
         payload.avatar_data = draftAvatarData || '';
+        avatarPos = draftAvatarData ? applyAvatarStyles(prev, avatarPos) : normalizeAvatarPos(avatarPos);
         payload.avatar_pos = avatarPos;
 
         const { resp, data } = await api('/api/profile/', {
