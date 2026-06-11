@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from core.models import Profile, Rubric
+from core.models import ArchiveState, Profile, Rubric
 
 
 class ArchiveViewTests(TestCase):
@@ -31,6 +31,70 @@ class LandingRedirectTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.headers["Location"], reverse("core:archive"))
+
+
+class PublicCollectionTests(TestCase):
+    def setUp(self) -> None:
+        User = get_user_model()
+        self.user = User.objects.create_user("collector", password="pass1234")
+        Profile.objects.create(user=self.user, terms_version_accepted=settings.TERMS_VERSION)
+        ArchiveState.objects.create(
+            user=self.user,
+            data={
+                "rubrics": [
+                    {
+                        "id": "rubric-1",
+                        "name": "Paintings",
+                        "publicEnabled": True,
+                        "publicSlug": "paintings",
+                        "mode": "file",
+                        "fields": [
+                            {"id": "photo", "label": "Photo", "type": "image"},
+                            {"id": "title", "label": "Title", "type": "text"},
+                            {"id": "description", "label": "Description", "type": "textarea"},
+                        ],
+                        "files": [
+                            {
+                                "id": "file-1",
+                                "status": "sell",
+                                "values": {
+                                    "photo": {"items": [{"id": "img-1", "src": "data:image/png;base64,abc"}]},
+                                    "title": "Sunset",
+                                    "description": "Oil on canvas",
+                                    "private_note": "hidden",
+                                },
+                            }
+                        ],
+                    },
+                    {
+                        "id": "rubric-2",
+                        "name": "Private",
+                        "publicEnabled": False,
+                        "publicSlug": "private",
+                        "mode": "file",
+                        "fields": [{"id": "title", "label": "Title", "type": "text"}],
+                        "files": [{"id": "file-2", "values": {"title": "Secret"}}],
+                    },
+                ]
+            },
+        )
+
+    def test_public_collection_renders_allowed_fields(self) -> None:
+        response = self.client.get(reverse("core:public-collection", args=["collector", "paintings"]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Paintings")
+        self.assertContains(response, "publicCollectionData")
+        self.assertContains(response, "Sunset")
+        self.assertContains(response, "Готов продать")
+        self.assertContains(response, "Oil on canvas")
+        self.assertNotContains(response, "hidden")
+
+    def test_private_collection_is_unavailable(self) -> None:
+        response = self.client.get(reverse("core:public-collection", args=["collector", "private"]))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertContains(response, "Коллекция недоступна", status_code=404)
 
 
 class ArchiveApiModerationTests(TestCase):

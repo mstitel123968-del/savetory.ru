@@ -1,0 +1,21 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Коллекция недоступна</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+</head>
+<body class="public-collection-page">
+  <main class="public-collection public-collection--center">
+    <section class="public-collection__empty public-collection__empty--unavailable">
+      <h1>Коллекция недоступна</h1>
+      <p>Владелец мог закрыть публичный доступ или изменить ссылку.</p>
+      <a class="side-btn public-collection__home" href="/">На главную</a>
+    </section>
+  </main>
+  <script src="{% static 'js/prefs.js' %}"></script>
+</body>
+</html>

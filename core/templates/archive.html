@@ -66,6 +66,7 @@
   {% include 'includes/terms_modal.html' %}
 
   <script src="{% static 'js/nav.js' %}"></script>
+  <script>window.TrezoUser = { username: "{{ request.user.username|escapejs }}" };</script>
   <script src="{% static 'js/search.js' %}"></script>
   <script src="{% static 'js/archive.js' %}"></script>
   <script src="{% static 'js/support-widget.js' %}"></script>

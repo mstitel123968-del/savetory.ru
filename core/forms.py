@@ -45,7 +45,7 @@ class RubricForm(forms.ModelForm):
 
     class Meta:
         model = Rubric
-        fields = ('name', 'slug', 'is_text_mode', 'field_schema')
+        fields = ('name', 'slug', 'is_public', 'public_slug', 'is_text_mode', 'field_schema')
         widgets = {
             'field_schema': forms.Textarea(attrs={'rows': 3}),
         }
@@ -60,9 +60,13 @@ class RubricForm(forms.ModelForm):
 class ArchiveFileForm(forms.ModelForm):
     """Captures archive file metadata mirroring the Java DTO."""
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['status'].required = False
+
     class Meta:
         model = ArchiveFile
-        fields = ('rubric', 'title', 'data')
+        fields = ('rubric', 'title', 'status', 'data')
         widgets = {
             'rubric': forms.HiddenInput(),
             'data': forms.Textarea(attrs={'rows': 3}),
@@ -73,6 +77,9 @@ class ArchiveFileForm(forms.ModelForm):
         if title:
             moderation.ensure_text_allowed(title, field='title')
         return title
+
+    def clean_status(self):
+        return self.cleaned_data.get('status') or ArchiveFile.Status.KEEP
 
     def clean_data(self):
         data = self.cleaned_data.get('data')

@@ -9,6 +9,7 @@ app_name = 'core'
 urlpatterns = [
     path('', views.landing, name='landing'),
     path('archive/', views.archive, name='archive'),
+    path('u/<str:username>/<str:rubric_slug>/', views.public_collection, name='public-collection'),
     path('profile/', views.profile, name='profile'),
     path('settings/', views.settings, name='settings'),
     path('terms/', views.terms, name='terms'),

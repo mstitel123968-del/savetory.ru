@@ -162,6 +162,23 @@
 
     mountPasswordTools(regPass, regPass2, regPassErr);
 
+    function getAuthRedirectUrl(){
+      const raw = modal ? String(modal.dataset.authRedirect || '') : '';
+      if (raw && raw.startsWith('/') && !raw.startsWith('//')){
+        return raw;
+      }
+      return '/archive/';
+    }
+
+    function activateTab(target){
+      if (!target) return;
+      tabs.forEach((tab)=>{
+        const isActive = tab.getAttribute('data-tab') === target;
+        tab.classList.toggle('active', isActive);
+      });
+      tabContents.forEach((tc)=>tc.classList.toggle('active', tc.id === target));
+    }
+
     const regTermsModal = document.getElementById('registrationTermsModal');
     const regTermsDialog = regTermsModal ? regTermsModal.querySelector('.reg-terms-modal__dialog') : null;
     const regTermsError = regTermsModal ? regTermsModal.querySelector('.reg-terms-modal__error') : null;
@@ -233,7 +250,7 @@
 
         closeRegistrationTermsModal();
         hideModal();
-        window.location.assign('/archive/');
+        window.location.assign(getAuthRedirectUrl());
       } catch (err){
         console.error('[auth] register request error after terms accept', err);
         showTermsModalError('Не удалось завершить регистрацию. Попробуйте ещё раз.');
@@ -348,17 +365,20 @@
       debounceTimer = setTimeout(runAvailabilityCheck, 350);
     }
 
-    openBtns.forEach((btn)=>btn.addEventListener('click', showModal));
+    openBtns.forEach((btn)=>btn.addEventListener('click', ()=>{
+      const targetTab = btn.getAttribute('data-auth-tab');
+      if (targetTab){
+        activateTab(targetTab);
+      }
+      showModal();
+    }));
     if (modal){
       window.addEventListener('click', (e)=>{ if (e.target === modal) hideModal(); });
     }
 
     tabs.forEach((tab)=>{
       tab.addEventListener('click', ()=>{
-        tabs.forEach((t)=>t.classList.remove('active'));
-        tab.classList.add('active');
-        const target = tab.getAttribute('data-tab');
-        tabContents.forEach((tc)=>tc.classList.toggle('active', tc.id === target));
+        activateTab(tab.getAttribute('data-tab'));
       });
     });
 
@@ -394,7 +414,7 @@
           }
 
           hideModal();
-          window.location.assign('/archive/');
+          window.location.assign(getAuthRedirectUrl());
         } catch (err){
           console.error('[auth] login request error', err);
           if (loginErr) loginErr.textContent = 'Неверные логин или пароль';

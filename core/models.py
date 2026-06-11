@@ -69,6 +69,8 @@ class Rubric(models.Model):
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='rubrics')
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255)
+    is_public = models.BooleanField(default=False)
+    public_slug = models.SlugField(max_length=255, blank=True, default='', allow_unicode=True, db_index=True)
     is_text_mode = models.BooleanField(default=False)
     field_schema = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -88,6 +90,13 @@ class Rubric(models.Model):
 class ArchiveFile(models.Model):
     """Stores archive items, replacing the Java ArchiveFile entity."""
 
+    class Status(models.TextChoices):
+        KEEP = 'keep', 'Храню'
+        SELL = 'sell', 'Готов продать'
+        EXCHANGE = 'exchange', 'Готов обменять'
+        SEARCH = 'search', 'Ищу такой же'
+        SOLD = 'sold', 'Продано'
+
     rubric = models.ForeignKey(Rubric, on_delete=models.CASCADE, related_name='files')
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -98,6 +107,7 @@ class ArchiveFile(models.Model):
     normalized_title = models.CharField(max_length=255, blank=True, default='')
     content_hash = models.CharField(max_length=64, blank=True, default='')
     data = models.JSONField(default=dict)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.KEEP)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

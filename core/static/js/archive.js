@@ -807,6 +807,150 @@
     }
   ];
 
+  const FILE_STATUS_OPTIONS = [
+    { value: 'keep', label: 'Храню' },
+    { value: 'sell', label: 'Готов продать' },
+    { value: 'exchange', label: 'Готов обменять' },
+    { value: 'search', label: 'Ищу такой же' },
+    { value: 'sold', label: 'Продано' }
+  ];
+  const FILE_STATUS_LABELS = FILE_STATUS_OPTIONS.reduce((acc, item) => {
+    acc[item.value] = item.label;
+    return acc;
+  }, {});
+
+  function normalizeFileStatus(value){
+    const status = String(value || '').trim().toLowerCase();
+    return Object.prototype.hasOwnProperty.call(FILE_STATUS_LABELS, status) ? status : 'keep';
+  }
+
+  function getFileStatusLabel(status){
+    return FILE_STATUS_LABELS[normalizeFileStatus(status)] || FILE_STATUS_LABELS.keep;
+  }
+
+  function createStatusBadge(status, extraClass){
+    const normalized = normalizeFileStatus(status);
+    const badge = document.createElement('span');
+    badge.className = `status-badge status-badge--${normalized}`;
+    if (extraClass){
+      badge.classList.add(extraClass);
+    }
+    badge.textContent = getFileStatusLabel(normalized);
+    return badge;
+  }
+
+  function createStatusDropdown(currentValue, cleanupFns){
+    let value = normalizeFileStatus(currentValue);
+    const wrapper = document.createElement('div');
+    wrapper.className = 'file-status-select';
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'file-status-select__button';
+    button.setAttribute('aria-haspopup', 'listbox');
+    button.setAttribute('aria-expanded', 'false');
+
+    const buttonText = document.createElement('span');
+    buttonText.className = 'file-status-select__text';
+    const chevron = document.createElement('span');
+    chevron.className = 'file-status-select__chevron';
+    chevron.setAttribute('aria-hidden', 'true');
+    chevron.textContent = '⌄';
+    button.append(buttonText, chevron);
+
+    const list = document.createElement('div');
+    list.className = 'file-status-select__list';
+    list.setAttribute('role', 'listbox');
+    list.hidden = true;
+
+    function setValue(nextValue){
+      value = normalizeFileStatus(nextValue);
+      buttonText.textContent = getFileStatusLabel(value);
+      Array.from(list.children).forEach((option) => {
+        const selected = option.dataset.value === value;
+        option.classList.toggle('file-status-select__option--selected', selected);
+        option.setAttribute('aria-selected', selected ? 'true' : 'false');
+      });
+    }
+
+    function openList(){
+      list.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+    }
+
+    function closeList(){
+      list.hidden = true;
+      button.setAttribute('aria-expanded', 'false');
+    }
+
+    function toggleList(){
+      if (list.hidden){
+        openList();
+      } else {
+        closeList();
+      }
+    }
+
+    FILE_STATUS_OPTIONS.forEach((item) => {
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.className = 'file-status-select__option';
+      option.dataset.value = item.value;
+      option.setAttribute('role', 'option');
+      option.textContent = item.label;
+      option.addEventListener('click', () => {
+        setValue(item.value);
+        closeList();
+        button.focus();
+      });
+      list.appendChild(option);
+    });
+
+    button.addEventListener('click', toggleList);
+    wrapper.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape'){
+        closeList();
+        button.focus();
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp'){
+        event.preventDefault();
+        openList();
+        const options = Array.from(list.querySelectorAll('.file-status-select__option'));
+        const currentIndex = Math.max(0, options.findIndex((option) => option.dataset.value === value));
+        const nextIndex = event.key === 'ArrowDown'
+          ? Math.min(currentIndex + 1, options.length - 1)
+          : Math.max(currentIndex - 1, 0);
+        if (options[nextIndex]){
+          setValue(options[nextIndex].dataset.value);
+          options[nextIndex].focus();
+        }
+      } else if (event.key === 'Enter' || event.key === ' '){
+        if (document.activeElement === button){
+          event.preventDefault();
+          toggleList();
+        }
+      }
+    });
+
+    const handleOutsideClick = (event) => {
+      if (!wrapper.contains(event.target)){
+        closeList();
+      }
+    };
+    document.addEventListener('click', handleOutsideClick);
+    if (cleanupFns){
+      cleanupFns.push(() => document.removeEventListener('click', handleOutsideClick));
+    }
+
+    wrapper.append(button, list);
+    setValue(value);
+    return {
+      element: wrapper,
+      getValue(){
+        return value;
+      }
+    };
+  }
+
   function normalizeFieldDefinition(rawField, fallbackPrefix){
     if (!rawField || typeof rawField !== 'object'){
       return null;
@@ -1183,6 +1327,7 @@
           });
           return {
             id: file && file.id ? String(file.id) : createId('file'),
+            status: normalizeFileStatus(file && file.status),
             createdAt: file && file.createdAt ? Number(file.createdAt) : Date.now(),
             updatedAt: file && file.updatedAt ? Number(file.updatedAt) : null,
             values
@@ -1193,6 +1338,8 @@
           id: rubric && rubric.id ? String(rubric.id) : createId('rubric'),
           name: rubric && rubric.name ? String(rubric.name) : 'Новая рубрика',
           mode,
+          publicEnabled: Boolean(rubric && rubric.publicEnabled),
+          publicSlug: rubric && rubric.publicSlug ? String(rubric.publicSlug) : generatePublicSlug(rubric && rubric.name),
           fields,
           fieldOptions,
           removedFieldIds: Array.from(removedSet),
@@ -1536,6 +1683,57 @@
     return `${prefix}-${Math.random().toString(16).slice(2,8)}-${Date.now().toString(36)}`;
   }
 
+  function generatePublicSlug(value){
+    const source = String(value || '').trim().toLowerCase();
+    if (!source) return 'collection';
+    const normalized = source
+      .normalize('NFKD')
+      .replace(/[^\p{Letter}\p{Number}_-]+/gu, '-')
+      .replace(/[-_]{2,}/g, '-')
+      .replace(/^[-_]+|[-_]+$/g, '');
+    return normalized || 'collection';
+  }
+
+  function ensureUniquePublicSlug(slug, rubricId){
+    const base = generatePublicSlug(slug);
+    const used = new Set(
+      state.rubrics
+        .filter((item) => item && item.id !== rubricId)
+        .map((item) => generatePublicSlug(item.publicSlug || item.name))
+    );
+    let candidate = base;
+    let index = 2;
+    while (used.has(candidate)){
+      candidate = `${base}-${index}`;
+      index += 1;
+    }
+    return candidate;
+  }
+
+  function getPublicCollectionUrl(rubric){
+    if (!rubric) return '';
+    const slug = ensureUniquePublicSlug(rubric.publicSlug || rubric.name, rubric.id);
+    const owner = encodeURIComponent((window.TrezoUser && window.TrezoUser.username) || 'server-session');
+    return `${window.location.origin}/u/${owner}/${encodeURIComponent(slug)}/`;
+  }
+
+  async function copyTextToClipboard(text){
+    if (navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    const input = document.createElement('textarea');
+    input.value = text;
+    input.setAttribute('readonly', '');
+    input.style.position = 'fixed';
+    input.style.left = '-9999px';
+    document.body.appendChild(input);
+    input.select();
+    const copied = document.execCommand('copy');
+    input.remove();
+    return copied;
+  }
+
   function getRubric(id){
     return state.rubrics.find((item) => item.id === id) || null;
   }
@@ -1606,6 +1804,8 @@
       id: createId('rubric'),
       name,
       mode: 'file',
+      publicEnabled: false,
+      publicSlug: ensureUniquePublicSlug(name, null),
       fields: [],
       fieldOptions: [],
       removedFieldIds: [],
@@ -1819,6 +2019,7 @@
 
     const allowMedia = rubric.mode !== 'text';
     const photoField = allowMedia ? rubric.fields.find((field) => field.id === 'photo' && field.type === 'image') : null;
+    let inlineStatusBadge = null;
     if (photoField){
       const photoValue = getFieldValue(rubric, file, photoField);
       const thumb = document.createElement('div');
@@ -1832,15 +2033,21 @@
       } else {
         thumb.textContent = '⧉';
       }
+      thumb.appendChild(createStatusBadge(file.status, 'file-card__status'));
       btn.appendChild(thumb);
     } else {
       btn.classList.add('file-card--text-only');
+      inlineStatusBadge = createStatusBadge(file.status, 'file-card__status-inline');
     }
 
     const title = document.createElement('div');
     title.className = 'file-card__title';
     title.textContent = getDisplayName(rubric, file);
     btn.appendChild(title);
+
+    if (inlineStatusBadge){
+      btn.appendChild(inlineStatusBadge);
+    }
 
     if (selectionMode){
       const selector = document.createElement('span');
@@ -1980,6 +2187,73 @@
     rubricNameInput.value = rubric.name;
     nameRow.append(nameLabel, rubricNameInput);
     body.appendChild(nameRow);
+
+    const publicRow = document.createElement('div');
+    publicRow.className = 'rubric-public-settings';
+
+    const publicToggleLabel = document.createElement('label');
+    publicToggleLabel.className = 'rubric-public-settings__toggle';
+    const publicToggle = document.createElement('input');
+    publicToggle.type = 'checkbox';
+    publicToggle.checked = Boolean(rubric.publicEnabled);
+    const publicToggleText = document.createElement('span');
+    publicToggleText.textContent = 'Публичная коллекция';
+    publicToggleLabel.append(publicToggle, publicToggleText);
+
+    const slugLabel = document.createElement('label');
+    slugLabel.className = 'rubric-public-settings__slug';
+    slugLabel.textContent = 'Публичная ссылка';
+    const publicSlugInput = document.createElement('input');
+    publicSlugInput.type = 'text';
+    publicSlugInput.value = rubric.publicSlug || generatePublicSlug(rubric.name);
+    publicSlugInput.placeholder = 'my-collection';
+    slugLabel.appendChild(publicSlugInput);
+
+    const publicLinkPreview = document.createElement('div');
+    publicLinkPreview.className = 'rubric-public-settings__link';
+
+    const copyPublicLinkBtn = document.createElement('button');
+    copyPublicLinkBtn.type = 'button';
+    copyPublicLinkBtn.className = 'side-btn';
+    copyPublicLinkBtn.textContent = 'Скопировать ссылку';
+
+    function updatePublicLinkPreview(){
+      const nextSlug = ensureUniquePublicSlug(publicSlugInput.value || rubricNameInput.value || rubric.name, rubric.id);
+      publicLinkPreview.textContent = `${window.location.origin}/u/${encodeURIComponent((window.TrezoUser && window.TrezoUser.username) || 'server-session')}/${encodeURIComponent(nextSlug)}/`;
+      copyPublicLinkBtn.disabled = !publicToggle.checked;
+    }
+
+    publicSlugInput.addEventListener('input', () => {
+      publicSlugInput.dataset.touched = '1';
+      updatePublicLinkPreview();
+    });
+    rubricNameInput.addEventListener('input', () => {
+      if (!publicSlugInput.dataset.touched){
+        publicSlugInput.value = generatePublicSlug(rubricNameInput.value || rubric.name);
+      }
+      updatePublicLinkPreview();
+    });
+    publicSlugInput.addEventListener('change', () => {
+      publicSlugInput.dataset.touched = '1';
+      publicSlugInput.value = ensureUniquePublicSlug(publicSlugInput.value || rubricNameInput.value || rubric.name, rubric.id);
+      updatePublicLinkPreview();
+    });
+    publicToggle.addEventListener('change', updatePublicLinkPreview);
+    copyPublicLinkBtn.addEventListener('click', async () => {
+      publicSlugInput.value = ensureUniquePublicSlug(publicSlugInput.value || rubricNameInput.value || rubric.name, rubric.id);
+      updatePublicLinkPreview();
+      try {
+        await copyTextToClipboard(publicLinkPreview.textContent);
+        copyPublicLinkBtn.textContent = 'Ссылка скопирована';
+        setTimeout(() => { copyPublicLinkBtn.textContent = 'Скопировать ссылку'; }, 1600);
+      } catch (err) {
+        errorEl.textContent = 'Не удалось скопировать ссылку. Скопируйте её вручную из поля выше.';
+      }
+    });
+
+    publicRow.append(publicToggleLabel, slugLabel, publicLinkPreview, copyPublicLinkBtn);
+    body.appendChild(publicRow);
+    updatePublicLinkPreview();
 
     const intro = document.createElement('p');
     intro.textContent = 'Отключайте поля через чекбокс, удаляйте поле отдельной кнопкой. Удалённые поля исчезают из настроек.';
@@ -2412,7 +2686,10 @@
         }
       });
 
+      const nextPublicSlug = ensureUniquePublicSlug(publicSlugInput.value || newName, rubric.id);
       rubric.name = newName;
+      rubric.publicEnabled = Boolean(publicToggle.checked);
+      rubric.publicSlug = nextPublicSlug;
       rubric.fields = updatedFields;
       rubric.fieldOptions = allOptions;
       rubric.removedFieldIds = Array.from(removedForSave);
@@ -2470,6 +2747,14 @@
     const imageDraft = new Map();
     const imagePreviewRefs = new Map();
     const cleanupFns = [];
+
+    const statusBlock = document.createElement('div');
+    statusBlock.className = 'field-block file-status-field';
+    const statusLabel = document.createElement('label');
+    statusLabel.textContent = 'Статус';
+    const statusControl = createStatusDropdown(file && file.status, cleanupFns);
+    statusBlock.append(statusLabel, statusControl.element);
+    form.appendChild(statusBlock);
 
     rubric.fields.forEach((field) => {
       const block = document.createElement('div');
@@ -3171,7 +3456,11 @@
       }
     }
 
-    return { container, collect, setError, focusFirst, cleanup };
+    function getStatus(){
+      return normalizeFileStatus(statusControl.getValue());
+    }
+
+    return { container, collect, getStatus, setError, focusFirst, cleanup };
   }
 
   function openFileFormModal(rubricId, fileId){
@@ -3193,7 +3482,7 @@
         }
       }
     });
-    const { container, collect, setError, focusFirst } = formContext;
+    const { container, collect, getStatus, setError, focusFirst } = formContext;
     modal.body.innerHTML = '';
     modal.body.appendChild(container);
     modal.footer.innerHTML = '';
@@ -3216,10 +3505,12 @@
 
       if (isEdit && file){
         file.values = values;
+        file.status = getStatus();
         file.updatedAt = Date.now();
       } else {
         rubric.files.push({
           id: createId('file'),
+          status: getStatus(),
           createdAt: Date.now(),
           updatedAt: null,
           values
@@ -3936,7 +4227,15 @@
       const primaryFieldIds = new Set();
 
       let hasPrimary = false;
-      let hasBodyContent = false;
+      let hasBodyContent = true;
+
+      const statusRow = document.createElement('div');
+      statusRow.className = 'file-view__detail file-view__status';
+      const statusLabel = document.createElement('span');
+      statusLabel.className = 'file-view__label';
+      statusLabel.textContent = 'Статус';
+      statusRow.append(statusLabel, createStatusBadge(file.status, 'file-view__status-badge'));
+      body.appendChild(statusRow);
 
       rubric.fields.forEach((field) => {
         if (field.type === 'image'){
@@ -4137,7 +4436,7 @@
       }
       clearFormCleanup();
       const formContext = buildFileForm(rubric, file);
-      const { container, collect, setError, focusFirst } = formContext;
+      const { container, collect, getStatus, setError, focusFirst } = formContext;
       currentFormCleanup = formContext && typeof formContext.cleanup === 'function' ? formContext.cleanup : null;
       modal.body.innerHTML = '';
       modal.body.appendChild(container);
@@ -4172,6 +4471,7 @@
         }
         setError('');
         file.values = values;
+        file.status = getStatus();
         file.updatedAt = Date.now();
         persistAndRender();
         renderView();

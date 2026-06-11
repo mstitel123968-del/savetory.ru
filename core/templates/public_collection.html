@@ -1,0 +1,115 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/modal.css' %}" />
+</head>
+<body class="public-collection-page">
+  <aside class="sidebar public-sidebar">
+    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКЛад' %}
+    <nav class="side-nav">
+      {% if not request.user.is_authenticated %}
+        <button class="side-btn danger" type="button" data-open-auth data-auth-tab="register">Зарегистрироваться</button>
+      {% else %}
+        <a class="side-btn" href="{% url 'core:archive' %}">Ваш архив</a>
+      {% endif %}
+      <a class="side-btn" href="{% url 'core:news' %}">Тех. информация</a>
+    </nav>
+  </aside>
+
+  <main class="public-collection">
+    <header class="public-collection__titlebar">
+      <h1>{{ collection.name }}</h1>
+    </header>
+
+    {% if collection.cards %}
+      <section class="public-status-filter" aria-label="Фильтр по статусу">
+        <button class="side-btn public-status-filter__btn active" type="button" data-status-filter="all">Все</button>
+        <button class="side-btn public-status-filter__btn" type="button" data-status-filter="sell">Готов продать</button>
+        <button class="side-btn public-status-filter__btn" type="button" data-status-filter="exchange">Готов обменять</button>
+        <button class="side-btn public-status-filter__btn" type="button" data-status-filter="search">Ищу такой же</button>
+      </section>
+      <section class="public-collection__grid" aria-label="Карточки коллекции">
+        {% for card in collection.cards %}
+          <article class="public-card" role="button" tabindex="0" data-public-card-id="{{ card.id }}" data-status="{{ card.status }}">
+            {% if card.images %}
+              <div class="public-card__media">
+                <img src="{{ card.images.0.src }}" alt="{{ card.title }}" loading="lazy" />
+                {% if card.images|length > 1 %}
+                  <span class="public-card__badge">{{ card.images|length }} фото</span>
+                {% endif %}
+              </div>
+            {% else %}
+              <div class="public-card__media public-card__media--empty">
+                <span>{{ card.title|first|default:"" }}</span>
+              </div>
+            {% endif %}
+            <div class="public-card__body">
+              <span class="status-badge status-badge--{{ card.status }} public-card__status">{{ card.statusLabel }}</span>
+              <h2>{{ card.title }}</h2>
+              {% if card.details %}
+                <dl class="public-card__details">
+                  {% for detail in card.details %}
+                    {% if detail.value %}
+                      <div>
+                        <dt>{{ detail.label }}</dt>
+                        <dd>{{ detail.value|linebreaksbr }}</dd>
+                      </div>
+                    {% endif %}
+                  {% endfor %}
+                </dl>
+              {% endif %}
+            </div>
+          </article>
+        {% endfor %}
+      </section>
+    {% else %}
+      <section class="public-collection__empty">
+        <h2>В коллекции пока нет карточек</h2>
+        <p>Доступ уже открыт, но публичные карточки ещё не добавлены.</p>
+      </section>
+    {% endif %}
+  </main>
+
+  {{ collection|json_script:"publicCollectionData" }}
+  <div id="publicCollectionModalHost"></div>
+
+  <div id="authModal" class="modal" data-auth-redirect="{{ request.get_full_path|escape }}">
+    <div class="modal-content">
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Войти</button>
+        <button class="tab" data-tab="register">Регистрация</button>
+      </div>
+      <div class="tab-content active" id="login">
+        <input type="text" id="loginUser" placeholder="Логин">
+        <small id="loginAuthError" class="error"></small>
+        <input type="password" id="loginPass" placeholder="Пароль">
+        <button class="btn">Войти</button>
+      </div>
+      <div class="tab-content" id="register">
+        <input type="text" id="regLogin" placeholder="Логин">
+        <small id="loginError" class="error"></small>
+        <input type="password" id="regPass" placeholder="Пароль">
+        <input type="password" id="regPass2" placeholder="Повторите пароль">
+        <small id="passError" class="error"></small>
+        <input type="email" id="regEmail" placeholder="Введите ваш Email" aria-label="Введите ваш Email">
+        <small id="emailError" class="error"></small>
+
+        <div class="modal-footer">
+          <button id="registerSubmit" type="button" class="btn ios-button">Зарегистрироваться</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% include 'includes/registration_terms_modal.html' %}
+
+  <script src="{% static 'js/public_collection.js' %}"></script>
+  <script src="{% static 'js/modal.js' %}"></script>
+  <script src="{% static 'js/prefs.js' %}"></script>
+</body>
+</html>

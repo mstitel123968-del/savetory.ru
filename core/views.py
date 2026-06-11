@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import logging
+import re
+from urllib.parse import unquote
 
 from django.db import transaction
 
@@ -14,6 +16,7 @@ from django.core.exceptions import ValidationError
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils.text import slugify
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from django.views.decorators.csrf import ensure_csrf_cookie
@@ -24,6 +27,169 @@ from .forms import ArchiveFileForm, LoginForm, RegistrationForm, RubricForm
 from .models import ArchiveFile, ArchiveState, Profile, Review, Rubric
 
 logger = logging.getLogger("core.moderation")
+
+FILE_STATUS_LABELS = {
+    'keep': 'Храню',
+    'sell': 'Готов продать',
+    'exchange': 'Готов обменять',
+    'search': 'Ищу такой же',
+    'sold': 'Продано',
+}
+
+
+def _normalize_file_status(value) -> str:
+    status = str(value or '').strip().lower()
+    return status if status in FILE_STATUS_LABELS else 'keep'
+
+
+def _normalize_public_slug(value: str, fallback: str = '') -> str:
+    source = str(value or fallback or '').strip()
+    normalized = slugify(source, allow_unicode=True)
+    if not normalized:
+        normalized = re.sub(r'[^0-9A-Za-zА-Яа-яЁё_-]+', '-', source).strip('-_').lower()
+    return (normalized or 'collection')[:255]
+
+
+def _coerce_bool(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value == 1
+    if isinstance(value, str):
+        return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+    return False
+
+
+def _dedupe_public_slug(raw_slug: str, used_slugs: set[str], fallback: str = '') -> str:
+    base = _normalize_public_slug(raw_slug, fallback)
+    candidate = base
+    index = 2
+    while candidate in used_slugs:
+        suffix = f'-{index}'
+        candidate = f'{base[:255 - len(suffix)]}{suffix}'
+        index += 1
+    used_slugs.add(candidate)
+    return candidate
+
+
+def _normalize_public_rubric_state(state_data: dict) -> bool:
+    rubrics = state_data.get('rubrics')
+    if not isinstance(rubrics, list):
+        return False
+
+    changed = False
+    used_slugs: set[str] = set()
+    for rubric in rubrics:
+        if not isinstance(rubric, dict):
+            continue
+        current_slug = str(rubric.get('publicSlug') or rubric.get('slug') or '').strip()
+        fallback = str(rubric.get('name') or rubric.get('id') or 'collection')
+        normalized_slug = _dedupe_public_slug(current_slug, used_slugs, fallback)
+        if rubric.get('publicSlug') != normalized_slug:
+            rubric['publicSlug'] = normalized_slug
+            changed = True
+        if 'publicEnabled' not in rubric:
+            rubric['publicEnabled'] = False
+            changed = True
+        else:
+            normalized_enabled = _coerce_bool(rubric.get('publicEnabled'))
+            if rubric.get('publicEnabled') is not normalized_enabled:
+                rubric['publicEnabled'] = normalized_enabled
+                changed = True
+    return changed
+
+
+def _public_image_items(value) -> dict:
+    if not value:
+        return []
+    source = []
+    frame_width = value.get('frameWidth') if isinstance(value, dict) else None
+    frame_height = value.get('frameHeight') if isinstance(value, dict) else None
+
+    if isinstance(value, dict):
+        if isinstance(value.get('items'), list):
+            source = value.get('items') or []
+        elif value.get('src'):
+            source = [value]
+    elif isinstance(value, list):
+        source = value
+    elif isinstance(value, str):
+        source = [{'src': value}]
+
+    items = []
+    for item in source:
+        if isinstance(item, str):
+            src = item
+            item_id = src
+        elif isinstance(item, dict):
+            src = str(item.get('src') or '')
+            item_id = str(item.get('id') or src)
+        else:
+            continue
+        if src:
+            items.append({'id': item_id, 'src': src})
+    return {
+        'items': items,
+        'frameWidth': frame_width if isinstance(frame_width, (int, float)) and frame_width > 0 else None,
+        'frameHeight': frame_height if isinstance(frame_height, (int, float)) and frame_height > 0 else None,
+    }
+
+
+def _prepare_public_collection(rubric: dict) -> dict:
+    fields = [field for field in rubric.get('fields', []) if isinstance(field, dict) and field.get('id')]
+    field_map = {str(field.get('id')): field for field in fields}
+    files = rubric.get('files') if isinstance(rubric.get('files'), list) else []
+    photo_field = next((field for field in fields if field.get('type') == 'image'), None)
+    title_field = field_map.get('title')
+
+    cards = []
+    for file_item in files:
+        if not isinstance(file_item, dict):
+            continue
+        values = file_item.get('values') if isinstance(file_item.get('values'), dict) else {}
+        title = ''
+        if title_field:
+            raw_title = values.get(str(title_field.get('id')))
+            if raw_title is not None:
+                title = str(raw_title).strip()
+        if not title:
+            title = str(rubric.get('name') or 'Карточка')
+
+        status = _normalize_file_status(file_item.get('status'))
+        image_value = _public_image_items(values.get(str(photo_field.get('id'))) if photo_field else None)
+        details = []
+        for field in fields:
+            field_id = str(field.get('id') or '')
+            if not field_id or field.get('type') == 'image' or field_id == 'title':
+                continue
+            raw_value = values.get(field_id)
+            value = str(raw_value).strip() if raw_value is not None else ''
+            details.append({
+                'id': field_id,
+                'label': str(field.get('label') or 'Поле'),
+                'value': value,
+                'type': str(field.get('type') or 'text'),
+            })
+
+        cards.append({
+            'id': str(file_item.get('id') or ''),
+            'title': title,
+            'status': status,
+            'statusLabel': FILE_STATUS_LABELS[status],
+            'images': image_value['items'],
+            'imageFrame': {
+                'width': image_value['frameWidth'],
+                'height': image_value['frameHeight'],
+            },
+            'details': details,
+        })
+
+    return {
+        'name': str(rubric.get('name') or 'Коллекция'),
+        'slug': str(rubric.get('publicSlug') or ''),
+        'cards': cards,
+        'fields': fields,
+    }
 
 
 def _seo_context(
@@ -73,6 +239,46 @@ def archive(request: HttpRequest) -> HttpResponse:
             indexable=False,
             canonical_path=reverse('core:archive'),
         ),
+    )
+
+
+@ensure_csrf_cookie
+@never_cache
+def public_collection(request: HttpRequest, username: str, rubric_slug: str) -> HttpResponse:
+    user = User.objects.filter(username__iexact=username).first()
+    if not user:
+        return render(request, 'public_collection_unavailable.html', status=404)
+
+    state = ArchiveState.objects.filter(user=user).first()
+    state_data = state.data if state and isinstance(state.data, dict) else {'rubrics': []}
+    rubrics = state_data.get('rubrics') if isinstance(state_data.get('rubrics'), list) else []
+    requested_slug = _normalize_public_slug(unquote(rubric_slug))
+
+    rubric = None
+    for candidate in rubrics:
+        if not isinstance(candidate, dict):
+            continue
+        candidate_slug = _normalize_public_slug(str(candidate.get('publicSlug') or candidate.get('slug') or ''), str(candidate.get('name') or ''))
+        if candidate_slug == requested_slug:
+            rubric = candidate
+            break
+
+    if not rubric or not _coerce_bool(rubric.get('publicEnabled')):
+        return render(request, 'public_collection_unavailable.html', status=404)
+
+    collection = _prepare_public_collection(rubric)
+    return render(
+        request,
+        'public_collection.html',
+        {
+            'collection': collection,
+            **_seo_context(
+                request,
+                title=f"{collection['name']} - СКЛад",
+                description=f"Публичная коллекция {collection['name']}.",
+                indexable=True,
+            ),
+        },
     )
 
 
@@ -307,7 +513,11 @@ def profile_api(request: HttpRequest) -> JsonResponse:
 def archive_state_api(request: HttpRequest) -> JsonResponse:
     state, _ = ArchiveState.objects.get_or_create(user=request.user, defaults={'data': {'rubrics': []}})
     if request.method == 'GET':
-        return JsonResponse({'success': True, 'state': state.data if isinstance(state.data, dict) else {'rubrics': []}})
+        state_data = state.data if isinstance(state.data, dict) else {'rubrics': []}
+        if _normalize_public_rubric_state(state_data):
+            state.data = state_data
+            state.save(update_fields=['data', 'updated_at'])
+        return JsonResponse({'success': True, 'state': state_data})
 
     try:
         payload = json.loads(request.body.decode('utf-8') or '{}')
@@ -318,8 +528,22 @@ def archive_state_api(request: HttpRequest) -> JsonResponse:
     if not isinstance(state_payload, dict):
         return JsonResponse({'success': False, 'errors': {'state': ['Ожидается объект состояния']}}, status=400)
 
+    _normalize_public_rubric_state(state_payload)
     state.data = state_payload
     state.save(update_fields=['data', 'updated_at'])
+
+    profile, _ = Profile.objects.get_or_create(user=request.user)
+    rubrics = state_payload.get('rubrics') if isinstance(state_payload.get('rubrics'), list) else []
+    existing_rubrics = {str(item.pk): item for item in Rubric.objects.filter(profile=profile)}
+    for raw_rubric in rubrics:
+        if not isinstance(raw_rubric, dict):
+            continue
+        db_rubric = existing_rubrics.get(str(raw_rubric.get('id') or '').strip())
+        if not db_rubric:
+            continue
+        db_rubric.is_public = _coerce_bool(raw_rubric.get('publicEnabled'))
+        db_rubric.public_slug = str(raw_rubric.get('publicSlug') or '')[:255]
+        db_rubric.save(update_fields=['is_public', 'public_slug'])
     return JsonResponse({'success': True})
 
 
@@ -328,7 +552,7 @@ def archive_state_api(request: HttpRequest) -> JsonResponse:
 @never_cache
 def list_rubrics(request: HttpRequest) -> JsonResponse:
     profile, _ = Profile.objects.get_or_create(user=request.user)
-    rubrics = list(Rubric.objects.filter(profile=profile).values('id', 'name', 'slug', 'is_text_mode', 'field_schema'))
+    rubrics = list(Rubric.objects.filter(profile=profile).values('id', 'name', 'slug', 'is_public', 'public_slug', 'is_text_mode', 'field_schema'))
     return JsonResponse({'success': True, 'rubrics': rubrics})
 
 
@@ -337,7 +561,7 @@ def list_rubrics(request: HttpRequest) -> JsonResponse:
 @never_cache
 def list_rubric_files(request: HttpRequest, rubric_id: int) -> JsonResponse:
     files = list(
-        ArchiveFile.objects.filter(rubric_id=rubric_id, owner=request.user).values('id', 'rubric_id', 'title', 'data', 'created_at', 'updated_at')
+        ArchiveFile.objects.filter(rubric_id=rubric_id, owner=request.user).values('id', 'rubric_id', 'title', 'status', 'data', 'created_at', 'updated_at')
     )
     return JsonResponse({'success': True, 'files': files})
 
@@ -423,6 +647,8 @@ def update_archive_file(request: HttpRequest, file_id: int) -> JsonResponse:
 
     if 'title' in payload:
         archive_file.title = str(payload.get('title') or '')
+    if 'status' in payload:
+        archive_file.status = _normalize_file_status(payload.get('status'))
     if 'data' in payload and isinstance(payload.get('data'), dict):
         archive_file.data = payload.get('data')
     try:
