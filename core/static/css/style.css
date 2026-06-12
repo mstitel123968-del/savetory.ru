@@ -738,11 +738,11 @@ h1{margin:0 0 18px;font-size:20px}
 .file-card--text-only{align-items:flex-start;min-height:148px;text-align:left}
 .file-card--text-only .file-card__list{width:100%}
 .file-card--text-only .file-card__title{width:100%}
-.status-badge{display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;max-width:100%;padding:5px 10px;border-radius:999px;border:1px solid color-mix(in srgb,var(--accent) 28%,var(--card-border));background:color-mix(in srgb,var(--accent) 13%,var(--card));color:var(--text);font-size:12px;font-weight:700;line-height:1.2;white-space:normal;text-align:left}
-.status-badge--sell{border-color:color-mix(in srgb,#48d19a 45%,var(--card-border));background:color-mix(in srgb,#48d19a 18%,var(--card))}
-.status-badge--exchange{border-color:color-mix(in srgb,#8fa7ff 48%,var(--card-border));background:color-mix(in srgb,#8fa7ff 18%,var(--card))}
-.status-badge--search{border-color:color-mix(in srgb,#f7c76a 48%,var(--card-border));background:color-mix(in srgb,#f7c76a 18%,var(--card))}
-.status-badge--sold{border-color:color-mix(in srgb,var(--danger-fg) 40%,var(--card-border));background:color-mix(in srgb,var(--danger-bg) 76%,var(--card));color:var(--danger-fg)}
+.status-badge{display:inline-flex;align-items:center;justify-content:center;align-self:flex-start;max-width:100%;padding:5px 10px;border-radius:999px;border:1px solid #111;background:#fff;color:#111;font-size:12px;font-weight:700;line-height:1.2;white-space:normal;text-align:left}
+.status-badge--sell{border-color:#35c777;background:#35c777;color:#07140d}
+.status-badge--exchange{border-color:#4b7dff;background:#4b7dff;color:#fff}
+.status-badge--search{border-color:#f4c542;background:#f4c542;color:#191303}
+.status-badge--sold{border-color:#ef4444;background:#ef4444;color:#fff}
 .file-card__thumb .file-card__status{position:absolute;left:10px;top:10px;z-index:2;width:13px;height:13px;min-width:13px;max-width:13px;padding:0;border-radius:50%;font-size:0;line-height:0;color:transparent;white-space:nowrap;overflow:hidden;background:#fff;border-color:#111;box-shadow:0 2px 7px rgba(0,0,0,0.32)}
 .file-card__thumb .file-card__status.status-badge--sell{background:#35c777;border-color:#35c777}
 .file-card__thumb .file-card__status.status-badge--exchange{background:#4b7dff;border-color:#4b7dff}
