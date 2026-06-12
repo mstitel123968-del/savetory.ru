@@ -896,7 +896,6 @@
     const chevron = document.createElement('span');
     chevron.className = 'file-status-select__chevron';
     chevron.setAttribute('aria-hidden', 'true');
-    chevron.textContent = '⌄';
     button.append(buttonText, chevron);
 
     const list = document.createElement('div');
@@ -2142,7 +2141,6 @@
 
     const allowMedia = rubric.mode !== 'text' && archivePrefs.archiveThumbnails !== 'hidden';
     const photoField = allowMedia ? rubric.fields.find((field) => field.id === 'photo' && field.type === 'image') : null;
-    let inlineStatusBadge = null;
     if (photoField){
       const photoValue = getFieldValue(rubric, file, photoField);
       const thumb = document.createElement('div');
@@ -2156,21 +2154,15 @@
       } else {
         thumb.textContent = '⧉';
       }
-      thumb.appendChild(createStatusBadge(file.status, 'file-card__status'));
       btn.appendChild(thumb);
     } else {
       btn.classList.add('file-card--text-only');
-      inlineStatusBadge = createStatusBadge(file.status, 'file-card__status-inline');
     }
 
     const title = document.createElement('div');
     title.className = 'file-card__title';
     title.textContent = getDisplayName(rubric, file);
     btn.appendChild(title);
-
-    if (inlineStatusBadge){
-      btn.appendChild(inlineStatusBadge);
-    }
 
     const visibleFields = rubric.fields.filter((field) => (
       field &&

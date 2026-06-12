@@ -738,7 +738,7 @@ h1{margin:0 0 18px;font-size:20px}
 .file-add-tile,.file-card{border-radius:16px;padding:14px;border:1px dashed var(--btn-border);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:168px;text-align:center;cursor:pointer;transition:transform .14s ease,border-color .2s ease,box-shadow .2s ease,background-color .2s ease,color .2s ease}
 .file-add-tile{font-size:36px;color:var(--muted)}
 .file-add-tile:hover{transform:translateY(-4px);border-color:var(--accent);color:var(--accent);background:var(--btn-bg-hover)}
-.file-card{border-style:solid;align-items:stretch;justify-content:flex-start;gap:12px;padding:16px}
+.file-card{border-style:solid;align-items:stretch;justify-content:flex-start;gap:12px;padding:16px;position:relative}
 .file-card:hover{transform:translateY(-4px);box-shadow:0 24px 48px rgba(5,7,18,0.3)}
 .file-card--selectable{position:relative;padding-top:44px}
 .file-card--selected{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent),0 24px 48px rgba(5,7,18,0.28)}
@@ -755,12 +755,6 @@ h1{margin:0 0 18px;font-size:20px}
 .status-badge--exchange{border-color:#4b7dff;background:#4b7dff;color:#fff}
 .status-badge--search{border-color:#f4c542;background:#f4c542;color:#191303}
 .status-badge--sold{border-color:#ef4444;background:#ef4444;color:#fff}
-.file-card__thumb .file-card__status{position:absolute;left:10px;top:10px;z-index:2;width:13px;height:13px;min-width:13px;max-width:13px;padding:0;border-radius:50%;font-size:0;line-height:0;color:transparent;white-space:nowrap;overflow:hidden;background:#fff;border-color:#111;box-shadow:0 2px 7px rgba(0,0,0,0.32)}
-.file-card__thumb .file-card__status.status-badge--sell{background:#35c777;border-color:#35c777}
-.file-card__thumb .file-card__status.status-badge--exchange{background:#4b7dff;border-color:#4b7dff}
-.file-card__thumb .file-card__status.status-badge--search{background:#f4c542;border-color:#f4c542}
-.file-card__thumb .file-card__status.status-badge--sold{background:#ef4444;border-color:#ef4444}
-.file-card__status-inline{margin-top:-4px}
 body.archive-card-small .rubric-files-grid{grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:12px}
 body.archive-card-small .file-add-tile,
 body.archive-card-small .file-card{min-height:132px;padding:12px;border-radius:14px;gap:8px}
@@ -927,8 +921,8 @@ html.news-guest .news-card{border-radius:18px;width:100%}
 .file-status-select__button:hover{background:var(--btn-bg-hover);border-color:var(--btn-border)}
 .file-status-select__button:focus-visible{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 24%,transparent)}
 .file-status-select__text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.file-status-select__chevron{flex:0 0 auto;color:var(--muted);font-size:16px;line-height:1;transition:transform .2s ease}
-.file-status-select__button[aria-expanded="true"] .file-status-select__chevron{transform:rotate(180deg)}
+.file-status-select__chevron{flex:0 0 auto;width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;color:var(--muted);transform:rotate(45deg);transform-origin:center;transition:transform .2s ease}
+.file-status-select__button[aria-expanded="true"] .file-status-select__chevron{transform:rotate(225deg)}
 .file-status-select__list{position:absolute;z-index:50;top:calc(100% + 6px);left:0;right:0;display:flex;flex-direction:column;gap:4px;padding:6px;border:1px solid var(--input-border);border-radius:14px;background:color-mix(in srgb,var(--card) 96%,var(--bg));color:var(--text);box-shadow:0 18px 40px rgba(5,7,18,0.34);backdrop-filter:blur(18px)}
 .file-status-select__list[hidden]{display:none}
 .file-status-select__option{width:100%;border:0;border-radius:10px;padding:9px 10px;background:transparent;color:var(--text);text-align:left;font:inherit;cursor:pointer;transition:background-color .16s ease,color .16s ease}
