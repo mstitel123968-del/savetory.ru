@@ -31,6 +31,7 @@ urlpatterns = [
     path('api/archive/state/', views.archive_state_api, name='archive-state-api'),
     path('api/archive/rubrics/list/', views.list_rubrics, name='rubrics-list'),
     path('api/archive/rubrics/<int:rubric_id>/files/', views.list_rubric_files, name='rubric-files-list'),
+    path('api/archive/rubrics/<str:rubric_id>/export/<str:export_format>/', views.export_rubric, name='export-rubric'),
     path('api/archive/files/<int:file_id>/', views.update_archive_file, name='update-file'),
     path('api/archive/files/move/', views.move_archive_file, name='move-file'),
     path('api/archive/files/bulk-delete/', views.bulk_delete_archive_files, name='bulk-delete-files'),

@@ -23,6 +23,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from core import messages
+from core import exporters
 from .forms import ArchiveFileForm, LoginForm, RegistrationForm, RubricForm
 from .models import ArchiveFile, ArchiveState, Profile, Review, Rubric
 
@@ -564,6 +565,33 @@ def list_rubric_files(request: HttpRequest, rubric_id: int) -> JsonResponse:
         ArchiveFile.objects.filter(rubric_id=rubric_id, owner=request.user).values('id', 'rubric_id', 'title', 'status', 'data', 'created_at', 'updated_at')
     )
     return JsonResponse({'success': True, 'files': files})
+
+
+@login_required
+@require_GET
+@never_cache
+def export_rubric(request: HttpRequest, rubric_id: str, export_format: str) -> HttpResponse:
+    state, _ = ArchiveState.objects.get_or_create(user=request.user, defaults={'data': {'rubrics': []}})
+    state_data = state.data if isinstance(state.data, dict) else {'rubrics': []}
+    rubric = exporters.find_rubric(state_data, rubric_id)
+    if rubric is None:
+        return JsonResponse({'success': False, 'errors': {'rubric': ['Рубрика не найдена.']}}, status=404)
+
+    rubric_name = str(rubric.get('name') or 'rubric')
+    export_format = str(export_format or '').strip().lower()
+    if export_format == 'xlsx':
+        content = exporters.build_xlsx(rubric, FILE_STATUS_LABELS)
+        filename = exporters.safe_filename(rubric_name, 'xlsx')
+        return exporters.file_response(
+            content,
+            filename,
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+    if export_format == 'pdf':
+        content = exporters.build_pdf(rubric, FILE_STATUS_LABELS)
+        filename = exporters.safe_filename(rubric_name, 'pdf')
+        return exporters.file_response(content, filename, 'application/pdf')
+    return JsonResponse({'success': False, 'errors': {'format': ['Неподдерживаемый формат экспорта.']}}, status=400)
 
 
 @login_required

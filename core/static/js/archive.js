@@ -839,6 +839,47 @@
     return badge;
   }
 
+  function createExportMenu(rubric, extraClass){
+    const details = document.createElement('details');
+    details.className = 'export-menu';
+    if (extraClass){
+      details.classList.add(extraClass);
+    }
+
+    const summary = document.createElement('summary');
+    summary.className = 'side-btn export-menu__summary';
+    summary.textContent = 'Экспорт';
+    details.appendChild(summary);
+
+    const menu = document.createElement('div');
+    menu.className = 'export-menu__list';
+
+    [
+      { format: 'xlsx', label: 'Excel' },
+      { format: 'pdf', label: 'PDF' }
+    ].forEach((item) => {
+      const link = document.createElement('a');
+      link.className = 'export-menu__item';
+      link.href = `/api/archive/rubrics/${encodeURIComponent(rubric.id)}/export/${item.format}/`;
+      link.textContent = item.label;
+      link.addEventListener('click', () => {
+        details.open = false;
+      });
+      menu.appendChild(link);
+    });
+
+    details.appendChild(menu);
+    details.addEventListener('toggle', () => {
+      if (!details.open) return;
+      document.querySelectorAll('.export-menu[open]').forEach((node) => {
+        if (node !== details){
+          node.open = false;
+        }
+      });
+    });
+    return details;
+  }
+
   function createStatusDropdown(currentValue, cleanupFns){
     let value = normalizeFileStatus(currentValue);
     const wrapper = document.createElement('div');
@@ -1008,6 +1049,7 @@
   const archiveBulkMove = document.getElementById('archiveBulkMove');
   const archiveBulkDelete = document.getElementById('archiveBulkDelete');
   const archiveBulkClose = document.getElementById('archiveBulkClose');
+  const topbarActions = document.querySelector('.topbar-actions');
   const OPEN_FILE_SESSION_KEY = 'trezo:open-file';
 
   if (!createBtn || !createWrap || !nameInput || !nameSaveBtn || !emptySection || !rubricsContainer || !modalHost || !rubricButtons) {
@@ -1099,6 +1141,20 @@
     const text = message ? String(message).trim() : '';
     archiveStatusMessage.textContent = text;
     archiveStatusMessage.classList.toggle('hidden', !text);
+  }
+
+  function renderTopbarExport(rubric){
+    if (!topbarActions){
+      return;
+    }
+    const existing = topbarActions.querySelector('.export-menu--topbar');
+    if (existing){
+      existing.remove();
+    }
+    if (!rubric){
+      return;
+    }
+    topbarActions.insertBefore(createExportMenu(rubric, 'export-menu--topbar'), archiveSelectionToggle || null);
   }
 
   function flattenErrors(errors){
@@ -1846,6 +1902,7 @@
       rubricButtons.innerHTML = '';
       rubricButtons.classList.add('hidden');
       activeRubricId = null;
+      renderTopbarExport(null);
       requestSearchHide();
       scheduleSidebarMeasure();
       return;
@@ -1860,6 +1917,7 @@
     if (allRubricsBtn){
       allRubricsBtn.classList.toggle('active', viewingAll);
     }
+    renderTopbarExport(viewingAll ? null : state.rubrics.find((item) => item.id === activeRubricId));
 
     emptySection.classList.add('hidden');
     rubricsContainer.classList.remove('hidden');
@@ -1908,10 +1966,13 @@
       card.dataset.rubricId = rubric.id;
 
       if (viewingAll){
+        const header = document.createElement('div');
+        header.className = 'rubric-card__heading';
         const heading = document.createElement('h3');
         heading.className = 'rubric-card__title';
         heading.textContent = rubric.name;
-        card.appendChild(heading);
+        header.append(heading, createExportMenu(rubric, 'export-menu--rubric'));
+        card.appendChild(header);
       }
 
       const frame = document.createElement('div');
@@ -1951,6 +2012,12 @@
   }
 
   document.addEventListener('click', (event) => {
+    document.querySelectorAll('.export-menu[open]').forEach((node) => {
+      if (!node.contains(event.target)){
+        node.open = false;
+      }
+    });
+
     if (!createWrap.classList.contains('hidden')){
       if (!createWrap.contains(event.target) && !createBtn.contains(event.target)){
         toggleCreateForm(false);

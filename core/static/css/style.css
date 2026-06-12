@@ -718,9 +718,19 @@ h1{margin:0 0 18px;font-size:20px}
 .rubric-card__icon-btn svg{width:22px;height:22px;display:block}
 .rubric-card__icon-btn:hover,.rubric-card__icon-btn:focus-visible{background:var(--btn-bg-hover);border-color:var(--btn-border);box-shadow:0 18px 40px rgba(5,7,18,0.4);outline:none}
 .rubric-card__icon-btn:active{transform:translateY(1px)}
-.rubric-card__title{margin:0 0 6px;font-size:18px;font-weight:600}
+.rubric-card__heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 8px}
+.rubric-card__title{margin:0;font-size:18px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .rubric-card__frame{display:flex;flex-direction:column;gap:16px}
 .rubric-card__meta{font-size:14px;color:var(--muted);padding-left:4px}
+.export-menu{position:relative;display:inline-flex;flex:0 0 auto;z-index:30}
+.export-menu__summary{list-style:none;min-width:0;padding:8px 14px;text-align:center;white-space:nowrap;cursor:pointer;user-select:none}
+.export-menu__summary::-webkit-details-marker{display:none}
+.export-menu__summary::after{content:"";display:inline-block;width:7px;height:7px;margin-left:9px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:translateY(-2px) rotate(45deg);transition:transform .18s ease}
+.export-menu[open] .export-menu__summary::after{transform:translateY(2px) rotate(225deg)}
+.export-menu__list{position:absolute;right:0;top:calc(100% + 8px);min-width:132px;padding:6px;border:1px solid var(--btn-border);border-radius:14px;background:color-mix(in srgb,var(--card) 88%,transparent);box-shadow:0 18px 42px rgba(5,7,18,0.36);backdrop-filter:blur(18px);display:flex;flex-direction:column;gap:4px}
+.export-menu__item{display:block;padding:9px 12px;border-radius:10px;color:var(--text);text-decoration:none;font-weight:600;font-size:14px;transition:background-color .16s ease,color .16s ease}
+.export-menu__item:hover,.export-menu__item:focus-visible{outline:none;background:var(--btn-bg-hover)}
+.export-menu--topbar{order:-1}
 .rubric-files-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px}
 .rubric-empty-hint{padding:22px;border:1px dashed var(--card-border);border-radius:14px;color:var(--muted);text-align:center;background:var(--card)}
 .file-add-tile,.file-card{border-radius:16px;padding:14px;border:1px dashed var(--btn-border);background:var(--card);display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:168px;text-align:center;cursor:pointer;transition:transform .14s ease,border-color .2s ease,box-shadow .2s ease,background-color .2s ease,color .2s ease}

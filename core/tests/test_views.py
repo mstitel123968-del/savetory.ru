@@ -1,7 +1,9 @@
 """Smoke tests and moderation checks for the core views."""
 from __future__ import annotations
 
+import io
 import json
+import zipfile
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
@@ -95,6 +97,81 @@ class PublicCollectionTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertContains(response, "Коллекция недоступна", status_code=404)
+
+
+class RubricExportTests(TestCase):
+    def setUp(self) -> None:
+        User = get_user_model()
+        self.user = User.objects.create_user("exporter", password="pass1234")
+        self.other = User.objects.create_user("stranger", password="pass1234")
+        Profile.objects.create(user=self.user, terms_version_accepted=settings.TERMS_VERSION)
+        Profile.objects.create(user=self.other, terms_version_accepted=settings.TERMS_VERSION)
+        ArchiveState.objects.create(
+            user=self.user,
+            data={
+                "rubrics": [
+                    {
+                        "id": "rubric-export",
+                        "name": "Paintings",
+                        "mode": "file",
+                        "fields": [
+                            {"id": "photo", "label": "Photo", "type": "image"},
+                            {"id": "title", "label": "Title", "type": "text"},
+                            {"id": "description", "label": "Description", "type": "textarea"},
+                        ],
+                        "files": [
+                            {
+                                "id": "file-1",
+                                "status": "sell",
+                                "createdAt": 1700000000000,
+                                "updatedAt": 1700003600000,
+                                "values": {
+                                    "photo": {"items": [{"id": "front.png", "src": "data:image/png;base64,abc"}]},
+                                    "title": "Sunset",
+                                    "description": "Oil on canvas",
+                                    "private_note": "hidden",
+                                },
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+
+    def test_exports_visible_fields_to_xlsx(self) -> None:
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("core:export-rubric", args=["rubric-export", "xlsx"]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response["Content-Type"],
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        self.assertIn("Paintings_export.xlsx", response["Content-Disposition"])
+        with zipfile.ZipFile(io.BytesIO(response.content)) as workbook:
+            sheet_xml = workbook.read("xl/worksheets/sheet1.xml").decode("utf-8")
+        self.assertIn("Sunset", sheet_xml)
+        self.assertIn("Oil on canvas", sheet_xml)
+        self.assertIn("front.png", sheet_xml)
+        self.assertNotIn("hidden", sheet_xml)
+
+    def test_exports_rubric_to_pdf(self) -> None:
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("core:export-rubric", args=["rubric-export", "pdf"]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/pdf")
+        self.assertIn("Paintings_export.pdf", response["Content-Disposition"])
+        self.assertTrue(response.content.startswith(b"%PDF"))
+
+    def test_other_user_cannot_export_rubric_by_direct_url(self) -> None:
+        self.client.force_login(self.other)
+
+        response = self.client.get(reverse("core:export-rubric", args=["rubric-export", "xlsx"]))
+
+        self.assertEqual(response.status_code, 404)
 
 
 class ArchiveApiModerationTests(TestCase):
