@@ -1,8 +1,10 @@
 (function(){
   const load = window.__loadUIPrefs || (() => ({}));
   const apply = window.__applyUIPrefs || (() => {});
-  const PREF_KEY = 'ui_prefs_v1';
-
+  const savePrefs = window.__saveUIPrefs || ((prefs) => {
+    localStorage.setItem('ui_prefs_v1', JSON.stringify(prefs));
+    return prefs;
+  });
   const allowedThemes = ['dark','light','retro','sepia','contrast','midnight','aurora','pastel'];
   const allowedAccents = ['blue','violet','emerald','amber','rose','sky','mint','copper'];
   const allowedFontFamilies = ['system','arial','montserrat','roboto','playfair','lato','kudry'];
@@ -17,14 +19,19 @@
   const allowedHeadingStyle = ['minimal','soft','caps'];
   const allowedHeadingColor = ['auto','accent','muted'];
   const allowedTextTone = ['balanced','soft','bold'];
+  const allowedArchiveView = ['cards','list'];
+  const allowedArchiveSort = ['created','title','rubric','manual'];
+  const allowedArchiveCardSize = ['small','medium','large'];
+  const allowedArchiveEmptyFields = ['dash','hide'];
+  const allowedArchiveThumbnails = ['always','hidden'];
   const allowedPrivacy = ['public','friends','private'];
   const booleanPrefs = new Set(['reduceMotion','plainBackground','focusStrong','showHints','expandNews']);
 
-  const defaults = {
+  const defaults = Object.assign({
     theme: 'dark',
     accent: 'blue',
     fontScale: 1,
-    bgIntensity: 0.68,
+    bgIntensity: 1,
     fontFamily: 'system',
     lineHeight: 'normal',
     density: 'cozy',
@@ -42,8 +49,14 @@
     showHints: true,
     topbarMode: 'floating',
     expandNews: false,
+    archiveView: 'cards',
+    archiveSort: 'created',
+    archiveCardSize: 'medium',
+    archiveEmptyFields: 'dash',
+    archiveThumbnails: 'always',
     privacy: 'public',
-  };
+  }, window.__uiPrefsDefaults || {});
+  defaults.privacy = 'public';
 
   const savedPrefs = load();
   let storedPrivacy = null;
@@ -62,6 +75,7 @@
   const fontLabel = document.getElementById('fontLabel');
   const bgRange = document.getElementById('bgIntensityRange');
   const bgLabel = document.getElementById('bgIntensityLabel');
+  const resetAppearanceBtn = document.getElementById('resetAppearanceBtn');
   const prefControls = Array.from(document.querySelectorAll('input[data-pref], select[data-pref]'));
   const privacyControl = document.querySelector('.privacy-control');
   const privacyToggle = document.getElementById('privacyToggle');
@@ -118,6 +132,11 @@
     if (!allowedHeadingStyle.includes(state.headingStyle)) state.headingStyle = defaults.headingStyle;
     if (!allowedHeadingColor.includes(state.headingColor)) state.headingColor = defaults.headingColor;
     if (!allowedTextTone.includes(state.textTone)) state.textTone = defaults.textTone;
+    if (!allowedArchiveView.includes(state.archiveView)) state.archiveView = defaults.archiveView;
+    if (!allowedArchiveSort.includes(state.archiveSort)) state.archiveSort = defaults.archiveSort;
+    if (!allowedArchiveCardSize.includes(state.archiveCardSize)) state.archiveCardSize = defaults.archiveCardSize;
+    if (!allowedArchiveEmptyFields.includes(state.archiveEmptyFields)) state.archiveEmptyFields = defaults.archiveEmptyFields;
+    if (!allowedArchiveThumbnails.includes(state.archiveThumbnails)) state.archiveThumbnails = defaults.archiveThumbnails;
     if (!allowedPrivacy.includes(state.privacy)) state.privacy = defaults.privacy;
     state.reduceMotion = !!state.reduceMotion;
     state.plainBackground = !!state.plainBackground;
@@ -151,7 +170,7 @@
     window.__toastTimer = window.setTimeout(() => toast.classList.remove('show'), 2500);
   }
 
-  const UI_PREF_KEYS = [
+  const UI_PREF_KEYS = Array.isArray(window.__uiPrefKeys) ? window.__uiPrefKeys.slice() : [
     'theme',
     'fontScale',
     'bgIntensity',
@@ -173,6 +192,11 @@
     'showHints',
     'topbarMode',
     'expandNews',
+    'archiveView',
+    'archiveSort',
+    'archiveCardSize',
+    'archiveEmptyFields',
+    'archiveThumbnails',
   ];
 
   function buildUIPrefs() {
@@ -185,7 +209,7 @@
 
   function persistState() {
     try {
-      localStorage.setItem(PREF_KEY, JSON.stringify(buildUIPrefs()));
+      savePrefs(buildUIPrefs());
       localStorage.setItem('profile_privacy_v1', state.privacy);
     } catch (e) {
       /* ignore */
@@ -316,6 +340,25 @@
     state.privacy = next;
     render();
     save(`Конфиденциальность: ${privacyMap[state.privacy] || privacyMap.public}`);
+  }
+
+  function resetAppearance() {
+    const confirmed = window.confirm('Сбросить настройки внешнего вида по умолчанию?');
+    if (!confirmed) {
+      return;
+    }
+    const privacy = state.privacy;
+    UI_PREF_KEYS.forEach((key) => {
+      state[key] = defaults[key];
+    });
+    state.privacy = privacy;
+    sanitizeState();
+    render();
+    savePrefs(buildUIPrefs());
+    try {
+      localStorage.setItem('profile_privacy_v1', state.privacy);
+    } catch (e) {}
+    showToast('Внешний вид сброшен');
   }
 
   if (fontRange) {
@@ -556,6 +599,10 @@
     });
   });
 
+  if (resetAppearanceBtn) {
+    resetAppearanceBtn.addEventListener('click', resetAppearance);
+  }
+
   document.addEventListener('click', (ev) => {
     const target = ev.target instanceof Node ? ev.target : null;
     if (privacyControl && privacyMenu && !privacyMenu.hidden) {
@@ -579,25 +626,7 @@
   });
 
   render();
-  window.__settingsSaveSilent = () => save(false);
 })();
-
-/* Сохраняем изменения при клике по пунктам сайдбара перед навигацией */
-document.addEventListener('click', (ev) => {
-  const target = ev.target.closest('.side-nav a, .side-nav button, .side-btn');
-  if (!target) return;
-  const saver = window.__settingsSaveSilent;
-  if (typeof saver === 'function') {
-    try { saver(); } catch (e) {}
-  }
-}, { capture: true });
-
-window.addEventListener('beforeunload', () => {
-  const saver = window.__settingsSaveSilent;
-  if (typeof saver === 'function') {
-    try { saver(); } catch (e) {}
-  }
-});
 
 function __settingsIsAuthed(){
   return Boolean(window.__trezoAuthed);

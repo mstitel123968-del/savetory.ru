@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="{% static 'css/settings.css' %}" />
 </head>
 <body>
+  <script src="{% static 'js/prefs.js' %}"></script>
   <aside class="sidebar">
     {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
     <nav class="side-nav">
@@ -199,6 +200,94 @@
       </section>
 
       <section class="card settings-card">
+        <h2>Ваш архив</h2>
+        <p class="settings-note">Настройте, как рубрики и карточки отображаются в архиве. Эти параметры меняют только внешний вид списка, не структуру данных.</p>
+
+        <div class="settings-option">
+          <div class="setting-option__info">
+            <span class="setting-option__title">Вид по умолчанию</span>
+            <span class="setting-option__desc">Выберите основной формат просмотра рубрик и карточек.</span>
+          </div>
+          <div class="pref-dropdown settings-dropdown" data-pref="archiveView" data-toast="Вид архива обновлён" data-open="false">
+            <button id="archiveViewToggle" class="pref-dropdown__toggle" type="button" aria-haspopup="listbox" aria-controls="archiveViewMenu" aria-expanded="false">
+              Карточки
+            </button>
+            <div id="archiveViewMenu" class="pref-dropdown__menu" role="listbox" aria-labelledby="archiveViewToggle" hidden>
+              <button type="button" class="pref-dropdown__option" data-value="cards" role="option">Карточки</button>
+              <button type="button" class="pref-dropdown__option" data-value="list" role="option">Компактный список</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-option">
+          <div class="setting-option__info">
+            <span class="setting-option__title">Сортировка по умолчанию</span>
+            <span class="setting-option__desc">Порядок рубрик и карточек при открытии архива.</span>
+          </div>
+          <div class="pref-dropdown settings-dropdown" data-pref="archiveSort" data-toast="Сортировка архива обновлена" data-open="false">
+            <button id="archiveSortToggle" class="pref-dropdown__toggle" type="button" aria-haspopup="listbox" aria-controls="archiveSortMenu" aria-expanded="false">
+              По дате добавления
+            </button>
+            <div id="archiveSortMenu" class="pref-dropdown__menu" role="listbox" aria-labelledby="archiveSortToggle" hidden>
+              <button type="button" class="pref-dropdown__option" data-value="created" role="option">По дате добавления</button>
+              <button type="button" class="pref-dropdown__option" data-value="title" role="option">По названию</button>
+              <button type="button" class="pref-dropdown__option" data-value="rubric" role="option">По рубрике</button>
+              <button type="button" class="pref-dropdown__option" data-value="manual" role="option">Вручную</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-option">
+          <div class="setting-option__info">
+            <span class="setting-option__title">Размер карточек</span>
+            <span class="setting-option__desc">Управляет плотностью сетки карточек в архиве.</span>
+          </div>
+          <div class="pref-dropdown settings-dropdown" data-pref="archiveCardSize" data-toast="Размер карточек обновлён" data-open="false">
+            <button id="archiveCardSizeToggle" class="pref-dropdown__toggle" type="button" aria-haspopup="listbox" aria-controls="archiveCardSizeMenu" aria-expanded="false">
+              Средние
+            </button>
+            <div id="archiveCardSizeMenu" class="pref-dropdown__menu" role="listbox" aria-labelledby="archiveCardSizeToggle" hidden>
+              <button type="button" class="pref-dropdown__option" data-value="small" role="option">Маленькие</button>
+              <button type="button" class="pref-dropdown__option" data-value="medium" role="option">Средние</button>
+              <button type="button" class="pref-dropdown__option" data-value="large" role="option">Крупные</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-option">
+          <div class="setting-option__info">
+            <span class="setting-option__title">Пустые поля</span>
+            <span class="setting-option__desc">Как показывать незаполненные значения в карточке файла.</span>
+          </div>
+          <div class="pref-dropdown settings-dropdown" data-pref="archiveEmptyFields" data-toast="Отображение пустых полей обновлено" data-open="false">
+            <button id="archiveEmptyFieldsToggle" class="pref-dropdown__toggle" type="button" aria-haspopup="listbox" aria-controls="archiveEmptyFieldsMenu" aria-expanded="false">
+              Показывать прочерк
+            </button>
+            <div id="archiveEmptyFieldsMenu" class="pref-dropdown__menu" role="listbox" aria-labelledby="archiveEmptyFieldsToggle" hidden>
+              <button type="button" class="pref-dropdown__option" data-value="dash" role="option">Показывать прочерк</button>
+              <button type="button" class="pref-dropdown__option" data-value="hide" role="option">Скрывать пустое поле</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-option">
+          <div class="setting-option__info">
+            <span class="setting-option__title">Миниатюры фото</span>
+            <span class="setting-option__desc">Настройте видимость превью изображений в карточках.</span>
+          </div>
+          <div class="pref-dropdown settings-dropdown" data-pref="archiveThumbnails" data-toast="Миниатюры архива обновлены" data-open="false">
+            <button id="archiveThumbnailsToggle" class="pref-dropdown__toggle" type="button" aria-haspopup="listbox" aria-controls="archiveThumbnailsMenu" aria-expanded="false">
+              Показывать всегда
+            </button>
+            <div id="archiveThumbnailsMenu" class="pref-dropdown__menu" role="listbox" aria-labelledby="archiveThumbnailsToggle" hidden>
+              <button type="button" class="pref-dropdown__option" data-value="always" role="option">Показывать всегда</button>
+              <button type="button" class="pref-dropdown__option" data-value="hidden" role="option">Не показывать</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card settings-card">
         <h2>Макет</h2>
         <div class="settings-option">
           <div class="setting-option__info">
@@ -303,6 +392,12 @@
           </label>
         </div>
       </section>
+
+      <section class="card settings-card settings-reset-card">
+        <h2>Сброс интерфейса</h2>
+        <p class="settings-note">Вернуть стандартные настройки внешнего вида. Конфиденциальность профиля останется без изменений.</p>
+        <button id="resetAppearanceBtn" class="side-btn settings-reset-btn" type="button">Сбросить внешний вид</button>
+      </section>
     </div>
   </main>
 
@@ -310,7 +405,6 @@
 
   <script src="{% static 'js/nav.js' %}"></script>
   <script src="{% static 'js/support-widget.js' %}"></script>
-  <script src="{% static 'js/prefs.js' %}"></script>
   <script src="{% static 'js/settings.js' %}"></script>
   {% include 'includes/terms_modal.html' %}
 </body>

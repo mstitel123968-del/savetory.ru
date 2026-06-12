@@ -4,7 +4,7 @@
     theme:'dark',
     accent:'blue',
     fontScale:1,
-    bgIntensity:0.68,
+    bgIntensity:1,
     fontFamily:'system',
     lineHeight:'normal',
     density:'cozy',
@@ -22,7 +22,40 @@
     showHints:true,
     topbarMode:'floating',
     expandNews:false,
+    archiveView:'cards',
+    archiveSort:'created',
+    archiveCardSize:'medium',
+    archiveEmptyFields:'dash',
+    archiveThumbnails:'always',
   };
+  const UI_PREF_KEYS=[
+    'theme',
+    'fontScale',
+    'bgIntensity',
+    'accent',
+    'fontFamily',
+    'lineHeight',
+    'density',
+    'sidebarSize',
+    'cardStyle',
+    'backgroundStyle',
+    'bodyWeight',
+    'headingFont',
+    'headingStyle',
+    'headingColor',
+    'textTone',
+    'reduceMotion',
+    'plainBackground',
+    'focusStrong',
+    'showHints',
+    'topbarMode',
+    'expandNews',
+    'archiveView',
+    'archiveSort',
+    'archiveCardSize',
+    'archiveEmptyFields',
+    'archiveThumbnails',
+  ];
   const themeClasses=['theme-dark','theme-light','theme-retro','theme-sepia','theme-contrast','theme-midnight','theme-aurora','theme-pastel'];
   const accentClasses=['accent-blue','accent-violet','accent-emerald','accent-amber','accent-rose','accent-sky','accent-mint','accent-copper'];
   const fontStacks={
@@ -56,6 +89,16 @@
   const headingColorValues=Object.values(headingColorClasses).filter(Boolean);
   const textToneClasses={balanced:'text-tone-balanced',soft:'text-tone-soft',bold:'text-tone-bold'};
   const textToneValues=Object.values(textToneClasses);
+  const archiveViewClasses={cards:'archive-view-cards',list:'archive-view-list'};
+  const archiveViewValues=Object.values(archiveViewClasses);
+  const archiveSortClasses={created:'archive-sort-created',title:'archive-sort-title',rubric:'archive-sort-rubric',manual:'archive-sort-manual'};
+  const archiveSortValues=Object.values(archiveSortClasses);
+  const archiveCardSizeClasses={small:'archive-card-small',medium:'archive-card-medium',large:'archive-card-large'};
+  const archiveCardSizeValues=Object.values(archiveCardSizeClasses);
+  const archiveEmptyFieldClasses={dash:'archive-empty-dash',hide:'archive-empty-hide'};
+  const archiveEmptyFieldValues=Object.values(archiveEmptyFieldClasses);
+  const archiveThumbnailClasses={always:'archive-thumbs-always',hidden:'archive-thumbs-hidden'};
+  const archiveThumbnailValues=Object.values(archiveThumbnailClasses);
 
   function load(){
     try {
@@ -66,6 +109,29 @@
     }
   }
 
+  function normalize(raw){
+    const source=raw && typeof raw==='object' ? raw : {};
+    const prefs={};
+    UI_PREF_KEYS.forEach((key)=>{
+      prefs[key]=Object.prototype.hasOwnProperty.call(source,key) ? source[key] : DEFAULTS[key];
+    });
+    return prefs;
+  }
+
+  function save(prefs){
+    const normalized=normalize(prefs);
+    try {
+      localStorage.setItem(KEY, JSON.stringify(normalized));
+    } catch(e){}
+    return normalized;
+  }
+
+  function resetAppearance(){
+    const prefs=save(DEFAULTS);
+    apply(prefs);
+    return prefs;
+  }
+
   function pick(obj,key,fallback){
     if(obj && Object.prototype.hasOwnProperty.call(obj,key)) return obj[key];
     return fallback;
@@ -74,7 +140,7 @@
   function apply(p){
     const body=document.body;
     if(!body) return;
-    const prefs=Object.assign({}, DEFAULTS, p||{});
+    const prefs=normalize(p||{});
 
     // Theme management
     body.classList.remove(...themeClasses);
@@ -145,6 +211,21 @@
     const toneClass=textToneClasses[prefs.textTone] || textToneClasses[DEFAULTS.textTone];
     if(toneClass){ body.classList.add(toneClass); }
 
+    body.classList.remove(...archiveViewValues);
+    body.classList.add(archiveViewClasses[prefs.archiveView] || archiveViewClasses[DEFAULTS.archiveView]);
+
+    body.classList.remove(...archiveSortValues);
+    body.classList.add(archiveSortClasses[prefs.archiveSort] || archiveSortClasses[DEFAULTS.archiveSort]);
+
+    body.classList.remove(...archiveCardSizeValues);
+    body.classList.add(archiveCardSizeClasses[prefs.archiveCardSize] || archiveCardSizeClasses[DEFAULTS.archiveCardSize]);
+
+    body.classList.remove(...archiveEmptyFieldValues);
+    body.classList.add(archiveEmptyFieldClasses[prefs.archiveEmptyFields] || archiveEmptyFieldClasses[DEFAULTS.archiveEmptyFields]);
+
+    body.classList.remove(...archiveThumbnailValues);
+    body.classList.add(archiveThumbnailClasses[prefs.archiveThumbnails] || archiveThumbnailClasses[DEFAULTS.archiveThumbnails]);
+
     // Toggles
     body.classList.toggle('reduce-motion', !!prefs.reduceMotion);
     body.classList.toggle('plain-background', !!prefs.plainBackground);
@@ -162,8 +243,23 @@
     document.documentElement.style.setProperty('--bg-overlay-alpha', overlayAlpha.toFixed(2));
   }
 
-  apply(load());
-  window.__loadUIPrefs=load; window.__applyUIPrefs=apply;
+  const initialPrefs=normalize(load());
+  apply(initialPrefs);
+  window.__loadUIPrefs=function(){ return normalize(load()); };
+  window.__saveUIPrefs=save;
+  window.__applyUIPrefs=apply;
+  window.__resetUIPrefs=resetAppearance;
+  window.__uiPrefsDefaults=Object.assign({}, DEFAULTS);
+  window.__uiPrefKeys=UI_PREF_KEYS.slice();
+  window.TrezoUIPrefs={
+    key:KEY,
+    defaults:Object.assign({}, DEFAULTS),
+    keys:UI_PREF_KEYS.slice(),
+    load:window.__loadUIPrefs,
+    save,
+    apply,
+    resetAppearance,
+  };
 
 })();
 

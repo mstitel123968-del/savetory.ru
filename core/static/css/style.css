@@ -761,6 +761,25 @@ h1{margin:0 0 18px;font-size:20px}
 .file-card__thumb .file-card__status.status-badge--search{background:#f4c542;border-color:#f4c542}
 .file-card__thumb .file-card__status.status-badge--sold{background:#ef4444;border-color:#ef4444}
 .file-card__status-inline{margin-top:-4px}
+body.archive-card-small .rubric-files-grid{grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:12px}
+body.archive-card-small .file-add-tile,
+body.archive-card-small .file-card{min-height:132px;padding:12px;border-radius:14px;gap:8px}
+body.archive-card-small .file-card__thumb{padding-top:58%;border-radius:10px}
+body.archive-card-small .file-card__title{font-size:14px}
+body.archive-card-small .file-card__list{font-size:12px;gap:4px}
+body.archive-card-large .rubric-files-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:20px}
+body.archive-card-large .file-add-tile,
+body.archive-card-large .file-card{min-height:212px;padding:18px;gap:14px}
+body.archive-card-large .file-card__thumb{padding-top:76%}
+body.archive-card-large .file-card__title{font-size:16px}
+body.archive-view-list .rubric-files-grid{grid-template-columns:1fr}
+body.archive-view-list .file-add-tile{min-height:72px;padding:14px}
+body.archive-view-list .file-card{min-height:0;display:grid;grid-template-columns:88px minmax(160px,1fr);align-items:center;gap:14px;padding:12px 14px;text-align:left}
+body.archive-view-list .file-card--text-only{display:flex;min-height:72px}
+body.archive-view-list .file-card__thumb{width:88px;height:62px;padding-top:0}
+body.archive-view-list .file-card__list{grid-column:2}
+body.archive-thumbs-hidden .file-card__thumb{display:none}
+body.archive-thumbs-hidden .file-card{min-height:132px}
 
 .rubric-type-options{display:flex;flex-direction:column;gap:12px}
 .rubric-type-option{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:16px 18px;border-radius:16px;border:1px solid var(--card-border);background:var(--card);color:inherit;cursor:pointer;box-shadow:0 18px 42px rgba(5,7,18,0.28);transition:transform .18s ease,box-shadow .2s ease,border-color .2s ease,background-color .2s ease;text-align:left}

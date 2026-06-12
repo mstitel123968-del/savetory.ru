@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="{% static 'css/profile.css' %}" />
 </head>
 <body>
+  <script src="{% static 'js/prefs.js' %}"></script>
   <aside class="sidebar">
     {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
     <nav class="side-nav">
@@ -119,7 +120,6 @@
   <script src="{% static 'js/nav.js' %}"></script>
   <script src="{% static 'js/support-widget.js' %}"></script>
   <script src="{% static 'js/profile.js' %}"></script>
-  <script src="{% static 'js/prefs.js' %}"></script>
   {% include 'includes/terms_modal.html' %}
 </body>
 </html>

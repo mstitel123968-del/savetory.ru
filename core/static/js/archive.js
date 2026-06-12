@@ -1438,6 +1438,57 @@
     return state.rubrics.filter((item) => item.id === activeRubricId);
   }
 
+  function getArchivePrefs(){
+    const defaults = {
+      archiveView: 'cards',
+      archiveSort: 'created',
+      archiveCardSize: 'medium',
+      archiveEmptyFields: 'dash',
+      archiveThumbnails: 'always',
+    };
+    let prefs = {};
+    try {
+      prefs = typeof window.__loadUIPrefs === 'function' ? window.__loadUIPrefs() : {};
+    } catch (error){
+      prefs = {};
+    }
+    const result = Object.assign({}, defaults, prefs || {});
+    if (!['cards', 'list'].includes(result.archiveView)) result.archiveView = defaults.archiveView;
+    if (!['created', 'title', 'rubric', 'manual'].includes(result.archiveSort)) result.archiveSort = defaults.archiveSort;
+    if (!['small', 'medium', 'large'].includes(result.archiveCardSize)) result.archiveCardSize = defaults.archiveCardSize;
+    if (!['dash', 'hide'].includes(result.archiveEmptyFields)) result.archiveEmptyFields = defaults.archiveEmptyFields;
+    if (!['always', 'hidden'].includes(result.archiveThumbnails)) result.archiveThumbnails = defaults.archiveThumbnails;
+    return result;
+  }
+
+  function compareText(a, b){
+    return String(a || '').localeCompare(String(b || ''), 'ru', { sensitivity: 'base', numeric: true });
+  }
+
+  function getSortedRubrics(rubrics, prefs){
+    const items = Array.isArray(rubrics) ? rubrics.slice() : [];
+    if (!prefs || prefs.archiveSort === 'manual' || prefs.archiveSort === 'created'){
+      return items;
+    }
+    return items.sort((a, b) => compareText(a && a.name, b && b.name));
+  }
+
+  function getSortedFiles(rubric, prefs){
+    const files = rubric && Array.isArray(rubric.files) ? rubric.files.slice() : [];
+    const sortMode = prefs && prefs.archiveSort ? prefs.archiveSort : 'created';
+    if (sortMode === 'manual'){
+      return files;
+    }
+    if (sortMode === 'title' || sortMode === 'rubric'){
+      return files.sort((a, b) => compareText(getDisplayName(rubric, a), getDisplayName(rubric, b)));
+    }
+    return files.sort((a, b) => {
+      const left = Number(a && a.createdAt) || 0;
+      const right = Number(b && b.createdAt) || 0;
+      return right - left;
+    });
+  }
+
   function getVisibleFileRefs(){
     const refs = [];
     getVisibleRubrics().forEach((rubric) => {
@@ -1885,6 +1936,7 @@
 
   function renderRubrics(){
     const hasRubrics = state.rubrics.length > 0;
+    const archivePrefs = getArchivePrefs();
     reconcileSelectedFiles();
     updateBulkSelectionUi();
 
@@ -1959,7 +2011,10 @@
     });
 
     const fragment = document.createDocumentFragment();
-    const targetRubrics = viewingAll ? state.rubrics : state.rubrics.filter((item) => item.id === activeRubricId);
+    const targetRubrics = getSortedRubrics(
+      viewingAll ? state.rubrics : state.rubrics.filter((item) => item.id === activeRubricId),
+      archivePrefs
+    );
     targetRubrics.forEach((rubric) => {
       const card = document.createElement('section');
       card.className = 'rubric-card';
@@ -1991,7 +2046,7 @@
       } else {
         const grid = document.createElement('div');
         grid.className = 'rubric-files-grid';
-        rubric.files.forEach((file) => {
+        getSortedFiles(rubric, archivePrefs).forEach((file) => {
           grid.appendChild(createFileCard(rubric, file));
         });
         if (!selectionMode){
@@ -2070,6 +2125,7 @@
   }
 
   function createFileCard(rubric, file){
+    const archivePrefs = getArchivePrefs();
     const fileSelectionKey = getFileSelectionKey(rubric.id, file.id);
     const isSelected = selectedFileKeys.has(fileSelectionKey);
     const btn = document.createElement('button');
@@ -2084,7 +2140,7 @@
       btn.classList.add('file-card--selected');
     }
 
-    const allowMedia = rubric.mode !== 'text';
+    const allowMedia = rubric.mode !== 'text' && archivePrefs.archiveThumbnails !== 'hidden';
     const photoField = allowMedia ? rubric.fields.find((field) => field.id === 'photo' && field.type === 'image') : null;
     let inlineStatusBadge = null;
     if (photoField){
@@ -2114,6 +2170,29 @@
 
     if (inlineStatusBadge){
       btn.appendChild(inlineStatusBadge);
+    }
+
+    const visibleFields = rubric.fields.filter((field) => (
+      field &&
+      field.type !== 'image' &&
+      field.id !== 'title'
+    )).slice(0, 3);
+    if (visibleFields.length){
+      const list = document.createElement('ul');
+      list.className = 'file-card__list';
+      visibleFields.forEach((field) => {
+        const rawValue = getFieldValue(rubric, file, field);
+        const value = typeof rawValue === 'string' ? rawValue.trim() : '';
+        if (!value && archivePrefs.archiveEmptyFields === 'hide'){
+          return;
+        }
+        const item = document.createElement('li');
+        item.textContent = `${field.label}: ${value || '—'}`;
+        list.appendChild(item);
+      });
+      if (list.childNodes.length){
+        btn.appendChild(list);
+      }
     }
 
     if (selectionMode){
@@ -4323,6 +4402,9 @@
         const valueEl = document.createElement('span');
         valueEl.className = 'file-view__value';
         const value = getFieldValue(rubric, file, field);
+        if (!value && getArchivePrefs().archiveEmptyFields === 'hide'){
+          return;
+        }
         renderPatternLinks(valueEl, value ? value : '', '—');
         row.append(labelEl, valueEl);
 
@@ -5378,6 +5460,18 @@
       return;
     }
     openFileFromSearch(detail.rubricId, detail.fileId);
+  });
+
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'ui_prefs_v1' && stateReady){
+      renderRubrics();
+    }
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && stateReady){
+      renderRubrics();
+    }
   });
 
   initializeState();
