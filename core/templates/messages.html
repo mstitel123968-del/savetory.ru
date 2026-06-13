@@ -1,0 +1,64 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/messages.css' %}" />
+</head>
+<body class="messages-page">
+  <script src="{% static 'js/prefs.js' %}"></script>
+  <aside class="sidebar">
+    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
+    <nav class="side-nav">
+      <div class="side-nav-divider" aria-hidden="true"></div>
+      <div class="side-nav-footer">
+        {% include 'includes/side_nav_links.html' with current_section='messages' %}
+      </div>
+    </nav>
+  </aside>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo-wrap">
+        <span class="page-title">Сообщения</span>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions"></div>
+    </div>
+  </header>
+
+  <main class="main messages-main">
+    <section class="messages-shell">
+      {% if dialogs %}
+        <div class="messages-list" aria-label="Диалоги">
+          {% for dialog in dialogs %}
+            <a class="messages-dialog{% if dialog.unread_count %} messages-dialog--unread{% endif %}" href="{{ dialog.url }}">
+              <div class="messages-dialog__main">
+                <div class="messages-dialog__head">
+                  <span class="messages-dialog__name">{{ dialog.display_name }}</span>
+                  <time class="messages-dialog__time" datetime="{{ dialog.latest_message.sent_at|date:'c' }}">{{ dialog.latest_at|date:"d.m.Y H:i" }}</time>
+                </div>
+                <div class="messages-dialog__preview">{{ dialog.latest_message.text|truncatechars:120 }}</div>
+              </div>
+              {% if dialog.unread_count %}
+                <span class="messages-unread-dot" aria-label="Непрочитанных сообщений: {{ dialog.unread_count }}"></span>
+              {% endif %}
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="messages-empty">Сообщений пока нет</div>
+      {% endif %}
+    </section>
+  </main>
+
+  {% include 'includes/support_floating_widget.html' %}
+  {% include 'includes/terms_modal.html' %}
+
+  <script src="{% static 'js/nav.js' %}"></script>
+  <script src="{% static 'js/support-widget.js' %}"></script>
+</body>
+</html>

@@ -82,6 +82,82 @@
     const siteMenus = Array.from(document.querySelectorAll('[data-site-menu]'));
     if (siteMenus.length){
       let openSiteMenu = null;
+      let unreadState = { total: 0, latestAt: null, userId: null };
+
+      function unreadSeenKey(){
+        return unreadState.userId ? `savetory:messages-menu-seen:${unreadState.userId}` : '';
+      }
+
+      function getUnreadSeenAt(){
+        const key = unreadSeenKey();
+        return key ? window.localStorage.getItem(key) : '';
+      }
+
+      function setUnreadSeenAt(value){
+        const key = unreadSeenKey();
+        if (key && value){
+          window.localStorage.setItem(key, value);
+        }
+      }
+
+      function hasUnreadMessages(){
+        return unreadState.total > 0 && !!unreadState.latestAt;
+      }
+
+      function hasNewUnreadForMenu(){
+        if (!hasUnreadMessages()){
+          return false;
+        }
+        const seenAt = getUnreadSeenAt();
+        return !seenAt || unreadState.latestAt > seenAt;
+      }
+
+      function getMessagesMenuItem(){
+        return document.querySelector('.site-menu__item[data-nav-section="messages"]');
+      }
+
+      function applyUnreadIndicators(){
+        const onMessagesPage = document.body.classList.contains('messages-page');
+        const showOnButton = !onMessagesPage && !openSiteMenu && hasNewUnreadForMenu();
+        const showOnMessagesItem = !onMessagesPage && !!openSiteMenu && hasUnreadMessages();
+        siteMenus.forEach((menu) => {
+          const toggle = getSiteMenuToggle(menu);
+          if (toggle){
+            toggle.classList.toggle('has-unread-messages', showOnButton);
+          }
+        });
+        const messagesItem = getMessagesMenuItem();
+        if (messagesItem){
+          messagesItem.classList.toggle('has-unread-messages', showOnMessagesItem);
+        }
+      }
+
+      async function refreshUnreadIndicators(){
+        try {
+          const response = await fetch('/api/messages/unread/', {
+            credentials: 'include',
+            headers: { 'Accept': 'application/json' },
+          });
+          if (!response.ok){
+            return;
+          }
+          const data = await response.json();
+          if (!data || data.success === false){
+            return;
+          }
+          unreadState = {
+            total: Number(data.total || 0),
+            latestAt: data.latest_at || null,
+            userId: data.user_id || null,
+          };
+          if (document.body.classList.contains('messages-page') && unreadState.latestAt){
+            setUnreadSeenAt(unreadState.latestAt);
+          }
+          applyUnreadIndicators();
+        } catch (error){
+          // Notification polling should stay silent.
+        }
+      }
 
       function getSiteMenuToggle(menu){
         return menu.querySelector('.site-menu__toggle');
@@ -133,6 +209,7 @@
         if (openSiteMenu === menu){
           openSiteMenu = null;
         }
+        applyUnreadIndicators();
         if (focusToggle){
           toggle.focus();
         }
@@ -151,6 +228,10 @@
         menu.classList.add('site-menu--open');
         toggle.setAttribute('aria-expanded', 'true');
         openSiteMenu = menu;
+        if (unreadState.latestAt){
+          setUnreadSeenAt(unreadState.latestAt);
+        }
+        applyUnreadIndicators();
         requestAnimationFrame(() => {
           positionSiteMenu(menu);
           if (focusFirst){
@@ -255,6 +336,8 @@
       };
       window.addEventListener('resize', repositionSiteMenu);
       window.addEventListener('scroll', repositionSiteMenu, true);
+      refreshUnreadIndicators();
+      window.setInterval(refreshUnreadIndicators, 30000);
     }
 
     const groups = Array.from(document.querySelectorAll('[data-market-dropup]'));

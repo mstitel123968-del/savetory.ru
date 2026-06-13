@@ -1,7 +1,7 @@
 {% load static %}
 {% with current=current_section|default:'' %}
 <div class="site-menu" data-site-menu>
-  <button class="side-btn site-menu__toggle" type="button" aria-haspopup="menu" aria-expanded="false">
+  <button class="side-btn site-menu__toggle" type="button" aria-haspopup="menu" aria-expanded="false" data-site-menu-toggle>
     Меню
   </button>
   <div class="site-menu__list" role="menu" hidden>
@@ -13,7 +13,10 @@
         <a class="site-menu__item" href="{% url 'core:profile' %}" role="menuitem">Профиль</a>
       {% endif %}
       {% if current != 'community' %}
-        <a class="site-menu__item" href="{% url 'core:community' %}" role="menuitem">Сообщество</a>
+        <a class="site-menu__item" href="{% url 'core:community' %}" role="menuitem">Люди</a>
+      {% endif %}
+      {% if current != 'messages' %}
+        <a class="site-menu__item" href="{% url 'core:messages' %}" role="menuitem" data-nav-section="messages">Сообщения</a>
       {% endif %}
     {% endif %}
     {% if current != 'market' %}

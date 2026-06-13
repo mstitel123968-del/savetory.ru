@@ -1,0 +1,61 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/messages.css' %}" />
+</head>
+<body class="messages-page">
+  <script src="{% static 'js/prefs.js' %}"></script>
+  <aside class="sidebar">
+    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
+    <nav class="side-nav">
+      <div class="side-nav-divider" aria-hidden="true"></div>
+      <div class="side-nav-footer">
+        {% include 'includes/side_nav_links.html' with current_section='messages' %}
+      </div>
+    </nav>
+  </aside>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo-wrap messages-dialog-titlebar">
+        <a class="messages-back" href="{% url 'core:messages' %}" aria-label="Вернуться к сообщениям">‹</a>
+        <span class="page-title">{{ dialog_display_name }}</span>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions"></div>
+    </div>
+  </header>
+
+  <main class="main messages-main">
+    <section class="messages-shell messages-shell--dialog">
+      <div id="messagesThread" class="messages-thread" aria-label="История переписки">
+        {% for message in messages %}
+          <article class="messages-bubble{% if message.sender_id == request.user.id %} messages-bubble--out{% else %} messages-bubble--in{% endif %}">
+            <div class="messages-bubble__text">{{ message.text }}</div>
+            <time class="messages-bubble__time" datetime="{{ message.sent_at|date:'c' }}">{{ message.sent_at|date:"d.m.Y H:i" }}</time>
+          </article>
+        {% empty %}
+          <div class="messages-empty">Сообщений пока нет</div>
+        {% endfor %}
+      </div>
+      <form id="messageComposeForm" class="messages-compose" data-recipient-id="{{ dialog_user.id }}" novalidate>
+        <textarea id="messageComposeText" rows="2" maxlength="4000" placeholder="Напишите сообщение" aria-label="Текст сообщения" required></textarea>
+        <button class="messages-compose__submit" type="submit">Отправить</button>
+        <div id="messageComposeError" class="messages-compose__error" role="alert" aria-live="polite"></div>
+      </form>
+    </section>
+  </main>
+
+  {% include 'includes/support_floating_widget.html' %}
+  {% include 'includes/terms_modal.html' %}
+
+  <script src="{% static 'js/nav.js' %}"></script>
+  <script src="{% static 'js/support-widget.js' %}"></script>
+  <script src="{% static 'js/messages.js' %}"></script>
+</body>
+</html>

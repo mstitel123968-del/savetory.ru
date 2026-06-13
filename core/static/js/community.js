@@ -318,12 +318,10 @@
     const list = document.createElement('div');
     list.className = 'community-card-menu__list';
     list.hidden = true;
-    const message = document.createElement('button');
-    message.type = 'button';
-    message.className = 'community-action community-action--muted community-card-menu__item';
+    const message = document.createElement('a');
+    message.className = 'community-action community-card-menu__item';
+    message.href = user.message_url || `/messages/${encodeURIComponent(user.id)}/`;
     message.textContent = 'Сообщение';
-    message.title = 'Функция сообщений появится позже';
-    message.disabled = true;
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'community-action community-action--danger community-card-menu__item';

@@ -1,6 +1,6 @@
 
 /* minimal reset for plain profile */
-.profile-wrap{max-width:1200px;margin:60px auto 40px;padding:0 var(--page-padding, var(--gap,28px));}
+.profile-wrap{max-width:1200px;margin:var(--app-layout-gap) auto var(--app-layout-gap);padding:0;}
 .profile-plain{background:transparent;border:0;padding:0;box-shadow:none}
 .profile-header{display:flex;align-items:flex-start;gap:16px;margin-bottom:12px;width:100%}
 .profile-header__main{display:flex;align-items:center;gap:12px;min-width:0}
@@ -66,7 +66,7 @@ body.theme-sepia .pe-dialog{box-shadow:0 20px 44px rgba(62,34,18,0.36);}
 
 
 /* === Profile compact left-aligned === */
-.profile-wrap.profile-compact{max-width:860px;margin:10px var(--page-padding, var(--gap,28px)) 48px;padding:0}
+.profile-wrap.profile-compact{max-width:860px;margin:0 0 var(--app-layout-gap);padding:0}
 .profile-plain .profile-header{align-items:center;gap:12px;margin-bottom:10px;width:100%}
 .profile-plain h1{font-size:22px;margin:0}
 .profile-plain .profile-view{margin-top:4px;margin-bottom:4px}

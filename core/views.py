@@ -38,6 +38,13 @@ from core.services.friendships import (
     remove_friend,
     send_request,
 )
+from core.services.messages import (
+    MessageError,
+    get_dialogs,
+    get_message_history,
+    get_unread_summary,
+    send_message,
+)
 from .forms import ArchiveFileForm, LoginForm, RegistrationForm, RubricForm
 from .models import ArchiveFile, ArchiveState, Friendship, Profile, Review, Rubric
 
@@ -345,10 +352,68 @@ def community(request: HttpRequest) -> HttpResponse:
             'initial_requests_view': requests_view,
             **_seo_context(
                 request,
-                title='Сообщество - СКлад',
-                description='Поиск пользователей, друзья и заявки в сообществе СКлад.',
+                title='Люди - СКлад',
+                description='Поиск пользователей, друзья и заявки в разделе Люди СКлада.',
                 indexable=False,
                 canonical_path=reverse('core:community'),
+            ),
+        },
+    )
+
+
+@login_required
+@ensure_csrf_cookie
+def messages_page(request: HttpRequest) -> HttpResponse:
+    dialogs = get_dialogs(request.user)
+    return render(
+        request,
+        'messages.html',
+        {
+            'dialogs': [
+                {
+                    'user': dialog['user'],
+                    'display_name': _community_display_name(dialog['user'], getattr(dialog['user'], 'profile', None)),
+                    'latest_message': dialog['latest_message'],
+                    'latest_at': timezone.localtime(dialog['latest_at']),
+                    'unread_count': dialog['unread_count'],
+                    'url': reverse('core:message-dialog', kwargs={'user_id': dialog['user'].pk}),
+                }
+                for dialog in dialogs
+            ],
+            **_seo_context(
+                request,
+                title='Сообщения - СКлад',
+                description='Личные сообщения пользователей СКлада.',
+                indexable=False,
+                canonical_path=reverse('core:messages'),
+            ),
+        },
+    )
+
+
+@login_required
+@ensure_csrf_cookie
+def message_dialog_page(request: HttpRequest, user_id: int) -> HttpResponse:
+    other_user = User.objects.filter(pk=user_id).select_related('profile').first()
+    if not other_user:
+        raise Http404("Пользователь не найден")
+    if other_user.pk == request.user.pk:
+        return redirect('core:messages')
+    messages_qs = get_message_history(request.user, other_user)
+    display_name = _community_display_name(other_user, getattr(other_user, 'profile', None))
+    return render(
+        request,
+        'message_dialog.html',
+        {
+            'dialog_user': other_user,
+            'dialog_display_name': display_name,
+            'messages': messages_qs,
+            **_seo_context(
+                request,
+                title=f'{display_name} - Сообщения - СКлад',
+                description='История личной переписки в СКладе.',
+                indexable=False,
+                canonical_path=reverse('core:message-dialog', kwargs={'user_id': other_user.pk}),
             ),
         },
     )
@@ -401,7 +466,7 @@ def community_user_profile(request: HttpRequest, username: str) -> HttpResponse:
             **_seo_context(
                 request,
                 title=f'{display_name} - профиль в СКлад',
-                description='Публичный профиль пользователя сообщества СКлад.',
+                description='Публичный профиль пользователя раздела Люди в СКладе.',
                 indexable=False,
                 canonical_path=reverse('core:community-user-profile', kwargs={'username': viewed_user.get_username()}),
             ),
@@ -691,6 +756,7 @@ def _community_user_payload(user: User, viewer: User, relation_cache: dict[int, 
         'presence': _community_presence_payload(profile),
         'friendship_state': friendship_state,
         'profile_url': reverse('core:community-user-profile', kwargs={'username': user.get_username()}),
+        'message_url': reverse('core:message-dialog', kwargs={'user_id': user.pk}),
     }
 
 
@@ -851,6 +917,100 @@ def community_friendship_action_api(request: HttpRequest) -> JsonResponse:
         'counts': _community_counts(request.user),
         'relation_id': relation.pk if relation else None,
     })
+
+
+def _message_user_payload(user: User) -> dict:
+    profile = getattr(user, 'profile', None)
+    return {
+        'id': user.pk,
+        'username': user.get_username(),
+        'display_name': _community_display_name(user, profile),
+    }
+
+
+def _message_payload(message, viewer: User) -> dict:
+    return {
+        'id': message.pk,
+        'sender': _message_user_payload(message.sender),
+        'recipient': _message_user_payload(message.recipient),
+        'text': message.text,
+        'sent_at': message.sent_at.isoformat(),
+        'is_read': message.is_read,
+        'is_outgoing': message.sender_id == viewer.pk,
+    }
+
+
+@login_required
+@require_GET
+def message_dialogs_api(request: HttpRequest) -> JsonResponse:
+    dialogs = []
+    for dialog in get_dialogs(request.user):
+        latest_message = dialog['latest_message']
+        dialogs.append({
+            'user': _message_user_payload(dialog['user']),
+            'latest_message': _message_payload(latest_message, request.user),
+            'latest_at': dialog['latest_at'].isoformat(),
+            'unread_count': dialog['unread_count'],
+            'message_count': dialog['message_count'],
+        })
+    return JsonResponse({'success': True, 'dialogs': dialogs})
+
+
+@login_required
+@require_GET
+def message_unread_api(request: HttpRequest) -> JsonResponse:
+    summary = get_unread_summary(request.user)
+    return JsonResponse({
+        'success': True,
+        'user_id': request.user.pk,
+        'total': summary['total'],
+        'latest_at': summary['latest_at'].isoformat() if summary['latest_at'] else None,
+        'senders': [
+            {
+                'user': _message_user_payload(item['user']),
+                'count': item['count'],
+                'latest_at': item['latest_at'].isoformat(),
+            }
+            for item in summary['senders']
+        ],
+    })
+
+
+@login_required
+@require_GET
+def message_history_api(request: HttpRequest, user_id: int) -> JsonResponse:
+    other_user = User.objects.filter(pk=user_id).select_related('profile').first()
+    if not other_user:
+        return JsonResponse({'success': False, 'error': 'Пользователь не найден.'}, status=404)
+    try:
+        messages_qs = get_message_history(request.user, other_user)
+    except MessageError as exc:
+        return JsonResponse({'success': False, 'error': str(exc), 'code': exc.code}, status=400)
+    return JsonResponse({
+        'success': True,
+        'user': _message_user_payload(other_user),
+        'messages': [_message_payload(message, request.user) for message in messages_qs],
+    })
+
+
+@login_required
+@require_POST
+def message_send_api(request: HttpRequest) -> JsonResponse:
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        payload = {}
+    recipient_id = payload.get('recipient_id')
+    recipient = User.objects.filter(pk=recipient_id).select_related('profile').first()
+    if not recipient:
+        return JsonResponse({'success': False, 'error': 'Получатель не найден.'}, status=404)
+    try:
+        message = send_message(request.user, recipient, payload.get('text', ''))
+    except MessageError as exc:
+        return JsonResponse({'success': False, 'error': str(exc), 'code': exc.code}, status=400)
+    except ValidationError as exc:
+        return JsonResponse({'success': False, 'error': '; '.join(exc.messages)}, status=400)
+    return JsonResponse({'success': True, 'message': _message_payload(message, request.user)}, status=201)
 
 
 @login_required

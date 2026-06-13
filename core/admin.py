@@ -1,7 +1,7 @@
 """Admin registrations for core models."""
 from django.contrib import admin
 
-from .models import Friendship, UserProfile
+from .models import DirectMessage, Friendship, UserProfile
 
 
 @admin.register(UserProfile)
@@ -18,3 +18,12 @@ class FriendshipAdmin(admin.ModelAdmin):
     search_fields = ('user_low__username', 'user_high__username', 'requester__username')
     autocomplete_fields = ('user_low', 'user_high', 'requester')
     readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(DirectMessage)
+class DirectMessageAdmin(admin.ModelAdmin):
+    list_display = ('sender', 'recipient', 'sent_at', 'is_read')
+    list_filter = ('is_read', 'sent_at')
+    search_fields = ('sender__username', 'recipient__username', 'text')
+    autocomplete_fields = ('sender', 'recipient')
+    readonly_fields = ('sent_at',)

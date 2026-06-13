@@ -13,18 +13,18 @@
   <aside class="sidebar">
     {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
     <nav class="side-nav">
+      <div class="side-nav-divider" aria-hidden="true"></div>
       <div class="side-nav-footer">
         {% include 'includes/side_nav_links.html' with current_section='community' %}
       </div>
-      <div class="side-nav-divider" aria-hidden="true"></div>
     </nav>
   </aside>
 
   <header class="topbar">
     <div class="topbar-inner">
       <div class="logo-wrap community-titlebar">
-        <span class="page-title">Сообщество</span>
-        <div class="community-tabs" role="tablist" aria-label="Разделы сообщества">
+        <span class="page-title">Люди</span>
+        <div class="community-tabs" role="tablist" aria-label="Разделы людей">
           <button class="community-tab" type="button" data-tab="search" role="tab">Поиск пользователей</button>
           <button class="community-tab" type="button" data-tab="friends" role="tab">Друзья</button>
           <button class="community-tab" type="button" data-tab="requests" role="tab">Заявки</button>

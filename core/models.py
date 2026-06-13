@@ -137,6 +137,45 @@ class Friendship(models.Model):
         super().save(*args, **kwargs)
 
 
+class DirectMessage(models.Model):
+    """Stores a private message between two registered users."""
+
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='sent_direct_messages',
+    )
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='received_direct_messages',
+    )
+    text = models.TextField()
+    sent_at = models.DateTimeField(auto_now_add=True)
+    is_read = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['sent_at', 'id']
+        indexes = [
+            models.Index(fields=['sender', 'recipient', 'sent_at'], name='dm_sender_recipient_idx'),
+            models.Index(fields=['recipient', 'sender', 'sent_at'], name='dm_recipient_sender_idx'),
+            models.Index(fields=['recipient', 'is_read'], name='dm_recipient_read_idx'),
+        ]
+        constraints = [
+            models.CheckConstraint(check=~models.Q(sender_id=models.F('recipient_id')), name='dm_sender_not_recipient'),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"DirectMessage<{self.sender_id}->{self.recipient_id}:{self.sent_at:%Y-%m-%d %H:%M:%S}>"
+
+    def clean(self) -> None:
+        super().clean()
+        if self.sender_id and self.recipient_id and self.sender_id == self.recipient_id:
+            raise ValidationError('A user cannot send a message to themselves.')
+        if self.text:
+            moderation.ensure_text_allowed(self.text, field='text')
+
+
 class Rubric(models.Model):
     """Represents archive categories, replacing the Java Rubric entity."""
 
