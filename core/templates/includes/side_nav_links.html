@@ -1,15 +1,34 @@
 {% load static %}
 {% with current=current_section|default:'' %}
-<div class="side-nav-links" role="group" aria-label="Навигация по разделам">
-  {% if include_archive|default:True %}
-    <a class="side-btn{% if current == 'archive' %} active{% endif %}" href="{% url 'core:archive' %}"{% if current == 'archive' %} aria-current="page"{% endif %}>Ваш архив</a>
-  {% endif %}
-  <a class="side-btn{% if current == 'profile' %} active{% endif %}" href="{% url 'core:profile' %}"{% if current == 'profile' %} aria-current="page"{% endif %}>Профиль</a>
-  {% include 'includes/market_dropup.html' with current_section=current %}
-  <a class="side-btn{% if current == 'settings' %} active{% endif %}" href="{% url 'core:settings' %}"{% if current == 'settings' %} aria-current="page"{% endif %}>Настройки</a>
-  <a class="side-btn{% if current == 'news' %} active{% endif %}" href="{% url 'core:news' %}"{% if current == 'news' %} aria-current="page"{% endif %}>Тех. информация</a>
-  {% if include_reviews|default:False or current == 'news' %}
-    <a class="side-btn{% if current == 'reviews' %} active{% endif %}" href="{% url 'core:reviews' %}"{% if current == 'reviews' %} aria-current="page"{% endif %}>Отзывы</a>
-  {% endif %}
+<div class="site-menu" data-site-menu>
+  <button class="side-btn site-menu__toggle" type="button" aria-haspopup="menu" aria-expanded="false">
+    Меню
+  </button>
+  <div class="site-menu__list" role="menu" hidden>
+    {% if user.is_authenticated %}
+      {% if include_archive|default:True and current != 'archive' %}
+        <a class="site-menu__item" href="{% url 'core:archive' %}" role="menuitem">Ваш архив</a>
+      {% endif %}
+      {% if current != 'profile' %}
+        <a class="site-menu__item" href="{% url 'core:profile' %}" role="menuitem">Профиль</a>
+      {% endif %}
+    {% endif %}
+    {% if current != 'market' %}
+      <button class="site-menu__item site-menu__item--disabled has-tooltip" type="button" role="menuitem" aria-disabled="true" data-tooltip="в разработке">
+        Маркет
+      </button>
+    {% endif %}
+    {% if user.is_authenticated and current != 'settings' %}
+      <a class="site-menu__item" href="{% url 'core:settings' %}" role="menuitem">Настройки</a>
+    {% endif %}
+    {% if current != 'news' %}
+      <a class="site-menu__item" href="{% url 'core:news' %}" role="menuitem">Тех. информация</a>
+    {% endif %}
+    {% if include_reviews|default:False or current == 'news' or current == 'reviews' %}
+      {% if current != 'reviews' %}
+        <a class="site-menu__item" href="{% url 'core:reviews' %}" role="menuitem">Отзывы</a>
+      {% endif %}
+    {% endif %}
+  </div>
 </div>
 {% endwith %}
