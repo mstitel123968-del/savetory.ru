@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 
 from django.conf import settings
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.urls import resolve
+from django.utils import timezone
 
 from core import messages
 from core.models import Profile
@@ -13,6 +15,39 @@ from core.models import Profile
 logger = logging.getLogger("core.moderation")
 
 SAFE_METHODS: tuple[str, ...] = ("GET", "HEAD", "OPTIONS", "TRACE")
+LAST_SEEN_SESSION_KEY = "profile_last_seen_update_at"
+LAST_SEEN_UPDATE_INTERVAL_SECONDS = 60
+
+
+class LastSeenMiddleware:
+    """Update authenticated users' activity timestamp at most once per minute."""
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        if request.user.is_authenticated:
+            self._update_last_seen(request)
+        return self.get_response(request)
+
+    def _update_last_seen(self, request: HttpRequest) -> None:
+        now = timezone.now()
+        last_update = request.session.get(LAST_SEEN_SESSION_KEY)
+        if last_update:
+            try:
+                previous = datetime.fromisoformat(last_update)
+                if previous.tzinfo is None:
+                    previous = timezone.make_aware(previous)
+                if (now - previous).total_seconds() < LAST_SEEN_UPDATE_INTERVAL_SECONDS:
+                    return
+            except (TypeError, ValueError):
+                pass
+
+        Profile.objects.update_or_create(
+            user=request.user,
+            defaults={'last_seen_at': now},
+        )
+        request.session[LAST_SEEN_SESSION_KEY] = now.isoformat()
 
 
 class TermsAcceptanceMiddleware:

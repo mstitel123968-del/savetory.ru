@@ -27,6 +27,11 @@
   const allowedPrivacy = ['public','friends','private'];
   const booleanPrefs = new Set(['reduceMotion','plainBackground','focusStrong','showHints','expandNews']);
 
+  function csrf(){
+    const match = document.cookie.match(/csrftoken=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : '';
+  }
+
   const defaults = Object.assign({
     theme: 'dark',
     accent: 'blue',
@@ -222,6 +227,23 @@
     showToast(typeof toastMessage === 'string' ? toastMessage : 'Сохранено');
   }
 
+  async function savePrivacyToServer(){
+    try {
+      const response = await fetch('/api/profile/', {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+        body: JSON.stringify({ privacy_level: state.privacy }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok || !data || data.success === false){
+        throw new Error('privacy save failed');
+      }
+    } catch (error){
+      showToast('Не удалось сохранить конфиденциальность на сервере');
+    }
+  }
+
   function render() {
     const percent = Math.round(state.fontScale * 100);
     if (fontRange) {
@@ -340,6 +362,7 @@
     state.privacy = next;
     render();
     save(`Конфиденциальность: ${privacyMap[state.privacy] || privacyMap.public}`);
+    savePrivacyToServer();
   }
 
   function resetAppearance() {

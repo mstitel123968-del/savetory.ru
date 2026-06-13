@@ -1,0 +1,91 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/community.css' %}" />
+</head>
+<body class="community-page">
+  <script src="{% static 'js/prefs.js' %}"></script>
+  <aside class="sidebar">
+    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
+    <nav class="side-nav">
+      <div class="side-nav-footer">
+        {% include 'includes/side_nav_links.html' with current_section='community' %}
+      </div>
+      <div class="side-nav-divider" aria-hidden="true"></div>
+    </nav>
+  </aside>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo-wrap community-titlebar">
+        <span class="page-title">Сообщество</span>
+        <div class="community-tabs" role="tablist" aria-label="Разделы сообщества">
+          <button class="community-tab" type="button" data-tab="search" role="tab">Поиск пользователей</button>
+          <button class="community-tab" type="button" data-tab="friends" role="tab">Друзья</button>
+          <button class="community-tab" type="button" data-tab="requests" role="tab">Заявки</button>
+        </div>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions community-topbar-searches">
+        <div class="community-searchbar community-searchbar--topbar community-searchbar--single-action" data-search-tab="search">
+          <input id="communitySearchInput" class="community-searchbar__input" type="search" placeholder="Поиск по имени или логину" autocomplete="off" />
+          <button id="communitySearchClear" class="community-searchbar__clear" type="button" aria-label="Очистить поиск">×</button>
+        </div>
+        <div class="community-searchbar community-searchbar--topbar community-searchbar--single-action" data-search-tab="friends" hidden>
+          <input id="communityFriendsSearch" class="community-searchbar__input" type="search" placeholder="Поиск среди друзей" autocomplete="off" />
+          <button id="communityFriendsClear" class="community-searchbar__clear" type="button" aria-label="Очистить поиск">×</button>
+        </div>
+        <div class="community-searchbar community-searchbar--topbar community-searchbar--single-action" data-search-tab="requests" hidden>
+          <input id="communityRequestsSearch" class="community-searchbar__input" type="search" placeholder="Поиск по заявкам" autocomplete="off" />
+          <button id="communityRequestsClear" class="community-searchbar__clear" type="button" aria-label="Очистить поиск">×</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="main community-main" data-initial-tab="{{ initial_tab|escapejs }}" data-initial-requests-view="{{ initial_requests_view|escapejs }}">
+    <section class="community-shell">
+      <div id="communityNotice" class="community-notice" role="status" aria-live="polite" hidden></div>
+
+      <section class="community-panel" data-panel="search">
+        <div class="community-result-meta" id="communitySearchMeta">Введите минимум два символа для поиска.</div>
+        <div id="communitySearchState" class="community-state" hidden></div>
+        <div id="communitySearchGrid" class="community-grid"></div>
+        <div id="communityPagination" class="community-pagination" hidden></div>
+      </section>
+
+      <section class="community-panel" data-panel="friends" hidden>
+        <div class="community-section-head">
+          <h2>Друзья <span class="community-pill" data-count="friends">0</span></h2>
+        </div>
+        <div id="communityFriendsState" class="community-state" hidden></div>
+        <div id="communityFriendsGrid" class="community-grid"></div>
+      </section>
+
+      <section class="community-panel" data-panel="requests" hidden>
+        <div class="community-section-head">
+          <h2>Заявки</h2>
+        </div>
+        <div class="community-request-switch" role="tablist" aria-label="Тип заявок">
+          <button type="button" data-requests-view="incoming">Входящие <span data-count="incoming">0</span></button>
+          <button type="button" data-requests-view="outgoing">Исходящие <span data-count="outgoing">0</span></button>
+        </div>
+        <div id="communityRequestsState" class="community-state" hidden></div>
+        <div id="communityRequestsList" class="community-list"></div>
+      </section>
+    </section>
+  </main>
+
+  {% include 'includes/support_floating_widget.html' %}
+  {% include 'includes/terms_modal.html' %}
+
+  <script src="{% static 'js/nav.js' %}"></script>
+  <script src="{% static 'js/support-widget.js' %}"></script>
+  <script src="{% static 'js/community.js' %}"></script>
+</body>
+</html>

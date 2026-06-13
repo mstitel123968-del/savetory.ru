@@ -86,6 +86,18 @@ body.theme-sepia .pe-dialog{box-shadow:0 20px 44px rgba(62,34,18,0.36);}
 /* On very wide screens keep left alignment */
 .main .profile-wrap{margin-left:0}
 
+.public-profile-wrap{max-width:760px}
+.public-profile-card{padding:0}
+.public-profile-card .avatar-wrap img{position:static;width:100%;height:100%;object-fit:cover;max-width:100%;max-height:100%;transform:none;border-radius:inherit}
+.public-profile-card .avatar-wrap.has-img .avatar-placeholder{display:none}
+.public-profile-name{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.public-profile-presence{font-size:13px;font-weight:700;line-height:1.2}
+.public-profile-presence--online{color:#35d07f}
+.public-profile-presence--offline{color:var(--muted);font-weight:600}
+.public-profile-username{margin-top:2px;color:var(--muted);font-size:14px}
+.public-profile-view{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.public-profile-empty{color:var(--muted)}
+
 
 
 /* Avatar frame acts as picker */

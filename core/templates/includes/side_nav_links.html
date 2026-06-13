@@ -12,6 +12,9 @@
       {% if current != 'profile' %}
         <a class="site-menu__item" href="{% url 'core:profile' %}" role="menuitem">Профиль</a>
       {% endif %}
+      {% if current != 'community' %}
+        <a class="site-menu__item" href="{% url 'core:community' %}" role="menuitem">Сообщество</a>
+      {% endif %}
     {% endif %}
     {% if current != 'market' %}
       <button class="site-menu__item site-menu__item--disabled has-tooltip" type="button" role="menuitem" aria-disabled="true" data-tooltip="в разработке">

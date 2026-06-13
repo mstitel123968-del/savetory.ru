@@ -4,16 +4,18 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import timedelta
 from urllib.parse import unquote
 
 from django.db import transaction
+from django.db.models import Q
 
 from django.conf import settings as django_settings
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.text import slugify
@@ -24,8 +26,20 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from core import messages
 from core import exporters
+from core.services.friendships import (
+    FriendshipError,
+    accept_request,
+    cancel_request,
+    get_friends,
+    get_incoming_requests,
+    get_outgoing_requests,
+    get_relationship_status,
+    reject_request,
+    remove_friend,
+    send_request,
+)
 from .forms import ArchiveFileForm, LoginForm, RegistrationForm, RubricForm
-from .models import ArchiveFile, ArchiveState, Profile, Review, Rubric
+from .models import ArchiveFile, ArchiveState, Friendship, Profile, Review, Rubric
 
 logger = logging.getLogger("core.moderation")
 
@@ -283,6 +297,7 @@ def public_collection(request: HttpRequest, username: str, rubric_slug: str) -> 
     )
 
 
+@login_required
 @ensure_csrf_cookie
 def profile(request: HttpRequest) -> HttpResponse:
     return render(
@@ -310,6 +325,87 @@ def settings(request: HttpRequest) -> HttpResponse:
             indexable=False,
             canonical_path=reverse('core:settings'),
         ),
+    )
+
+
+@login_required
+@ensure_csrf_cookie
+def community(request: HttpRequest) -> HttpResponse:
+    tab = str(request.GET.get('tab') or 'search').strip().lower()
+    if tab not in {'search', 'friends', 'requests'}:
+        tab = 'search'
+    requests_view = str(request.GET.get('requests') or 'incoming').strip().lower()
+    if requests_view not in {'incoming', 'outgoing'}:
+        requests_view = 'incoming'
+    return render(
+        request,
+        'community.html',
+        {
+            'initial_tab': tab,
+            'initial_requests_view': requests_view,
+            **_seo_context(
+                request,
+                title='Сообщество - СКлад',
+                description='Поиск пользователей, друзья и заявки в сообществе СКлад.',
+                indexable=False,
+                canonical_path=reverse('core:community'),
+            ),
+        },
+    )
+
+
+@login_required
+@ensure_csrf_cookie
+def community_user_profile(request: HttpRequest, username: str) -> HttpResponse:
+    viewed_user = User.objects.filter(username__iexact=username).select_related('profile').first()
+    if not viewed_user:
+        raise Http404("Пользователь не найден")
+    if viewed_user.pk == request.user.pk:
+        return redirect('core:profile')
+
+    profile = getattr(viewed_user, 'profile', None)
+    privacy = (profile.privacy_level if profile else 'public') or 'public'
+    relationship = get_relationship_status(request.user, viewed_user)
+    is_friend = relationship.get('status') == Friendship.Status.ACCEPTED
+    if privacy == 'private':
+        raise Http404("Пользователь не найден")
+
+    meta = profile.avatar_meta if profile and isinstance(profile.avatar_meta, dict) else {}
+    can_view_details = _community_can_view_details(request.user, viewed_user, profile)
+    fields: list[dict[str, str]] = []
+
+    def add_field(label: str, value: str | None) -> None:
+        text = str(value or '').strip()
+        if text:
+            fields.append({'label': label, 'value': text})
+
+    if can_view_details:
+        add_field('Имя', viewed_user.first_name)
+        add_field('Фамилия', viewed_user.last_name)
+        add_field('Город', meta.get('city', ''))
+        add_field('Ссылка', profile.link if profile else '')
+        add_field('Интересы', meta.get('interests', ''))
+
+    display_name = _community_display_name(viewed_user, profile)
+    return render(
+        request,
+        'community_user_profile.html',
+        {
+            'profile_user': viewed_user,
+            'profile_display_name': display_name,
+            'profile_fields': fields,
+            'avatar_data': meta.get('avatar_data', '') if profile else '',
+            'presence': _community_presence_payload(profile),
+            'can_view_details': can_view_details,
+            'friendship_state': _community_user_payload(viewed_user, request.user)['friendship_state'],
+            **_seo_context(
+                request,
+                title=f'{display_name} - профиль в СКлад',
+                description='Публичный профиль пользователя сообщества СКлад.',
+                indexable=False,
+                canonical_path=reverse('core:community-user-profile', kwargs={'username': viewed_user.get_username()}),
+            ),
+        },
     )
 
 
@@ -440,6 +536,7 @@ def register_user(request: HttpRequest) -> JsonResponse:
             status=500,
         )
     login(request, authenticated)
+    _touch_user_last_seen(authenticated)
     return JsonResponse({'success': True})
 
 
@@ -447,7 +544,9 @@ def register_user(request: HttpRequest) -> JsonResponse:
 def login_user(request: HttpRequest) -> JsonResponse:
     form = LoginForm(request, data=request.POST)
     if form.is_valid():
-        login(request, form.get_user())
+        user = form.get_user()
+        login(request, user)
+        _touch_user_last_seen(user)
         return JsonResponse({'success': True})
     return JsonResponse({'success': False, 'errors': form.errors}, status=400)
 
@@ -506,6 +605,252 @@ def profile_api(request: HttpRequest) -> JsonResponse:
     request.user.save(update_fields=['first_name', 'last_name', 'email'])
     profile.save(update_fields=['link', 'privacy_level', 'avatar_meta'])
     return JsonResponse({'success': True})
+
+
+COMMUNITY_PAGE_SIZE = 12
+COMMUNITY_ONLINE_WINDOW_SECONDS = 5 * 60
+
+
+def _touch_user_last_seen(user: User) -> None:
+    Profile.objects.update_or_create(
+        user=user,
+        defaults={'last_seen_at': timezone.now()},
+    )
+
+
+def _community_display_name(user: User, profile: Profile | None = None) -> str:
+    if profile and profile.display_name:
+        return profile.display_name
+    full_name = user.get_full_name().strip()
+    return full_name or user.get_username()
+
+
+def _community_presence_payload(profile: Profile | None) -> dict:
+    last_seen_at = profile.last_seen_at if profile else None
+    if not last_seen_at:
+        return {'is_online': False, 'label': 'Активность пока неизвестна'}
+
+    now = timezone.localtime(timezone.now())
+    local_seen = timezone.localtime(last_seen_at)
+    if (now - local_seen).total_seconds() <= COMMUNITY_ONLINE_WINDOW_SECONDS:
+        return {'is_online': True, 'label': 'Онлайн'}
+
+    time_label = local_seen.strftime('%H:%M')
+    if local_seen.date() == now.date():
+        label = f'Заходил сегодня в {time_label}'
+    elif local_seen.date() == (now - timedelta(days=1)).date():
+        label = f'Заходил вчера в {time_label}'
+    else:
+        label = f"Заходил {local_seen.strftime('%d.%m.%Y')} в {time_label}"
+    return {'is_online': False, 'label': label}
+
+
+def _community_can_view_details(viewer: User, user: User, profile: Profile | None = None) -> bool:
+    if viewer.pk == user.pk:
+        return True
+    privacy = (profile.privacy_level if profile else 'public') or 'public'
+    if privacy == 'public':
+        return True
+    if privacy == 'private':
+        return False
+    return get_relationship_status(viewer, user)['status'] == Friendship.Status.ACCEPTED
+
+
+def _community_is_private_profile(user: User, profile: Profile | None = None) -> bool:
+    profile = profile if profile is not None else getattr(user, 'profile', None)
+    return ((profile.privacy_level if profile else 'public') or 'public') == 'private'
+
+
+def _community_visible_users(queryset):
+    return queryset.filter(Q(profile__isnull=True) | ~Q(profile__privacy_level='private'))
+
+
+def _community_user_payload(user: User, viewer: User, relation_cache: dict[int, dict] | None = None) -> dict:
+    profile = getattr(user, 'profile', None)
+    meta = profile.avatar_meta if profile and isinstance(profile.avatar_meta, dict) else {}
+    relationship = relation_cache.get(user.pk) if relation_cache is not None else get_relationship_status(viewer, user)
+    status = relationship.get('status') or 'none'
+    requester_id = relationship.get('requester_id')
+    if status == Friendship.Status.PENDING and requester_id == viewer.pk:
+        friendship_state = 'outgoing'
+    elif status == Friendship.Status.PENDING:
+        friendship_state = 'incoming'
+    elif status == Friendship.Status.ACCEPTED:
+        friendship_state = 'accepted'
+    else:
+        friendship_state = 'none'
+    can_view_details = _community_can_view_details(viewer, user, profile)
+    return {
+        'id': user.pk,
+        'username': user.get_username(),
+        'display_name': _community_display_name(user, profile),
+        'avatar_data': meta.get('avatar_data', '') if profile else '',
+        'avatar_pos': meta.get('avatar_pos', {'x': 50, 'y': 50, 'scale': 100}) if profile else {'x': 50, 'y': 50, 'scale': 100},
+        'city': meta.get('city', '') if can_view_details else '',
+        'interests': meta.get('interests', '') if can_view_details else '',
+        'presence': _community_presence_payload(profile),
+        'friendship_state': friendship_state,
+        'profile_url': reverse('core:community-user-profile', kwargs={'username': user.get_username()}),
+    }
+
+
+def _community_relation_payload(relation: Friendship, viewer: User) -> dict:
+    other = relation.user_high if relation.user_low_id == viewer.pk else relation.user_low
+    return {
+        'id': relation.pk,
+        'created_at': relation.created_at.isoformat(),
+        'updated_at': relation.updated_at.isoformat(),
+        'user': _community_user_payload(other, viewer),
+    }
+
+
+def _community_relation_is_visible(relation: Friendship, viewer: User) -> bool:
+    other = relation.user_high if relation.user_low_id == viewer.pk else relation.user_low
+    return not _community_is_private_profile(other)
+
+
+def _community_counts(user: User) -> dict:
+    incoming_count = sum(1 for relation in get_incoming_requests(user).select_related('user_low__profile', 'user_high__profile') if _community_relation_is_visible(relation, user))
+    outgoing_count = sum(1 for relation in get_outgoing_requests(user).select_related('user_low__profile', 'user_high__profile') if _community_relation_is_visible(relation, user))
+    friend_count = _community_visible_users(get_friends(user)).count()
+    return {
+        'friends': friend_count,
+        'incoming': incoming_count,
+        'outgoing': outgoing_count,
+    }
+
+
+@login_required
+@require_GET
+def community_summary_api(request: HttpRequest) -> JsonResponse:
+    friends = list(_community_visible_users(get_friends(request.user)).select_related('profile')[:7])
+    payload_friends = [_community_user_payload(user, request.user) for user in friends[:6]]
+    counts = _community_counts(request.user)
+    return JsonResponse({
+        'success': True,
+        'counts': counts,
+        'friends_preview': payload_friends,
+        'friends_extra': max(0, counts['friends'] - len(payload_friends)),
+    })
+
+
+@login_required
+@require_GET
+def community_search_api(request: HttpRequest) -> JsonResponse:
+    query = str(request.GET.get('q') or '').strip()
+    try:
+        page = max(1, int(request.GET.get('page') or 1))
+    except (TypeError, ValueError):
+        page = 1
+
+    matches = _community_visible_users(User.objects.all()).exclude(pk=request.user.pk).select_related('profile')
+    if len(query) >= 2:
+        matches = matches.filter(
+            Q(username__icontains=query)
+            | Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(profile__display_name__icontains=query)
+        )
+    matches = matches.distinct().order_by('username', 'id')
+    total = matches.count()
+    page_size = COMMUNITY_PAGE_SIZE
+    num_pages = max(1, (total + page_size - 1) // page_size)
+    page = min(page, num_pages)
+    users = list(matches[(page - 1) * page_size: page * page_size])
+    return JsonResponse({
+        'success': True,
+        'query': query,
+        'count': total,
+        'page': page,
+        'num_pages': num_pages,
+        'users': [_community_user_payload(user, request.user) for user in users],
+    })
+
+
+@login_required
+@require_GET
+def community_friends_api(request: HttpRequest) -> JsonResponse:
+    query = str(request.GET.get('q') or '').strip()
+    friends = _community_visible_users(get_friends(request.user)).select_related('profile')
+    if query:
+        friends = friends.filter(
+            Q(username__icontains=query)
+            | Q(first_name__icontains=query)
+            | Q(last_name__icontains=query)
+            | Q(profile__display_name__icontains=query)
+        ).distinct()
+    users = list(friends)
+    return JsonResponse({
+        'success': True,
+        'count': len(users),
+        'users': [_community_user_payload(user, request.user) for user in users],
+    })
+
+
+@login_required
+@require_GET
+def community_requests_api(request: HttpRequest) -> JsonResponse:
+    incoming = list(get_incoming_requests(request.user).select_related('user_low__profile', 'user_high__profile', 'requester'))
+    outgoing = list(get_outgoing_requests(request.user).select_related('user_low__profile', 'user_high__profile', 'requester'))
+    incoming = [relation for relation in incoming if _community_relation_is_visible(relation, request.user)]
+    outgoing = [relation for relation in outgoing if _community_relation_is_visible(relation, request.user)]
+    return JsonResponse({
+        'success': True,
+        'counts': _community_counts(request.user),
+        'incoming': [_community_relation_payload(relation, request.user) for relation in incoming],
+        'outgoing': [_community_relation_payload(relation, request.user) for relation in outgoing],
+    })
+
+
+@login_required
+@require_POST
+def community_friendship_action_api(request: HttpRequest) -> JsonResponse:
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        payload = {}
+    action = str(payload.get('action') or '').strip()
+    target_id = payload.get('target_id')
+    target = User.objects.filter(pk=target_id).first()
+    if not target:
+        return JsonResponse({'success': False, 'error': 'Пользователь не найден.'}, status=404)
+    if _community_is_private_profile(target):
+        return JsonResponse({'success': False, 'error': 'Пользователь не найден.'}, status=404)
+
+    try:
+        if action == 'send':
+            relation = send_request(request.user, target)
+            message = 'Заявка отправлена.'
+        elif action == 'accept':
+            relation = accept_request(request.user, target)
+            message = 'Пользователь добавлен в друзья.'
+        elif action == 'reject':
+            relation = reject_request(request.user, target)
+            message = 'Заявка отклонена.'
+        elif action == 'cancel':
+            cancel_request(request.user, target)
+            relation = None
+            message = 'Заявка отменена.'
+        elif action == 'remove':
+            remove_friend(request.user, target)
+            relation = None
+            message = 'Пользователь удалён из друзей.'
+        else:
+            return JsonResponse({'success': False, 'error': 'Неизвестное действие.'}, status=400)
+    except FriendshipError as exc:
+        return JsonResponse({'success': False, 'error': str(exc), 'code': exc.code}, status=400)
+
+    return JsonResponse({
+        'success': True,
+        'message': message,
+        'relationship': {
+            'status': get_relationship_status(request.user, target)['status'],
+            'requester_id': get_relationship_status(request.user, target)['requester_id'],
+        },
+        'target': _community_user_payload(target, request.user),
+        'counts': _community_counts(request.user),
+        'relation_id': relation.pk if relation else None,
+    })
 
 
 @login_required

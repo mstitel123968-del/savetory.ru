@@ -1,0 +1,122 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/profile.css' %}" />
+</head>
+<body class="community-public-profile-page">
+  <script src="{% static 'js/prefs.js' %}"></script>
+  <aside class="sidebar">
+    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
+    <nav class="side-nav">
+      <div class="side-nav-divider" aria-hidden="true"></div>
+      <div class="side-nav-footer">
+        {% include 'includes/side_nav_links.html' with current_section='community' %}
+      </div>
+    </nav>
+  </aside>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo-wrap">
+        <span class="page-title">Профиль</span>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-actions"></div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="profile-wrap profile-compact public-profile-wrap">
+      <div class="profile-plain public-profile-card">
+        <div class="profile-header">
+          <div class="profile-header__main">
+            <div class="avatar-wrap{% if avatar_data %} has-img{% endif %}">
+              <span class="avatar-placeholder">{{ profile_display_name|first|default:"?" }}</span>
+              {% if avatar_data %}
+                <img src="{{ avatar_data }}" alt="" draggable="false">
+              {% endif %}
+            </div>
+            <div>
+              <div class="profile-login public-profile-name">
+                <span>{{ profile_display_name }}</span>
+                {% if presence.label %}
+                  <span class="public-profile-presence{% if presence.is_online %} public-profile-presence--online{% else %} public-profile-presence--offline{% endif %}">{{ presence.label }}</span>
+                {% endif %}
+              </div>
+              <div class="public-profile-username">@{{ profile_user.username }}</div>
+            </div>
+          </div>
+        </div>
+
+        {% if profile_fields %}
+          <div class="profile-view public-profile-view">
+            {% for field in profile_fields %}
+              <div><strong>{{ field.label }}:</strong> <span>{{ field.value }}</span></div>
+            {% endfor %}
+          </div>
+        {% elif not can_view_details %}
+          <div class="profile-view public-profile-view">
+            <div class="public-profile-empty">Подробности профиля доступны только друзьям.</div>
+          </div>
+        {% else %}
+          <div class="profile-view public-profile-view">
+            <div class="public-profile-empty">Пользователь пока не заполнил публичные поля.</div>
+          </div>
+        {% endif %}
+        {% if friendship_state != 'accepted' %}
+        <div class="profile-footer-actions public-profile-actions">
+          {% if friendship_state == 'outgoing' %}
+            <button class="ios-button light round-btn" type="button" disabled>Заявка отправлена</button>
+          {% elif friendship_state == 'incoming' %}
+            <a class="ios-button light round-btn public-profile-action-link" href="{% url 'core:community' %}?tab=requests&requests=incoming">Ответить на заявку</a>
+          {% else %}
+            <button id="publicProfileFriendBtn" class="ios-button light round-btn" type="button" data-user-id="{{ profile_user.id }}">Добавить в друзья</button>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </main>
+
+  {% include 'includes/support_floating_widget.html' %}
+
+  <script src="{% static 'js/nav.js' %}"></script>
+  <script src="{% static 'js/support-widget.js' %}"></script>
+  <script>
+    (function(){
+      const button = document.getElementById('publicProfileFriendBtn');
+      if (!button) return;
+      function csrf(){
+        const match = document.cookie.match(/csrftoken=([^;]+)/);
+        return match ? decodeURIComponent(match[1]) : '';
+      }
+      button.addEventListener('click', async function(){
+        if (button.disabled) return;
+        button.disabled = true;
+        try {
+          const response = await fetch("{% url 'core:community-friendship-api' %}", {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+            body: JSON.stringify({ action: 'send', target_id: button.dataset.userId }),
+          });
+          const data = await response.json().catch(function(){ return null; });
+          if (!response.ok || !data || data.success === false) {
+            throw new Error();
+          }
+          button.textContent = 'Заявка отправлена';
+        } catch (error) {
+          button.disabled = false;
+          button.textContent = 'Не удалось отправить';
+          window.setTimeout(function(){ button.textContent = 'Добавить в друзья'; }, 1800);
+        }
+      });
+    })();
+  </script>
+  {% include 'includes/terms_modal.html' %}
+</body>
+</html>

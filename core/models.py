@@ -40,6 +40,7 @@ class Profile(models.Model):
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
     avatar_meta = models.JSONField(default=dict, blank=True)
     privacy_level = models.CharField(max_length=50, default='public')
+    last_seen_at = models.DateTimeField(blank=True, null=True, db_index=True)
     link = models.CharField(max_length=255, blank=True, default='')
     terms_version_accepted = models.CharField(max_length=20, blank=True, default='')
     terms_accepted_at = models.DateTimeField(blank=True, null=True)
@@ -61,6 +62,79 @@ class Profile(models.Model):
 
     def has_accepted_terms(self) -> bool:
         return (self.terms_version_accepted or '') == settings.TERMS_VERSION
+
+
+class Friendship(models.Model):
+    """Stores a normalized friendship or friendship request between two users."""
+
+    class Status(models.TextChoices):
+        PENDING = 'pending', 'Pending'
+        ACCEPTED = 'accepted', 'Accepted'
+        REJECTED = 'rejected', 'Rejected'
+
+    user_low = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='friendships_as_low',
+    )
+    user_high = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='friendships_as_high',
+    )
+    requester = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='sent_friendship_requests',
+    )
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    resolved_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        constraints = [
+            models.UniqueConstraint(fields=['user_low', 'user_high'], name='uniq_friendship_pair'),
+            models.CheckConstraint(check=models.Q(user_low_id__lt=models.F('user_high_id')), name='friendship_ordered_pair'),
+            models.CheckConstraint(
+                check=models.Q(requester_id=models.F('user_low_id')) | models.Q(requester_id=models.F('user_high_id')),
+                name='friendship_requester_is_participant',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user_low', 'status'], name='friend_low_status_idx'),
+            models.Index(fields=['user_high', 'status'], name='friend_high_status_idx'),
+            models.Index(fields=['requester', 'status'], name='friend_requester_status_idx'),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"Friendship<{self.user_low_id}:{self.user_high_id}:{self.status}>"
+
+    @staticmethod
+    def normalize_pair(user_a, user_b):
+        user_a_id = getattr(user_a, 'pk', user_a)
+        user_b_id = getattr(user_b, 'pk', user_b)
+        if not user_a_id or not user_b_id:
+            raise ValidationError('Both users must be saved before creating a friendship.')
+        if user_a_id == user_b_id:
+            raise ValidationError('A user cannot create a friendship with themselves.')
+        return (user_a, user_b) if user_a_id < user_b_id else (user_b, user_a)
+
+    def clean(self) -> None:
+        super().clean()
+        if self.user_low_id and self.user_high_id and self.user_low_id == self.user_high_id:
+            raise ValidationError('A user cannot create a friendship with themselves.')
+        if self.user_low_id and self.user_high_id and self.user_low_id > self.user_high_id:
+            self.user_low_id, self.user_high_id = self.user_high_id, self.user_low_id
+        if self.requester_id and self.user_low_id and self.user_high_id:
+            if self.requester_id not in {self.user_low_id, self.user_high_id}:
+                raise ValidationError({'requester': 'Requester must be one of the friendship participants.'})
+
+    def save(self, *args, **kwargs) -> None:
+        if self.user_low_id and self.user_high_id and self.user_low_id > self.user_high_id:
+            self.user_low_id, self.user_high_id = self.user_high_id, self.user_low_id
+        super().save(*args, **kwargs)
 
 
 class Rubric(models.Model):
