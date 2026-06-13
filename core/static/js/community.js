@@ -11,6 +11,7 @@
     friendsQuery: '',
     requestsQuery: '',
     requestsData: null,
+    requestNotifications: { total: 0, latestAt: null, userId: null, senderIds: new Set() },
     busy: new Set(),
   };
 
@@ -98,6 +99,10 @@
       bar.hidden = bar.dataset.searchTab !== state.tab;
     });
     setUrl();
+    if (state.tab === 'requests'){
+      markRequestsTabSeen();
+    }
+    applyRequestTabIndicator();
     if (state.tab === 'friends') loadFriends();
     if (state.tab === 'requests') loadRequests();
     if (state.tab === 'search') {
@@ -122,6 +127,62 @@
     }
     if (Object.prototype.hasOwnProperty.call(counts, 'outgoing')){
       document.querySelectorAll('[data-count="outgoing"]').forEach((el) => { el.textContent = counts.outgoing || 0; });
+    }
+  }
+
+  function requestsSeenKey(){
+    return state.requestNotifications.userId ? `savetory:requests-tab-seen:${state.requestNotifications.userId}` : '';
+  }
+
+  function getRequestsSeenAt(){
+    const key = requestsSeenKey();
+    return key ? window.localStorage.getItem(key) : '';
+  }
+
+  function setRequestsSeenAt(value){
+    const key = requestsSeenKey();
+    if (key && value){
+      window.localStorage.setItem(key, value);
+    }
+  }
+
+  function hasNewRequestsForTab(){
+    const notifications = state.requestNotifications;
+    if (!notifications.total || !notifications.latestAt){
+      return false;
+    }
+    const seenAt = getRequestsSeenAt();
+    return !seenAt || notifications.latestAt > seenAt;
+  }
+
+  function markRequestsTabSeen(){
+    if (state.requestNotifications.latestAt){
+      setRequestsSeenAt(state.requestNotifications.latestAt);
+    }
+  }
+
+  function applyRequestTabIndicator(){
+    els.tabs.forEach((button) => {
+      const show = button.dataset.tab === 'requests' && state.tab !== 'requests' && hasNewRequestsForTab();
+      button.classList.toggle('has-unread-messages', show);
+    });
+  }
+
+  async function refreshRequestNotifications(){
+    try {
+      const data = await api('/api/community/unread-requests/');
+      state.requestNotifications = {
+        total: Number(data.total || 0),
+        latestAt: data.latest_at || null,
+        userId: data.user_id || null,
+        senderIds: new Set((data.requests || []).map((item) => item.user && item.user.id).filter(Boolean)),
+      };
+      if (state.tab === 'requests'){
+        markRequestsTabSeen();
+      }
+      applyRequestTabIndicator();
+    } catch (error){
+      // Request notification refresh is decorative and should stay silent.
     }
   }
 
@@ -392,7 +453,7 @@
         button.dataset.keepDisabled = 'true';
       }
       updateCounts(data.counts);
-      await Promise.all([loadSummary(), refreshCurrent()]);
+      await Promise.all([loadSummary(), refreshRequestNotifications(), refreshCurrent()]);
     } catch (error){
       showNotice(error.message || 'Не удалось выполнить действие.', 'error');
     } finally {
@@ -513,7 +574,10 @@
     setState(els.requestsState, 'Загружаем заявки...');
     els.requestsList.textContent = '';
     try {
-      const data = await api('/api/community/requests/');
+      const [data] = await Promise.all([
+        api('/api/community/requests/'),
+        refreshRequestNotifications(),
+      ]);
       state.requestsData = data;
       renderRequests();
     } catch (error){
@@ -547,6 +611,9 @@
       }
       list.forEach((item) => {
         const card = userCard(item.user, { mode: state.requestsView });
+        if (state.requestsView === 'incoming' && item.user && state.requestNotifications.senderIds.has(item.user.id)){
+          card.classList.add('has-unread-request');
+        }
         const body = card.querySelector('.community-card__body');
         const dateLine = document.createElement('div');
         dateLine.className = 'community-card__meta';
@@ -618,5 +685,6 @@
     });
   });
 
+  refreshRequestNotifications();
   setTab(state.tab, state.requestsView);
 })();

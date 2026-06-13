@@ -41,7 +41,7 @@
                   <span class="messages-dialog__name">{{ dialog.display_name }}</span>
                   <time class="messages-dialog__time" datetime="{{ dialog.latest_message.sent_at|date:'c' }}">{{ dialog.latest_at|date:"d.m.Y H:i" }}</time>
                 </div>
-                <div class="messages-dialog__preview">{{ dialog.latest_message.text|truncatechars:120 }}</div>
+                <div class="messages-dialog__preview">{{ dialog.latest_text|truncatechars:120 }}</div>
               </div>
               {% if dialog.unread_count %}
                 <span class="messages-unread-dot" aria-label="Непрочитанных сообщений: {{ dialog.unread_count }}"></span>

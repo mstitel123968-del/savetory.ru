@@ -82,59 +82,82 @@
     const siteMenus = Array.from(document.querySelectorAll('[data-site-menu]'));
     if (siteMenus.length){
       let openSiteMenu = null;
-      let unreadState = { total: 0, latestAt: null, userId: null };
+      const notificationChannels = {
+        messages: {
+          endpoint: '/api/messages/unread/',
+          menuSection: 'messages',
+          pageClass: 'messages-page',
+          total: 0,
+          latestAt: null,
+          userId: null,
+        },
+        requests: {
+          endpoint: '/api/community/unread-requests/',
+          menuSection: 'community',
+          pageClass: 'community-page',
+          total: 0,
+          latestAt: null,
+          userId: null,
+        },
+      };
 
-      function unreadSeenKey(){
-        return unreadState.userId ? `savetory:messages-menu-seen:${unreadState.userId}` : '';
+      function notificationSeenKey(name){
+        const channel = notificationChannels[name];
+        return channel && channel.userId ? `savetory:${name}-menu-seen:${channel.userId}` : '';
       }
 
-      function getUnreadSeenAt(){
-        const key = unreadSeenKey();
+      function getNotificationSeenAt(name){
+        const key = notificationSeenKey(name);
         return key ? window.localStorage.getItem(key) : '';
       }
 
-      function setUnreadSeenAt(value){
-        const key = unreadSeenKey();
+      function setNotificationSeenAt(name, value){
+        const key = notificationSeenKey(name);
         if (key && value){
           window.localStorage.setItem(key, value);
         }
       }
 
-      function hasUnreadMessages(){
-        return unreadState.total > 0 && !!unreadState.latestAt;
+      function channelHasItems(channel){
+        return channel.total > 0 && !!channel.latestAt;
       }
 
-      function hasNewUnreadForMenu(){
-        if (!hasUnreadMessages()){
+      function channelHasNewForMenu(name){
+        const channel = notificationChannels[name];
+        if (!channel || !channelHasItems(channel)){
           return false;
         }
-        const seenAt = getUnreadSeenAt();
-        return !seenAt || unreadState.latestAt > seenAt;
+        const seenAt = getNotificationSeenAt(name);
+        return !seenAt || channel.latestAt > seenAt;
       }
 
-      function getMessagesMenuItem(){
-        return document.querySelector('.site-menu__item[data-nav-section="messages"]');
+      function getMenuItemForChannel(channel){
+        return document.querySelector(`.site-menu__item[data-nav-section="${channel.menuSection}"]`);
       }
 
       function applyUnreadIndicators(){
-        const onMessagesPage = document.body.classList.contains('messages-page');
-        const showOnButton = !onMessagesPage && !openSiteMenu && hasNewUnreadForMenu();
-        const showOnMessagesItem = !onMessagesPage && !!openSiteMenu && hasUnreadMessages();
+        const showOnButton = !openSiteMenu && Object.keys(notificationChannels).some((name) => {
+          const channel = notificationChannels[name];
+          return !document.body.classList.contains(channel.pageClass) && channelHasNewForMenu(name);
+        });
         siteMenus.forEach((menu) => {
           const toggle = getSiteMenuToggle(menu);
           if (toggle){
             toggle.classList.toggle('has-unread-messages', showOnButton);
           }
         });
-        const messagesItem = getMessagesMenuItem();
-        if (messagesItem){
-          messagesItem.classList.toggle('has-unread-messages', showOnMessagesItem);
-        }
+        Object.values(notificationChannels).forEach((channel) => {
+          const item = getMenuItemForChannel(channel);
+          if (item){
+            const onChannelPage = document.body.classList.contains(channel.pageClass);
+            item.classList.toggle('has-unread-messages', !onChannelPage && !!openSiteMenu && channelHasItems(channel));
+          }
+        });
       }
 
-      async function refreshUnreadIndicators(){
+      async function refreshChannel(name, channel){
         try {
-          const response = await fetch('/api/messages/unread/', {
+          const response = await fetch(channel.endpoint, {
             credentials: 'include',
             headers: { 'Accept': 'application/json' },
           });
@@ -145,18 +168,20 @@
           if (!data || data.success === false){
             return;
           }
-          unreadState = {
-            total: Number(data.total || 0),
-            latestAt: data.latest_at || null,
-            userId: data.user_id || null,
-          };
-          if (document.body.classList.contains('messages-page') && unreadState.latestAt){
-            setUnreadSeenAt(unreadState.latestAt);
+          channel.total = Number(data.total || 0);
+          channel.latestAt = data.latest_at || null;
+          channel.userId = data.user_id || null;
+          if (document.body.classList.contains(channel.pageClass) && channel.latestAt){
+            setNotificationSeenAt(name, channel.latestAt);
           }
-          applyUnreadIndicators();
         } catch (error){
           // Notification polling should stay silent.
         }
+      }
+
+      async function refreshUnreadIndicators(){
+        await Promise.all(Object.entries(notificationChannels).map(([name, channel]) => refreshChannel(name, channel)));
+        applyUnreadIndicators();
       }
 
       function getSiteMenuToggle(menu){
@@ -228,9 +253,11 @@
         menu.classList.add('site-menu--open');
         toggle.setAttribute('aria-expanded', 'true');
         openSiteMenu = menu;
-        if (unreadState.latestAt){
-          setUnreadSeenAt(unreadState.latestAt);
-        }
+        Object.entries(notificationChannels).forEach(([name, channel]) => {
+          if (channel.latestAt){
+            setNotificationSeenAt(name, channel.latestAt);
+          }
+        });
         applyUnreadIndicators();
         requestAnimationFrame(() => {
           positionSiteMenu(menu);

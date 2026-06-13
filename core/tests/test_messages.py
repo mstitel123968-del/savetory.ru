@@ -6,8 +6,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from core.models import DirectMessage
-from core.services.messages import MessageError, get_dialogs, get_message_history, get_unread_summary, send_message
+from core.models import DirectMessage, DirectMessageReaction
+from core.services.messages import MessageError, delete_message, edit_message, get_dialogs, get_message_history, get_unread_summary, send_message, set_message_reaction
 
 
 class DirectMessageServiceTests(TestCase):
@@ -56,6 +56,55 @@ class DirectMessageServiceTests(TestCase):
         history = list(get_message_history(self.carol, self.alice))
 
         self.assertEqual(history, [])
+
+    def test_user_can_replace_and_toggle_message_reaction(self) -> None:
+        message = send_message(self.alice, self.bob, 'hello')
+
+        set_message_reaction(self.alice, message, '👍')
+        set_message_reaction(self.alice, message, '❤️')
+
+        reaction = DirectMessageReaction.objects.get(message=message, user=self.alice)
+        self.assertEqual(reaction.reaction, '❤️')
+
+        set_message_reaction(self.alice, message, '❤️')
+
+        self.assertFalse(DirectMessageReaction.objects.filter(message=message, user=self.alice).exists())
+
+    def test_third_user_cannot_react_to_message(self) -> None:
+        message = send_message(self.alice, self.bob, 'hello')
+
+        with self.assertRaises(MessageError):
+            set_message_reaction(self.carol, message, '👍')
+
+        self.assertFalse(DirectMessageReaction.objects.exists())
+
+    def test_sender_can_edit_own_message(self) -> None:
+        message = send_message(self.alice, self.bob, 'hello')
+
+        updated = edit_message(self.alice, message, 'updated')
+
+        self.assertEqual(updated.text, 'updated')
+        self.assertIsNotNone(updated.edited_at)
+
+    def test_non_sender_cannot_edit_or_delete_message(self) -> None:
+        message = send_message(self.alice, self.bob, 'hello')
+
+        with self.assertRaises(MessageError):
+            edit_message(self.bob, message, 'nope')
+        with self.assertRaises(MessageError):
+            delete_message(self.bob, message)
+
+    def test_deleted_message_cannot_be_edited_or_reacted_to(self) -> None:
+        message = send_message(self.alice, self.bob, 'hello')
+
+        deleted = delete_message(self.alice, message)
+
+        self.assertTrue(deleted.is_deleted)
+        self.assertIsNotNone(deleted.deleted_at)
+        with self.assertRaises(MessageError):
+            edit_message(self.alice, deleted, 'again')
+        with self.assertRaises(MessageError):
+            set_message_reaction(self.alice, deleted, '👍')
 
 
 class DirectMessageApiTests(TestCase):
@@ -108,6 +157,101 @@ class DirectMessageApiTests(TestCase):
         payload = response.json()
         self.assertEqual(payload['total'], 1)
         self.assertEqual(payload['senders'][0]['user']['id'], self.bob.pk)
+
+    def test_reaction_api_sets_replaces_and_removes_reaction(self) -> None:
+        message = send_message(self.bob, self.alice, 'hello')
+        self.client.force_login(self.alice)
+
+        response = self.client.post(
+            reverse('core:message-reaction-api', kwargs={'message_id': message.pk}),
+            data=json.dumps({'reaction': '👍'}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(DirectMessageReaction.objects.get().reaction, '👍')
+        self.assertEqual(response.json()['message']['reactions'][0]['count'], 1)
+        self.assertTrue(response.json()['message']['reactions'][0]['selected'])
+
+        response = self.client.post(
+            reverse('core:message-reaction-api', kwargs={'message_id': message.pk}),
+            data=json.dumps({'reaction': '😂'}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(DirectMessageReaction.objects.get().reaction, '😂')
+
+        response = self.client.post(
+            reverse('core:message-reaction-api', kwargs={'message_id': message.pk}),
+            data=json.dumps({'reaction': '😂'}),
+            content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(DirectMessageReaction.objects.exists())
+
+    def test_reaction_api_rejects_non_participant(self) -> None:
+        carol = get_user_model().objects.create_user('carol', password='pass1234')
+        message = send_message(self.bob, self.alice, 'hello')
+        self.client.force_login(carol)
+
+        response = self.client.post(
+            reverse('core:message-reaction-api', kwargs={'message_id': message.pk}),
+            data=json.dumps({'reaction': '👍'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(DirectMessageReaction.objects.exists())
+
+    def test_edit_api_updates_own_message(self) -> None:
+        message = send_message(self.alice, self.bob, 'hello')
+        self.client.force_login(self.alice)
+
+        response = self.client.patch(
+            reverse('core:message-edit-api', kwargs={'message_id': message.pk}),
+            data=json.dumps({'text': 'updated'}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        message.refresh_from_db()
+        self.assertEqual(message.text, 'updated')
+        self.assertTrue(response.json()['message']['is_edited'])
+
+    def test_edit_api_rejects_empty_text(self) -> None:
+        message = send_message(self.alice, self.bob, 'hello')
+        self.client.force_login(self.alice)
+
+        response = self.client.patch(
+            reverse('core:message-edit-api', kwargs={'message_id': message.pk}),
+            data=json.dumps({'text': '   '}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_delete_api_soft_deletes_own_message(self) -> None:
+        message = send_message(self.alice, self.bob, 'hello')
+        set_message_reaction(self.bob, message, '👍')
+        self.client.force_login(self.alice)
+
+        response = self.client.post(reverse('core:message-delete-api', kwargs={'message_id': message.pk}))
+
+        self.assertEqual(response.status_code, 200)
+        message.refresh_from_db()
+        self.assertTrue(message.is_deleted)
+        payload = response.json()['message']
+        self.assertEqual(payload['text'], 'Сообщение удалено')
+        self.assertEqual(payload['reactions'], [])
+
+    def test_delete_api_rejects_non_sender(self) -> None:
+        message = send_message(self.alice, self.bob, 'hello')
+        self.client.force_login(self.bob)
+
+        response = self.client.post(reverse('core:message-delete-api', kwargs={'message_id': message.pk}))
+
+        self.assertEqual(response.status_code, 403)
+        message.refresh_from_db()
+        self.assertFalse(message.is_deleted)
 
 
 class DirectMessagePageTests(TestCase):

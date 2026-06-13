@@ -35,9 +35,33 @@
     <section class="messages-shell messages-shell--dialog">
       <div id="messagesThread" class="messages-thread" aria-label="История переписки">
         {% for message in messages %}
-          <article class="messages-bubble{% if message.sender_id == request.user.id %} messages-bubble--out{% else %} messages-bubble--in{% endif %}">
+          <article class="messages-bubble{% if message.is_outgoing %} messages-bubble--out{% else %} messages-bubble--in{% endif %}{% if message.is_deleted %} messages-bubble--deleted{% endif %}" data-message-id="{{ message.id }}">
             <div class="messages-bubble__text">{{ message.text }}</div>
-            <time class="messages-bubble__time" datetime="{{ message.sent_at|date:'c' }}">{{ message.sent_at|date:"d.m.Y H:i" }}</time>
+            <div class="messages-bubble__meta">
+              <time class="messages-bubble__time" datetime="{{ message.sent_at }}">{{ message.sent_at_display }}</time>
+              {% if message.is_edited %}<span class="messages-bubble__edited">изменено</span>{% endif %}
+            </div>
+            {% if message.can_edit or message.can_delete %}
+              <div class="messages-message-actions" aria-label="Действия с сообщением">
+                {% if message.can_edit %}<button class="messages-message-action" type="button" data-message-action="edit">Редактировать</button>{% endif %}
+                {% if message.can_delete %}<button class="messages-message-action messages-message-action--danger" type="button" data-message-action="delete">Удалить</button>{% endif %}
+              </div>
+            {% endif %}
+            {% if message.can_react %}
+              <div class="messages-reaction-panel" role="group" aria-label="Реакции">
+                {% for reaction in message_reactions %}
+                  <button class="messages-reaction-option{% if message.viewer_reaction == reaction %} is-selected{% endif %}" type="button" data-reaction="{{ reaction }}" aria-label="Реакция {{ reaction }}">{{ reaction }}</button>
+                {% endfor %}
+              </div>
+              <div class="messages-reactions" aria-label="Поставленные реакции">
+                {% for reaction in message.reactions %}
+                  <button class="messages-reaction-chip{% if reaction.selected %} is-selected{% endif %}" type="button" data-reaction="{{ reaction.reaction }}" aria-label="Реакция {{ reaction.reaction }}, {{ reaction.count }}">
+                    <span>{{ reaction.reaction }}</span>
+                    <span>{{ reaction.count }}</span>
+                  </button>
+                {% endfor %}
+              </div>
+            {% endif %}
           </article>
         {% empty %}
           <div class="messages-empty">Сообщений пока нет</div>

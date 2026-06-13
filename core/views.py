@@ -39,14 +39,18 @@ from core.services.friendships import (
     send_request,
 )
 from core.services.messages import (
+    ALLOWED_MESSAGE_REACTIONS,
     MessageError,
+    delete_message,
+    edit_message,
     get_dialogs,
     get_message_history,
     get_unread_summary,
     send_message,
+    set_message_reaction,
 )
 from .forms import ArchiveFileForm, LoginForm, RegistrationForm, RubricForm
-from .models import ArchiveFile, ArchiveState, Friendship, Profile, Review, Rubric
+from .models import ArchiveFile, ArchiveState, DirectMessage, Friendship, Profile, Review, Rubric
 
 logger = logging.getLogger("core.moderation")
 
@@ -365,21 +369,23 @@ def community(request: HttpRequest) -> HttpResponse:
 @ensure_csrf_cookie
 def messages_page(request: HttpRequest) -> HttpResponse:
     dialogs = get_dialogs(request.user)
+    dialog_rows = []
+    for dialog in dialogs:
+        latest_payload = _message_payload(dialog['latest_message'], request.user)
+        dialog_rows.append({
+            'user': dialog['user'],
+            'display_name': _community_display_name(dialog['user'], getattr(dialog['user'], 'profile', None)),
+            'latest_message': dialog['latest_message'],
+            'latest_text': latest_payload['text'],
+            'latest_at': timezone.localtime(dialog['latest_at']),
+            'unread_count': dialog['unread_count'],
+            'url': reverse('core:message-dialog', kwargs={'user_id': dialog['user'].pk}),
+        })
     return render(
         request,
         'messages.html',
         {
-            'dialogs': [
-                {
-                    'user': dialog['user'],
-                    'display_name': _community_display_name(dialog['user'], getattr(dialog['user'], 'profile', None)),
-                    'latest_message': dialog['latest_message'],
-                    'latest_at': timezone.localtime(dialog['latest_at']),
-                    'unread_count': dialog['unread_count'],
-                    'url': reverse('core:message-dialog', kwargs={'user_id': dialog['user'].pk}),
-                }
-                for dialog in dialogs
-            ],
+            'dialogs': dialog_rows,
             **_seo_context(
                 request,
                 title='Сообщения - СКлад',
@@ -407,7 +413,8 @@ def message_dialog_page(request: HttpRequest, user_id: int) -> HttpResponse:
         {
             'dialog_user': other_user,
             'dialog_display_name': display_name,
-            'messages': messages_qs,
+            'messages': [_message_payload(message, request.user) for message in messages_qs],
+            'message_reactions': ALLOWED_MESSAGE_REACTIONS,
             **_seo_context(
                 request,
                 title=f'{display_name} - Сообщения - СКлад',
@@ -786,6 +793,17 @@ def _community_counts(user: User) -> dict:
     }
 
 
+def _community_incoming_request_summary(user: User) -> dict:
+    relations = list(get_incoming_requests(user).select_related('user_low__profile', 'user_high__profile', 'requester').order_by('-created_at', '-id'))
+    relations = [relation for relation in relations if _community_relation_is_visible(relation, user)]
+    latest_at = relations[0].created_at if relations else None
+    return {
+        'total': len(relations),
+        'latest_at': latest_at,
+        'requests': relations,
+    }
+
+
 @login_required
 @require_GET
 def community_summary_api(request: HttpRequest) -> JsonResponse:
@@ -797,6 +815,29 @@ def community_summary_api(request: HttpRequest) -> JsonResponse:
         'counts': counts,
         'friends_preview': payload_friends,
         'friends_extra': max(0, counts['friends'] - len(payload_friends)),
+    })
+
+
+@login_required
+@require_GET
+def community_unread_requests_api(request: HttpRequest) -> JsonResponse:
+    summary = _community_incoming_request_summary(request.user)
+    return JsonResponse({
+        'success': True,
+        'user_id': request.user.pk,
+        'total': summary['total'],
+        'latest_at': summary['latest_at'].isoformat() if summary['latest_at'] else None,
+        'requests': [
+            {
+                'id': relation.pk,
+                'created_at': relation.created_at.isoformat(),
+                'user': _community_user_payload(
+                    relation.user_high if relation.user_low_id == request.user.pk else relation.user_low,
+                    request.user,
+                ),
+            }
+            for relation in summary['requests']
+        ],
     })
 
 
@@ -928,15 +969,45 @@ def _message_user_payload(user: User) -> dict:
     }
 
 
+def _message_reactions_payload(message, viewer: User) -> tuple[list[dict], str]:
+    if getattr(message, 'is_deleted', False) or getattr(message, 'deleted_at', None):
+        return [], ''
+    grouped = {
+        reaction: {'reaction': reaction, 'count': 0, 'selected': False}
+        for reaction in ALLOWED_MESSAGE_REACTIONS
+    }
+    viewer_reaction = ''
+    for item in message.reactions.all():
+        if item.reaction not in grouped:
+            continue
+        grouped[item.reaction]['count'] += 1
+        if item.user_id == viewer.pk:
+            grouped[item.reaction]['selected'] = True
+            viewer_reaction = item.reaction
+    return [item for item in grouped.values() if item['count']], viewer_reaction
+
+
 def _message_payload(message, viewer: User) -> dict:
+    reactions, viewer_reaction = _message_reactions_payload(message, viewer)
+    is_deleted = bool(message.is_deleted)
     return {
         'id': message.pk,
         'sender': _message_user_payload(message.sender),
         'recipient': _message_user_payload(message.recipient),
-        'text': message.text,
+        'text': 'Сообщение удалено' if is_deleted else message.text,
+        'raw_text': '' if is_deleted else message.text,
         'sent_at': message.sent_at.isoformat(),
+        'sent_at_display': timezone.localtime(message.sent_at).strftime('%d.%m.%Y %H:%M'),
+        'edited_at': message.edited_at.isoformat() if message.edited_at else None,
+        'is_edited': bool(message.edited_at and not is_deleted),
+        'is_deleted': is_deleted,
         'is_read': message.is_read,
         'is_outgoing': message.sender_id == viewer.pk,
+        'can_edit': message.sender_id == viewer.pk and not is_deleted,
+        'can_delete': message.sender_id == viewer.pk and not is_deleted,
+        'can_react': not is_deleted,
+        'reactions': reactions,
+        'viewer_reaction': viewer_reaction,
     }
 
 
@@ -1011,6 +1082,60 @@ def message_send_api(request: HttpRequest) -> JsonResponse:
     except ValidationError as exc:
         return JsonResponse({'success': False, 'error': '; '.join(exc.messages)}, status=400)
     return JsonResponse({'success': True, 'message': _message_payload(message, request.user)}, status=201)
+
+
+@login_required
+@require_http_methods(["PATCH", "POST"])
+def message_edit_api(request: HttpRequest, message_id: int) -> JsonResponse:
+    message = DirectMessage.objects.filter(pk=message_id).select_related('sender', 'recipient').first()
+    if not message:
+        return JsonResponse({'success': False, 'error': 'Сообщение не найдено.'}, status=404)
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        payload = {}
+    try:
+        updated_message = edit_message(request.user, message, payload.get('text', ''))
+        updated_message = DirectMessage.objects.select_related('sender', 'recipient').prefetch_related('reactions').get(pk=updated_message.pk)
+    except MessageError as exc:
+        return JsonResponse({'success': False, 'error': str(exc), 'code': exc.code}, status=403 if exc.code == 'not_sender' else 400)
+    except ValidationError as exc:
+        return JsonResponse({'success': False, 'error': '; '.join(exc.messages)}, status=400)
+    return JsonResponse({'success': True, 'message': _message_payload(updated_message, request.user)})
+
+
+@login_required
+@require_POST
+def message_delete_api(request: HttpRequest, message_id: int) -> JsonResponse:
+    message = DirectMessage.objects.filter(pk=message_id).select_related('sender', 'recipient').first()
+    if not message:
+        return JsonResponse({'success': False, 'error': 'Сообщение не найдено.'}, status=404)
+    try:
+        updated_message = delete_message(request.user, message)
+        updated_message = DirectMessage.objects.select_related('sender', 'recipient').prefetch_related('reactions').get(pk=updated_message.pk)
+    except MessageError as exc:
+        return JsonResponse({'success': False, 'error': str(exc), 'code': exc.code}, status=403 if exc.code == 'not_sender' else 400)
+    return JsonResponse({'success': True, 'message': _message_payload(updated_message, request.user)})
+
+
+@login_required
+@require_POST
+def message_reaction_api(request: HttpRequest, message_id: int) -> JsonResponse:
+    message = DirectMessage.objects.filter(pk=message_id).select_related('sender', 'recipient').first()
+    if not message:
+        return JsonResponse({'success': False, 'error': 'Сообщение не найдено.'}, status=404)
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        payload = {}
+    try:
+        updated_message = set_message_reaction(request.user, message, payload.get('reaction'))
+        updated_message = DirectMessage.objects.select_related('sender', 'recipient').prefetch_related('reactions').get(pk=updated_message.pk)
+    except MessageError as exc:
+        return JsonResponse({'success': False, 'error': str(exc), 'code': exc.code}, status=403 if exc.code == 'not_participant' else 400)
+    except ValidationError as exc:
+        return JsonResponse({'success': False, 'error': '; '.join(exc.messages)}, status=400)
+    return JsonResponse({'success': True, 'message': _message_payload(updated_message, request.user)})
 
 
 @login_required

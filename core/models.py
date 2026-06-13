@@ -152,6 +152,9 @@ class DirectMessage(models.Model):
     )
     text = models.TextField()
     sent_at = models.DateTimeField(auto_now_add=True)
+    edited_at = models.DateTimeField(blank=True, null=True)
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(blank=True, null=True)
     is_read = models.BooleanField(default=False)
 
     class Meta:
@@ -174,6 +177,51 @@ class DirectMessage(models.Model):
             raise ValidationError('A user cannot send a message to themselves.')
         if self.text:
             moderation.ensure_text_allowed(self.text, field='text')
+
+
+class DirectMessageReaction(models.Model):
+    """Stores one reaction per user for a private message."""
+
+    class Reaction(models.TextChoices):
+        THUMBS_UP = '👍', 'Thumbs up'
+        HEART = '❤️', 'Heart'
+        LAUGH = '😂', 'Laugh'
+        WOW = '😮', 'Wow'
+        SAD = '😢', 'Sad'
+
+    message = models.ForeignKey(
+        DirectMessage,
+        on_delete=models.CASCADE,
+        related_name='reactions',
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='direct_message_reactions',
+    )
+    reaction = models.CharField(max_length=8, choices=Reaction.choices)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['message_id', 'reaction', 'id']
+        constraints = [
+            models.UniqueConstraint(fields=['message', 'user'], name='uniq_dm_reaction_per_user'),
+        ]
+        indexes = [
+            models.Index(fields=['message', 'reaction'], name='dm_reaction_message_idx'),
+            models.Index(fields=['user', 'updated_at'], name='dm_reaction_user_idx'),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"DirectMessageReaction<{self.message_id}:{self.user_id}:{self.reaction}>"
+
+    def clean(self) -> None:
+        super().clean()
+        if self.message_id and self.user_id:
+            participant_ids = {self.message.sender_id, self.message.recipient_id}
+            if self.user_id not in participant_ids:
+                raise ValidationError('Only conversation participants can react to a message.')
 
 
 class Rubric(models.Model):

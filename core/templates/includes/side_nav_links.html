@@ -13,11 +13,9 @@
         <a class="site-menu__item" href="{% url 'core:profile' %}" role="menuitem">Профиль</a>
       {% endif %}
       {% if current != 'community' %}
-        <a class="site-menu__item" href="{% url 'core:community' %}" role="menuitem">Люди</a>
+        <a class="site-menu__item" href="{% url 'core:community' %}" role="menuitem" data-nav-section="community">Люди</a>
       {% endif %}
-      {% if current != 'messages' %}
-        <a class="site-menu__item" href="{% url 'core:messages' %}" role="menuitem" data-nav-section="messages">Сообщения</a>
-      {% endif %}
+      <a class="site-menu__item{% if current == 'messages' %} is-active{% endif %}" href="{% url 'core:messages' %}" role="menuitem" data-nav-section="messages"{% if current == 'messages' %} aria-current="page"{% endif %}>Сообщения</a>
     {% endif %}
     {% if current != 'market' %}
       <button class="site-menu__item site-menu__item--disabled has-tooltip" type="button" role="menuitem" aria-disabled="true" data-tooltip="в разработке">

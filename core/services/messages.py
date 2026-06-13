@@ -4,8 +4,12 @@ from __future__ import annotations
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
+from django.utils import timezone
 
-from core.models import DirectMessage
+from core.models import DirectMessage, DirectMessageReaction
+
+
+ALLOWED_MESSAGE_REACTIONS = tuple(choice.value for choice in DirectMessageReaction.Reaction)
 
 
 class MessageError(ValueError):
@@ -50,10 +54,52 @@ def send_message(sender, recipient, text: str) -> DirectMessage:
         return message
 
 
+def edit_message(actor, message: DirectMessage, text: str) -> DirectMessage:
+    """Edit an own non-deleted private message."""
+
+    if _user_id(actor) != message.sender_id:
+        raise MessageError('not_sender', 'Only the message sender can edit it.')
+    if message.is_deleted:
+        raise MessageError('message_deleted', 'Deleted messages cannot be edited.')
+    body = str(text or '').strip()
+    if not body:
+        raise MessageError('empty_message', 'Message text cannot be empty.')
+    with transaction.atomic():
+        locked_message = DirectMessage.objects.select_for_update().get(pk=message.pk)
+        if _user_id(actor) != locked_message.sender_id:
+            raise MessageError('not_sender', 'Only the message sender can edit it.')
+        if locked_message.is_deleted:
+            raise MessageError('message_deleted', 'Deleted messages cannot be edited.')
+        locked_message.text = body
+        locked_message.edited_at = timezone.now()
+        locked_message.full_clean()
+        locked_message.save(update_fields=['text', 'edited_at'])
+        return locked_message
+
+
+def delete_message(actor, message: DirectMessage) -> DirectMessage:
+    """Soft-delete an own private message."""
+
+    if _user_id(actor) != message.sender_id:
+        raise MessageError('not_sender', 'Only the message sender can delete it.')
+    if message.is_deleted:
+        return message
+    with transaction.atomic():
+        locked_message = DirectMessage.objects.select_for_update().get(pk=message.pk)
+        if _user_id(actor) != locked_message.sender_id:
+            raise MessageError('not_sender', 'Only the message sender can delete it.')
+        if locked_message.is_deleted:
+            return locked_message
+        locked_message.is_deleted = True
+        locked_message.deleted_at = timezone.now()
+        locked_message.save(update_fields=['is_deleted', 'deleted_at'])
+        return locked_message
+
+
 def get_message_history(user, other_user, *, mark_read: bool = True):
     """Return messages between two participants, optionally marking received messages as read."""
 
-    queryset = DirectMessage.objects.filter(_conversation_filter(user, other_user)).select_related('sender', 'recipient').order_by('sent_at', 'id')
+    queryset = DirectMessage.objects.filter(_conversation_filter(user, other_user)).select_related('sender', 'recipient').prefetch_related('reactions').order_by('sent_at', 'id')
     if mark_read:
         DirectMessage.objects.filter(sender=other_user, recipient=user, is_read=False).update(is_read=True)
     return queryset
@@ -124,3 +170,33 @@ def ensure_conversation_participant(user, message: DirectMessage) -> None:
     user_id = _user_id(user)
     if user_id not in {message.sender_id, message.recipient_id}:
         raise MessageError('not_participant', 'User is not a participant of this conversation.')
+
+
+def set_message_reaction(user, message: DirectMessage, reaction: str | None) -> DirectMessage:
+    """Set, replace, or remove the current user's reaction for a message."""
+
+    ensure_conversation_participant(user, message)
+    if getattr(message, 'is_deleted', False) or getattr(message, 'deleted_at', None):
+        raise MessageError('message_deleted', 'Deleted messages cannot be reacted to.')
+
+    value = str(reaction or '').strip()
+    if value and value not in ALLOWED_MESSAGE_REACTIONS:
+        raise MessageError('invalid_reaction', 'Unsupported message reaction.')
+
+    with transaction.atomic():
+        locked_message = DirectMessage.objects.select_for_update().get(pk=message.pk)
+        ensure_conversation_participant(user, locked_message)
+        current = DirectMessageReaction.objects.select_for_update().filter(message=locked_message, user=user).first()
+        if not value or (current and current.reaction == value):
+            if current:
+                current.delete()
+            return locked_message
+        if current:
+            current.reaction = value
+            current.full_clean()
+            current.save(update_fields=['reaction', 'updated_at'])
+        else:
+            reaction_obj = DirectMessageReaction(message=locked_message, user=user, reaction=value)
+            reaction_obj.full_clean()
+            reaction_obj.save()
+        return locked_message
