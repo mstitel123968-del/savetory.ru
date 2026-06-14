@@ -1317,14 +1317,15 @@ html.news-guest .news-card{border-radius:18px;width:100%}
     opacity:1;
     pointer-events:auto;
   }
+  /* Кнопка «Меню» всегда остаётся гамбургером (без превращения в крестик) */
   body.mobile-nav-open .mobile-nav-toggle__line:nth-child(1){
-    transform:translateY(6px) rotate(45deg);
+    transform:none;
   }
   body.mobile-nav-open .mobile-nav-toggle__line:nth-child(2){
-    opacity:0;
+    opacity:1;
   }
   body.mobile-nav-open .mobile-nav-toggle__line:nth-child(3){
-    transform:translateY(-6px) rotate(-45deg);
+    transform:none;
   }
 }
 @media (max-width:720px){
@@ -2076,11 +2077,11 @@ body.landing-page{
 @media (max-width:640px){
   .nav-back-btn span{display:none}
   .nav-back-btn{
-    width:34px;
-    height:34px;
+    width:42px;
+    height:42px;
     min-height:unset;
     padding:0;
-    border-radius:10px;
+    border-radius:12px;
     justify-content:center;
     align-items:center;
     flex-shrink:0;
