@@ -15,7 +15,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
+from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.text import slugify
@@ -334,18 +334,6 @@ def profile(request: HttpRequest) -> HttpResponse:
             ),
         },
     )
-
-
-@login_required
-def profile_background_image(request: HttpRequest, background_id: int) -> FileResponse:
-    backgrounds = get_available_profile_backgrounds()
-    if background_id < 0 or background_id >= len(backgrounds):
-        raise Http404("Обложка не найдена")
-    relative = validate_profile_background(backgrounds[background_id]['id'])
-    path = django_settings.MEDIA_ROOT / relative
-    if not path.is_file():
-        raise Http404("Обложка не найдена")
-    return FileResponse(path.open('rb'))
 
 
 @ensure_csrf_cookie

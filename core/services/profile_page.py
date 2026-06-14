@@ -2,65 +2,55 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from pathlib import Path
-from urllib.parse import urlparse
 
-from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db.models import Count, Max, Prefetch
+from django.templatetags.static import static
 from django.urls import reverse
-from django.utils.encoding import iri_to_uri
 from django.utils import timezone
 
 from core.models import ArchiveFile, ArchiveFileImage, ArchiveState, Friendship, Profile, Rubric
 from core.services.friendships import get_friends, get_relationship_status
 
 
-BACKGROUND_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
-
-
-def _media_url(relative: str) -> str:
-    return iri_to_uri(f"{settings.MEDIA_URL.rstrip('/')}/{relative}")
-
-
-def _media_root() -> Path:
-    return Path(settings.MEDIA_ROOT).resolve()
-
-
-def _safe_media_relative_path(value: str) -> str:
-    raw = str(value or '').strip().replace('\\', '/')
-    if not raw:
-        return ''
-    parsed = urlparse(raw)
-    if parsed.scheme or parsed.netloc:
-        return ''
-    path = Path(raw)
-    if path.is_absolute() or '..' in path.parts:
-        return ''
-    return path.as_posix()
+PROFILE_BACKGROUND_COVERS = [
+    {
+        'id': 'cover-mountain-sunrise.png',
+        'file': 'img/profile-covers/cover-mountain-sunrise.png',
+        'name': 'Горное озеро',
+        'legacy_ids': ['ChatGPT Image 13 июн. 2026 г., 23_37_14 (1).png'],
+    },
+    {
+        'id': 'cover-misty-forest.png',
+        'file': 'img/profile-covers/cover-misty-forest.png',
+        'name': 'Туманный лес',
+        'legacy_ids': ['ChatGPT Image 13 июн. 2026 г., 23_37_14 (2).png'],
+    },
+    {
+        'id': 'cover-sea-sunset.png',
+        'file': 'img/profile-covers/cover-sea-sunset.png',
+        'name': 'Морской закат',
+        'legacy_ids': ['ChatGPT Image 13 июн. 2026 г., 23_37_15 (3).png'],
+    },
+    {
+        'id': 'cover-aurora-lake.png',
+        'file': 'img/profile-covers/cover-aurora-lake.png',
+        'name': 'Северное сияние',
+        'legacy_ids': ['ChatGPT Image 13 июн. 2026 г., 23_37_16 (4).png'],
+    },
+]
 
 
 def get_available_profile_backgrounds() -> list[dict]:
-    """Return selectable profile backgrounds from MEDIA_ROOT."""
+    """Return built-in selectable profile backgrounds from static assets."""
 
-    root = _media_root()
-    if not root.exists():
-        return []
     items = []
-    for path in sorted(root.iterdir()):
-        if not path.is_file() or path.suffix.lower() not in BACKGROUND_EXTENSIONS:
-            continue
-        try:
-            relative = path.resolve().relative_to(root).as_posix()
-        except ValueError:
-            continue
-        index = len(items)
+    for cover in PROFILE_BACKGROUND_COVERS:
         items.append({
-            'id': relative,
-            'path': relative,
-            'url': reverse('core:profile-background', kwargs={'background_id': index}),
-            'media_url': _media_url(relative),
-            'name': path.stem,
+            'id': cover['id'],
+            'path': cover['file'],
+            'url': static(cover['file']),
+            'name': cover['name'],
         })
     return items
 
@@ -68,21 +58,19 @@ def get_available_profile_backgrounds() -> list[dict]:
 def validate_profile_background(value: str) -> str:
     """Return a safe selectable background id or an empty string."""
 
-    relative = _safe_media_relative_path(value)
-    if not relative:
+    raw = str(value or '').strip().replace('\\', '/')
+    if not raw:
         return ''
-    root = _media_root()
-    candidate = (root / relative).resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError as exc:
-        raise ValueError('Invalid profile background path.') from exc
-    if candidate.suffix.lower() not in BACKGROUND_EXTENSIONS or not candidate.is_file():
+    allowed = {}
+    for cover in PROFILE_BACKGROUND_COVERS:
+        allowed[cover['id']] = cover['id']
+        allowed[cover['file']] = cover['id']
+        allowed[f"profile-covers/{cover['id']}"] = cover['id']
+        for legacy in cover.get('legacy_ids', []):
+            allowed[legacy] = cover['id']
+    if raw not in allowed:
         raise ValueError('Profile background is not in the allowed list.')
-    allowed = {item['id'] for item in get_available_profile_backgrounds()}
-    if relative not in allowed:
-        raise ValueError('Profile background is not in the allowed list.')
-    return relative
+    return allowed[raw]
 
 
 def _display_name(user, profile: Profile | None = None) -> str:
@@ -140,10 +128,12 @@ def _background_payload(profile: Profile | None) -> dict | None:
     if not relative:
         return None
     background = next((item for item in get_available_profile_backgrounds() if item['id'] == relative), None)
+    if not background:
+        return None
     return {
         'id': relative,
-        'path': relative,
-        'url': background['url'] if background else _media_url(relative),
+        'path': background['path'],
+        'url': background['url'],
     }
 
 
