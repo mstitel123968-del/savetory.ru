@@ -41,7 +41,10 @@ class Profile(models.Model):
     avatar_meta = models.JSONField(default=dict, blank=True)
     privacy_level = models.CharField(max_length=50, default='public')
     last_seen_at = models.DateTimeField(blank=True, null=True, db_index=True)
+    bio = models.TextField(blank=True, default='')
+    background_image = models.CharField(max_length=255, blank=True, default='')
     link = models.CharField(max_length=255, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
     terms_version_accepted = models.CharField(max_length=20, blank=True, default='')
     terms_accepted_at = models.DateTimeField(blank=True, null=True)
     terms_accepted_ip = models.GenericIPAddressField(blank=True, null=True)
@@ -52,6 +55,10 @@ class Profile(models.Model):
     def clean(self) -> None:
         if self.avatar:
             moderation.validate_uploaded_file(self.avatar)
+        if self.bio:
+            moderation.ensure_text_allowed(self.bio, field='bio')
+        if self.link and not (self.link.startswith('http://') or self.link.startswith('https://')):
+            raise ValidationError({'link': 'Profile link must start with http:// or https://.'})
 
     def mark_terms_accepted(self, *, ip: str | None = None) -> None:
         self.terms_version_accepted = settings.TERMS_VERSION
@@ -235,6 +242,7 @@ class Rubric(models.Model):
     is_text_mode = models.BooleanField(default=False)
     field_schema = models.JSONField(default=list)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ('profile', 'slug')

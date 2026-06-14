@@ -8,14 +8,14 @@
   <link rel="stylesheet" href="{% static 'css/style.css' %}" />
   <link rel="stylesheet" href="{% static 'css/profile.css' %}" />
 </head>
-<body class="community-public-profile-page">
+<body class="community-public-profile-page profile-showcase-page">
   <script src="{% static 'js/prefs.js' %}"></script>
   <aside class="sidebar">
     {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
     <nav class="side-nav">
       <div class="side-nav-divider" aria-hidden="true"></div>
       <div class="side-nav-footer">
-        {% include 'includes/side_nav_links.html' with current_section='community' %}
+        {% include 'includes/side_nav_links.html' with current_section=profile_nav_section %}
       </div>
     </nav>
   </aside>
@@ -29,63 +29,535 @@
     </div>
   </header>
 
-  <main class="main">
-    <div class="profile-wrap profile-compact public-profile-wrap">
-      <div class="profile-plain public-profile-card">
-        <div class="profile-header">
-          <div class="profile-header__main">
-            <div class="avatar-wrap{% if avatar_data %} has-img{% endif %}">
-              <span class="avatar-placeholder">{{ profile_display_name|first|default:"?" }}</span>
-              {% if avatar_data %}
-                <img src="{{ avatar_data }}" alt="" draggable="false">
+  <main class="main profile-showcase-main">
+    <section class="profile-showcase" aria-label="Профиль пользователя">
+      <article class="profile-hero{% if profile_page.profile.background %} profile-hero--has-bg{% endif %}"{% if profile_page.profile.background %} style="--profile-bg-image:url('{{ profile_page.profile.background.url }}')"{% endif %}>
+        <div class="profile-hero__overlay" aria-hidden="true"></div>
+        {% if profile_page.is_owner %}
+          <button id="profileHeroMenuBtn" class="profile-cover-edit" type="button" aria-expanded="false" aria-controls="profileHeroMenu" aria-label="Действия профиля" title="Действия профиля">
+            <span aria-hidden="true">…</span>
+          </button>
+          <div id="profileHeroMenu" class="profile-hero-menu" hidden>
+            <button id="profileEditBtn" type="button">Редактировать профиль</button>
+            <button id="profileCoverEditBtn" type="button">Сменить заставку</button>
+          </div>
+        {% endif %}
+        <div class="profile-hero__content">
+          <div class="profile-hero__avatar{% if profile_page.profile.avatar_data %} has-img{% endif %}">
+            <span>{{ profile_page.profile.display_name|first|default:"?" }}</span>
+            {% if profile_page.profile.avatar_data %}
+              <img src="{{ profile_page.profile.avatar_data }}" alt="" draggable="false" />
+            {% endif %}
+          </div>
+
+          <div class="profile-hero__info">
+            <div class="profile-hero__title-row">
+              <h1>{{ profile_page.profile.display_name }}</h1>
+              {% if profile_page.profile.presence.label %}
+                <span class="profile-presence{% if profile_page.profile.presence.is_online %} profile-presence--online{% else %} profile-presence--offline{% endif %}">
+                  <span class="profile-presence__dot" aria-hidden="true"></span>
+                  {{ profile_page.profile.presence.label }}
+                </span>
               {% endif %}
             </div>
-            <div>
-              <div class="profile-login public-profile-name">
-                <span>{{ profile_display_name }}</span>
-                {% if presence.label %}
-                  <span class="public-profile-presence{% if presence.is_online %} public-profile-presence--online{% else %} public-profile-presence--offline{% endif %}">{{ presence.label }}</span>
-                {% endif %}
-              </div>
-              <div class="public-profile-username">@{{ profile_user.username }}</div>
+            <div class="profile-hero__username">@{{ profile_page.profile.username }}</div>
+
+            <div class="profile-hero__meta" aria-label="Краткая информация">
+              {% if profile_page.profile.city %}
+                <span>📍 {{ profile_page.profile.city }}</span>
+              {% endif %}
+              {% if profile_page.profile.date_joined_label %}
+                <span>📅 На сайте с {{ profile_page.profile.date_joined_label }}</span>
+              {% endif %}
+            </div>
+
+            {% if profile_page.is_closed %}
+              <p class="profile-hero__bio">{{ profile_page.message }}</p>
+            {% elif profile_page.profile.bio %}
+              <p class="profile-hero__bio">{{ profile_page.profile.bio }}</p>
+            {% elif profile_page.profile.interests %}
+              <p class="profile-hero__bio">Интересы: {{ profile_page.profile.interests }}</p>
+            {% endif %}
+
+            <div class="profile-hero__actions">
+              {% if profile_page.actions.can_message %}
+                <a class="profile-hero__button" href="{{ profile_page.actions.message_url }}">Сообщение</a>
+              {% endif %}
+              {% if profile_page.actions.can_add_friend %}
+                <button id="publicProfileFriendBtn" class="profile-hero__button" type="button" data-user-id="{{ profile_page.profile.id }}">Добавить в друзья</button>
+              {% elif profile_page.actions.friend_request_sent %}
+                <button class="profile-hero__button" type="button" disabled>Заявка отправлена</button>
+              {% elif profile_page.actions.can_accept_friend_request %}
+                <a class="profile-hero__button" href="{% url 'core:community' %}?tab=requests&requests=incoming">Принять заявку</a>
+              {% elif profile_page.actions.can_remove_friend %}
+                <button class="profile-hero__button" type="button" disabled>В друзьях</button>
+              {% endif %}
             </div>
           </div>
         </div>
+      </article>
 
-        {% if profile_fields %}
-          <div class="profile-view public-profile-view">
-            {% for field in profile_fields %}
-              <div><strong>{{ field.label }}:</strong> <span>{{ field.value }}</span></div>
-            {% endfor %}
+      {% if not profile_page.is_closed %}
+        <section class="profile-stats" aria-label="Статистика профиля">
+          <a class="profile-stat" href="#profile-rubrics">
+            <span class="profile-stat__icon" aria-hidden="true">▱</span>
+            <strong>{{ profile_page.stats.rubrics_count }}</strong>
+            <span>Рубрик</span>
+          </a>
+          <a class="profile-stat" href="#profile-records">
+            <span class="profile-stat__icon" aria-hidden="true">▣</span>
+            <strong>{{ profile_page.stats.records_count }}</strong>
+            <span>Записей в архиве</span>
+          </a>
+          <a class="profile-stat" href="#profile-friends">
+            <span class="profile-stat__icon" aria-hidden="true">♙</span>
+            <strong>{{ profile_page.stats.friends_count }}</strong>
+            <span>Друзей</span>
+          </a>
+          <div class="profile-stat profile-stat--static">
+            <span class="profile-stat__icon" aria-hidden="true">□</span>
+            <strong>{{ profile_page.stats.date_joined_label|default:"—" }}</strong>
+            <span>Регистрация</span>
           </div>
-        {% elif not can_view_details %}
-          <div class="profile-view public-profile-view">
-            <div class="public-profile-empty">Подробности профиля доступны только друзьям.</div>
+        </section>
+
+        <section class="profile-dashboard" aria-label="Подробности профиля">
+          <div class="profile-dashboard__main">
+            <section id="profile-rubrics" class="profile-panel">
+              <header class="profile-panel__header">
+                <h2>{% if profile_page.is_owner %}Рубрики{% else %}Публичные рубрики{% endif %}</h2>
+                {% if profile_page.stats.public_rubrics_count > 4 %}
+                  <a href="{% if profile_page.is_owner %}{% url 'core:archive' %}{% else %}#profile-rubrics{% endif %}" class="profile-panel__link">Показать все</a>
+                {% endif %}
+              </header>
+              {% if profile_page.public_rubrics %}
+                <div class="profile-rubric-carousel-wrap">
+                  <div class="profile-rubric-carousel" data-rubric-carousel>
+                    {% for rubric in profile_page.public_rubrics %}
+                      <a class="profile-rubric-card" href="{{ rubric.url|default:'#profile-rubrics' }}">
+                        <span class="profile-rubric-card__cover{% if not rubric.cover_url %} profile-rubric-card__cover--empty{% endif %}">
+                          {% if rubric.cover_url %}
+                            <img src="{{ rubric.cover_url }}" alt="" loading="lazy" />
+                          {% endif %}
+                        </span>
+                        <span class="profile-rubric-card__body">
+                          <strong>{{ rubric.name }}</strong>
+                          <span>{{ rubric.description|default:"Описание пока не добавлено" }}</span>
+                          <small>{{ rubric.records_count }} записей</small>
+                        </span>
+                      </a>
+                    {% endfor %}
+                  </div>
+                </div>
+              {% else %}
+                <div class="profile-empty-state">
+                  {% if profile_page.is_owner %}
+                    <span>Рубрик пока нет.</span>
+                    <a href="{% url 'core:archive' %}">Создать рубрику</a>
+                  {% else %}
+                    <span>Публичных рубрик пока нет.</span>
+                  {% endif %}
+                </div>
+              {% endif %}
+            </section>
+
+            <section id="profile-records" class="profile-panel">
+              <header class="profile-panel__header">
+                <h2>Последние записи</h2>
+                {% if profile_page.stats.records_count > 4 %}
+                  <a href="#profile-records" class="profile-panel__link">Показать все</a>
+                {% endif %}
+              </header>
+              {% if profile_page.latest_records %}
+                <div class="profile-record-list">
+                  {% for record in profile_page.latest_records|slice:":4" %}
+                    <a class="profile-record-row" href="{{ record.url|default:'#profile-records' }}">
+                      <span class="profile-record-row__thumb{% if not record.thumbnail_url %} profile-record-row__thumb--empty{% endif %}">
+                        {% if record.thumbnail_url %}
+                          <img src="{{ record.thumbnail_url }}" alt="" loading="lazy" />
+                        {% else %}
+                          <span aria-hidden="true">□</span>
+                        {% endif %}
+                      </span>
+                      <span class="profile-record-row__main">
+                        <strong>{{ record.title }}</strong>
+                        <span>{{ record.rubric }}</span>
+                      </span>
+                      <time datetime="{{ record.created_at }}">{{ record.created_at_label }}</time>
+                    </a>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="profile-empty-state">
+                  <span>Записей пока нет.</span>
+                </div>
+              {% endif %}
+            </section>
           </div>
-        {% else %}
-          <div class="profile-view public-profile-view">
-            <div class="public-profile-empty">Пользователь пока не заполнил публичные поля.</div>
+
+          <aside class="profile-dashboard__side">
+            <section class="profile-panel profile-about-panel">
+              <header class="profile-panel__header">
+                <h2>О пользователе</h2>
+              </header>
+              {% if profile_page.profile.city or profile_page.profile.interests or profile_page.profile.link or profile_page.profile.bio %}
+                <dl class="profile-about-list">
+                  {% if profile_page.profile.city %}
+                    <div><dt>Город</dt><dd>{{ profile_page.profile.city }}</dd></div>
+                  {% endif %}
+                  {% if profile_page.profile.interests %}
+                    <div><dt>Интересы</dt><dd>{{ profile_page.profile.interests }}</dd></div>
+                  {% endif %}
+                  {% if profile_page.profile.link %}
+                    <div><dt>Ссылка</dt><dd><a href="{{ profile_page.profile.link }}" target="_blank" rel="noopener noreferrer">{{ profile_page.profile.link }}</a></dd></div>
+                  {% endif %}
+                  {% if profile_page.profile.bio %}
+                    <div><dt>О себе</dt><dd>{{ profile_page.profile.bio }}</dd></div>
+                  {% endif %}
+                </dl>
+              {% else %}
+                <div class="profile-empty-state">
+                  <span>Пользователь пока ничего о себе не рассказал.</span>
+                </div>
+              {% endif %}
+            </section>
+
+            <section id="profile-friends" class="profile-panel">
+              <header class="profile-panel__header">
+                <h2>Друзья</h2>
+                {% if profile_page.friends.total > 5 %}
+                  <a href="#profile-friends" class="profile-panel__link">Показать всех</a>
+                {% endif %}
+              </header>
+              {% if profile_page.friends.items %}
+                <div class="profile-friends-row">
+                  {% for friend in profile_page.friends.items|slice:":5" %}
+                    <a class="profile-friend-avatar" href="{{ friend.url }}" title="{{ friend.display_name }}" aria-label="{{ friend.display_name }}">
+                      {% if friend.avatar_data %}
+                        <img src="{{ friend.avatar_data }}" alt="" loading="lazy" />
+                      {% else %}
+                        <span>{{ friend.display_name|first|default:"?" }}</span>
+                      {% endif %}
+                    </a>
+                  {% endfor %}
+                </div>
+                <div class="profile-friends-meta">
+                  <span>Всего друзей: {{ profile_page.friends.total }}</span>
+                  {% if not profile_page.is_owner %}
+                    <span>Общих друзей: {{ profile_page.friends.mutual_count }}</span>
+                  {% endif %}
+                </div>
+              {% else %}
+                <div class="profile-empty-state">
+                  <span>Друзей пока нет.</span>
+                </div>
+              {% endif %}
+            </section>
+
+            <section class="profile-panel">
+              <header class="profile-panel__header">
+                <h2>Последняя активность</h2>
+              </header>
+              {% if profile_page.activity %}
+                <div class="profile-activity-list">
+                  {% for item in profile_page.activity|slice:":5" %}
+                    <a class="profile-activity-item" href="{{ item.url|default:'#' }}">
+                      <span class="profile-activity-item__icon" aria-hidden="true">•</span>
+                      <span class="profile-activity-item__text">{{ item.label }}</span>
+                      <time datetime="{{ item.created_at }}">{{ item.created_at_label }}</time>
+                    </a>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="profile-empty-state">
+                  <span>Публичной активности пока нет.</span>
+                </div>
+              {% endif %}
+            </section>
+          </aside>
+        </section>
+      {% endif %}
+    </section>
+  </main>
+
+  {% if profile_page.is_owner %}
+    <div id="profileEditModal" class="pe-modal" style="display:none;">
+      <div class="pe-dialog-wrap">
+        <div class="pe-dialog">
+          <div class="pe-head">
+            <h3 id="profileEditTitle">Редактирование профиля</h3>
           </div>
-        {% endif %}
-        {% if friendship_state != 'accepted' %}
-        <div class="profile-footer-actions public-profile-actions">
-          {% if friendship_state == 'outgoing' %}
-            <button class="ios-button light round-btn" type="button" disabled>Заявка отправлена</button>
-          {% elif friendship_state == 'incoming' %}
-            <a class="ios-button light round-btn public-profile-action-link" href="{% url 'core:community' %}?tab=requests&requests=incoming">Ответить на заявку</a>
-          {% else %}
-            <button id="publicProfileFriendBtn" class="ios-button light round-btn" type="button" data-user-id="{{ profile_user.id }}">Добавить в друзья</button>
-          {% endif %}
+          <div class="pe-body">
+            <div class="pe-avatar">
+              <div id="pe_avatarBox" class="avatar-box">
+                <img id="pe_prev" alt="" draggable="false"/>
+              </div>
+              <div id="pe_avatarControls" class="avatar-controls" aria-label="Управление положением фото">
+                <div class="avatar-controls-row avatar-controls-row--single" role="group" aria-label="Сместить вверх">
+                  <button type="button" class="avatar-ctrl" data-dir="up" aria-label="Сместить вверх">▲</button>
+                </div>
+                <div class="avatar-controls-row" role="group" aria-label="Сместить по горизонтали и вниз">
+                  <button type="button" class="avatar-ctrl" data-dir="left" aria-label="Сместить влево">◄</button>
+                  <button type="button" class="avatar-ctrl" data-dir="down" aria-label="Сместить вниз">▼</button>
+                  <button type="button" class="avatar-ctrl" data-dir="right" aria-label="Сместить вправо">►</button>
+                </div>
+                <div class="avatar-zoom">
+                  <button type="button" class="avatar-ctrl" data-zoom="out" aria-label="Уменьшить фото">−</button>
+                  <span class="avatar-zoom-value" data-zoom-value>100%</span>
+                  <button type="button" class="avatar-ctrl" data-zoom="in" aria-label="Увеличить фото">+</button>
+                </div>
+              </div>
+              <input type="file" id="pe_file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+            </div>
+            <div class="pe-right">
+              <div class="pe-grid">
+                <div id="pe_error" class="pe-error full" role="alert" aria-live="polite"></div>
+                <input id="pe_first" placeholder="Имя">
+                <input id="pe_last"  placeholder="Фамилия">
+                <input id="pe_city"  placeholder="Город">
+                <input id="pe_email" placeholder="Почта">
+                <input id="pe_link" placeholder="Ссылка">
+                <textarea id="pe_interests" placeholder="Интересы" class="full"></textarea>
+                <div class="pe-actions" role="group" aria-label="Действия профиля">
+                  <button id="pe_save" class="ios-button">Сохранить</button>
+                  <button type="button" class="btn" data-close>Отмена</button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        {% endif %}
       </div>
     </div>
-  </main>
+
+    <div id="profileCoverModal" class="profile-cover-modal" hidden>
+      <div class="profile-cover-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="profileCoverModalTitle">
+        <header class="profile-cover-modal__header">
+          <h2 id="profileCoverModalTitle">Выбор обложки профиля</h2>
+        </header>
+        <div id="profileCoverError" class="profile-cover-modal__error" role="alert" aria-live="polite"></div>
+        <div class="profile-cover-grid" role="listbox" aria-label="Доступные обложки">
+          <button type="button" class="profile-cover-option{% if not profile_page.profile.background %} is-selected{% endif %}" data-cover-id="" data-cover-url="" role="option" aria-selected="{% if not profile_page.profile.background %}true{% else %}false{% endif %}">
+            <span class="profile-cover-option__empty">Стандартный фон</span>
+            <span class="profile-cover-option__check" aria-hidden="true">✓</span>
+          </button>
+          {% for background in profile_page.available_backgrounds %}
+            <button type="button" class="profile-cover-option{% if profile_page.profile.background and background.id == profile_page.profile.background.id %} is-selected{% endif %}" data-cover-id="{{ background.id }}" data-cover-url="{{ background.url }}" role="option" aria-selected="{% if profile_page.profile.background and background.id == profile_page.profile.background.id %}true{% else %}false{% endif %}">
+              <img src="{{ background.url }}" alt="" loading="lazy" />
+              <span class="profile-cover-option__check" aria-hidden="true">✓</span>
+            </button>
+          {% endfor %}
+        </div>
+        <div class="profile-cover-modal__actions">
+          <button id="profileCoverSaveBtn" class="profile-hero__button profile-hero__button--primary" type="button">Сохранить</button>
+          <button class="profile-hero__button" type="button" data-cover-close>Отмена</button>
+        </div>
+      </div>
+    </div>
+  {% endif %}
 
   {% include 'includes/support_floating_widget.html' %}
 
   <script src="{% static 'js/nav.js' %}"></script>
   <script src="{% static 'js/support-widget.js' %}"></script>
+  {% if profile_page.is_owner %}
+    <script src="{% static 'js/profile.js' %}"></script>
+  {% endif %}
+  {% if profile_page.is_owner %}
+    <script>
+      (function(){
+        const hero = document.querySelector('.profile-hero');
+        const menuBtn = document.getElementById('profileHeroMenuBtn');
+        const menu = document.getElementById('profileHeroMenu');
+        const openBtn = document.getElementById('profileCoverEditBtn');
+        const modal = document.getElementById('profileCoverModal');
+        const saveBtn = document.getElementById('profileCoverSaveBtn');
+        const errorEl = document.getElementById('profileCoverError');
+        const closeBtns = modal ? Array.from(modal.querySelectorAll('[data-cover-close]')) : [];
+        const options = modal ? Array.from(modal.querySelectorAll('.profile-cover-option')) : [];
+        if (!hero || !openBtn || !modal || !saveBtn) return;
+
+        let savedId = "{{ profile_page.profile.background.id|default:''|escapejs }}";
+        let savedUrl = "{{ profile_page.profile.background.url|default:''|escapejs }}";
+        let selectedId = savedId;
+        let selectedUrl = savedUrl;
+
+        function closeMenu(){
+          if (!menu || !menuBtn) return;
+          menu.hidden = true;
+          menuBtn.setAttribute('aria-expanded', 'false');
+        }
+
+        function toggleMenu(){
+          if (!menu || !menuBtn) return;
+          const nextOpen = menu.hidden;
+          menu.hidden = !nextOpen;
+          menuBtn.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+        }
+
+        function csrf(){
+          const match = document.cookie.match(/csrftoken=([^;]+)/);
+          return match ? decodeURIComponent(match[1]) : '';
+        }
+
+        function applyPreview(url){
+          if (url){
+            hero.classList.add('profile-hero--has-bg');
+            hero.style.setProperty('--profile-bg-image', `url("${url.replace(/"/g, '\\"')}")`);
+          } else {
+            hero.classList.remove('profile-hero--has-bg');
+            hero.style.removeProperty('--profile-bg-image');
+          }
+        }
+
+        function markSelected(id){
+          options.forEach((option)=>{
+            const active = option.dataset.coverId === id;
+            option.classList.toggle('is-selected', active);
+            option.setAttribute('aria-selected', active ? 'true' : 'false');
+          });
+        }
+
+        function open(){
+          selectedId = savedId;
+          selectedUrl = savedUrl;
+          markSelected(selectedId);
+          applyPreview(selectedUrl);
+          if (errorEl) errorEl.textContent = '';
+          modal.hidden = false;
+          document.body.classList.add('profile-modal-open');
+        }
+
+        function close(revert){
+          if (revert) applyPreview(savedUrl);
+          modal.hidden = true;
+          document.body.classList.remove('profile-modal-open');
+          if (errorEl) errorEl.textContent = '';
+        }
+
+        options.forEach((option)=>{
+          option.addEventListener('click', ()=>{
+            selectedId = option.dataset.coverId || '';
+            selectedUrl = option.dataset.coverUrl || '';
+            markSelected(selectedId);
+            applyPreview(selectedUrl);
+          });
+        });
+
+        if (menuBtn) menuBtn.addEventListener('click', (event)=>{
+          event.stopPropagation();
+          toggleMenu();
+        });
+        if (menu) menu.addEventListener('click', (event)=>event.stopPropagation());
+        document.addEventListener('click', closeMenu);
+        const editBtn = document.getElementById('profileEditBtn');
+        if (editBtn) editBtn.addEventListener('click', closeMenu);
+        openBtn.addEventListener('click', ()=>{
+          closeMenu();
+          open();
+        });
+        closeBtns.forEach((button)=>button.addEventListener('click', ()=>close(true)));
+        modal.addEventListener('click', (event)=>{ if (event.target === modal) close(true); });
+        document.addEventListener('keydown', (event)=>{
+          if (event.key === 'Escape') closeMenu();
+          if (event.key === 'Escape' && !modal.hidden) close(true);
+        });
+
+        saveBtn.addEventListener('click', async ()=>{
+          if (saveBtn.disabled) return;
+          saveBtn.disabled = true;
+          if (errorEl) errorEl.textContent = '';
+          try {
+            const response = await fetch("{% url 'core:profile-api' %}", {
+              method: 'PATCH',
+              credentials: 'include',
+              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+              body: JSON.stringify({ background_image: selectedId }),
+            });
+            const data = await response.json().catch(()=>null);
+            if (!response.ok || !data || data.success === false) {
+              throw new Error('save failed');
+            }
+            savedId = data.background_image || '';
+            savedUrl = data.background && data.background.url ? data.background.url : '';
+            selectedId = savedId;
+            selectedUrl = savedUrl;
+            applyPreview(savedUrl);
+            markSelected(savedId);
+            close(false);
+          } catch (error) {
+            if (errorEl) errorEl.textContent = 'Не удалось сохранить обложку. Выберите изображение из галереи.';
+            applyPreview(selectedUrl);
+          } finally {
+            saveBtn.disabled = false;
+          }
+        });
+      })();
+    </script>
+  {% endif %}
+  <script>
+    (function(){
+      const carousels = Array.from(document.querySelectorAll('[data-rubric-carousel]'));
+      carousels.forEach((carousel)=>{
+        const wrapper = carousel.closest('.profile-rubric-carousel-wrap');
+        let isDragging = false;
+        let dragStarted = false;
+        let startX = 0;
+        let startLeft = 0;
+
+        function canScroll(){
+          return carousel.scrollWidth > carousel.clientWidth + 1;
+        }
+
+        function syncOverflow(){
+          if (wrapper) wrapper.classList.toggle('is-scrollable', canScroll());
+        }
+
+        syncOverflow();
+        window.addEventListener('resize', syncOverflow);
+
+        carousel.addEventListener('wheel', (event)=>{
+          if (!canScroll()) return;
+          const delta = Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+          if (!delta) return;
+          event.preventDefault();
+          carousel.scrollBy({ left: delta, behavior: 'smooth' });
+        }, { passive: false });
+
+        carousel.addEventListener('pointerdown', (event)=>{
+          if (!canScroll() || event.button !== 0) return;
+          isDragging = true;
+          dragStarted = false;
+          startX = event.clientX;
+          startLeft = carousel.scrollLeft;
+          carousel.classList.add('is-dragging');
+          carousel.setPointerCapture(event.pointerId);
+        });
+
+        carousel.addEventListener('pointermove', (event)=>{
+          if (!isDragging) return;
+          const distance = event.clientX - startX;
+          if (Math.abs(distance) > 4) dragStarted = true;
+          carousel.scrollLeft = startLeft - distance;
+        });
+
+        function stopDrag(event){
+          if (!isDragging) return;
+          isDragging = false;
+          carousel.classList.remove('is-dragging');
+          if (carousel.hasPointerCapture(event.pointerId)) {
+            carousel.releasePointerCapture(event.pointerId);
+          }
+          window.setTimeout(()=>{ dragStarted = false; }, 0);
+        }
+
+        carousel.addEventListener('pointerup', stopDrag);
+        carousel.addEventListener('pointercancel', stopDrag);
+        carousel.addEventListener('click', (event)=>{
+          if (dragStarted) event.preventDefault();
+        }, true);
+      });
+    })();
+  </script>
   <script>
     (function(){
       const button = document.getElementById('publicProfileFriendBtn');

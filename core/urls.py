@@ -11,6 +11,7 @@ urlpatterns = [
     path('archive/', views.archive, name='archive'),
     path('u/<str:username>/<str:rubric_slug>/', views.public_collection, name='public-collection'),
     path('profile/', views.profile, name='profile'),
+    path('api/profile/backgrounds/<int:background_id>/', views.profile_background_image, name='profile-background'),
     path('community/', views.community, name='community'),
     path('community/users/<str:username>/', views.community_user_profile, name='community-user-profile'),
     path('messages/', views.messages_page, name='messages'),

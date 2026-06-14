@@ -209,6 +209,35 @@
   }
 
   function fillView(profile, username){
+    const hero = $('.profile-hero');
+    if (hero){
+      const displayName = [profile.first || '', profile.last || ''].join(' ').trim() || profile.display_name || username || EMPTY_PLACEHOLDER;
+      const title = $('.profile-hero__title-row h1', hero);
+      const userNameEl = $('.profile-hero__username', hero);
+      const bio = $('.profile-hero__bio', hero);
+      const heroAvatar = $('.profile-hero__avatar', hero);
+      let heroImg = heroAvatar ? $('img', heroAvatar) : null;
+      const heroPlaceholder = heroAvatar ? $('span', heroAvatar) : null;
+      if (title) title.textContent = displayName;
+      if (userNameEl) userNameEl.textContent = `@${username || ''}`;
+      if (bio && profile.interests && !profile.bio) bio.textContent = `Интересы: ${profile.interests}`;
+      if (heroPlaceholder) heroPlaceholder.textContent = displayName.charAt(0) || '?';
+      if (heroAvatar){
+        if (profile.avatar_data){
+          if (!heroImg){
+            heroImg = document.createElement('img');
+            heroImg.alt = '';
+            heroImg.draggable = false;
+            heroAvatar.appendChild(heroImg);
+          }
+          heroImg.src = profile.avatar_data;
+          heroAvatar.classList.add('has-img');
+        } else {
+          if (heroImg) heroImg.remove();
+          heroAvatar.classList.remove('has-img');
+        }
+      }
+    }
     const view = $('#profileView');
     if (!view) return;
     const title = $('#profileLoginDisplay');

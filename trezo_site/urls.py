@@ -1,6 +1,8 @@
 """Replaces the Java web.xml routing with Django URL configuration."""
 from django.contrib import admin
 from django.contrib.sitemaps.views import sitemap
+from django.conf import settings
+from django.conf.urls.static import static
 from django.urls import include, path
 
 from core import views as core_views
@@ -20,3 +22,6 @@ urlpatterns = [
     path('market/', include('market.urls')),
     path('messages/', market_views.market_messages, name='messages'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

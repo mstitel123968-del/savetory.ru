@@ -15,7 +15,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
 from django.utils.text import slugify
@@ -48,6 +48,11 @@ from core.services.messages import (
     get_unread_summary,
     send_message,
     set_message_reaction,
+)
+from core.services.profile_page import (
+    build_extended_profile_context,
+    get_available_profile_backgrounds,
+    validate_profile_background,
 )
 from .forms import ArchiveFileForm, LoginForm, RegistrationForm, RubricForm
 from .models import ArchiveFile, ArchiveState, DirectMessage, Friendship, Profile, Review, Rubric
@@ -311,17 +316,36 @@ def public_collection(request: HttpRequest, username: str, rubric_slug: str) -> 
 @login_required
 @ensure_csrf_cookie
 def profile(request: HttpRequest) -> HttpResponse:
+    profile_page = build_extended_profile_context(request.user, request.user.get_username())
+    profile_data = profile_page['profile']
     return render(
         request,
-        'profile.html',
-        _seo_context(
-            request,
-            title='Профиль - СКлад',
-            description='Личный профиль пользователя сервиса СКлад.',
-            indexable=False,
-            canonical_path=reverse('core:profile'),
-        ),
+        'community_user_profile.html',
+        {
+            'profile_page': profile_page,
+            'profile_nav_section': 'profile',
+            'profile_canonical_path': reverse('core:profile'),
+            **_seo_context(
+                request,
+                title=f"{profile_data['display_name']} - профиль - СКлад",
+                description='Личный профиль пользователя сервиса СКлад.',
+                indexable=False,
+                canonical_path=reverse('core:profile'),
+            ),
+        },
     )
+
+
+@login_required
+def profile_background_image(request: HttpRequest, background_id: int) -> FileResponse:
+    backgrounds = get_available_profile_backgrounds()
+    if background_id < 0 or background_id >= len(backgrounds):
+        raise Http404("Обложка не найдена")
+    relative = validate_profile_background(backgrounds[background_id]['id'])
+    path = django_settings.MEDIA_ROOT / relative
+    if not path.is_file():
+        raise Http404("Обложка не найдена")
+    return FileResponse(path.open('rb'))
 
 
 @ensure_csrf_cookie
@@ -429,53 +453,26 @@ def message_dialog_page(request: HttpRequest, user_id: int) -> HttpResponse:
 @login_required
 @ensure_csrf_cookie
 def community_user_profile(request: HttpRequest, username: str) -> HttpResponse:
-    viewed_user = User.objects.filter(username__iexact=username).select_related('profile').first()
-    if not viewed_user:
-        raise Http404("Пользователь не найден")
-    if viewed_user.pk == request.user.pk:
+    viewed_user = User.objects.filter(username__iexact=username).only('id', 'username').first()
+    if viewed_user and viewed_user.pk == request.user.pk:
         return redirect('core:profile')
-
-    profile = getattr(viewed_user, 'profile', None)
-    privacy = (profile.privacy_level if profile else 'public') or 'public'
-    relationship = get_relationship_status(request.user, viewed_user)
-    is_friend = relationship.get('status') == Friendship.Status.ACCEPTED
-    if privacy == 'private':
+    profile_page = build_extended_profile_context(request.user, username)
+    if not profile_page.get('found'):
         raise Http404("Пользователь не найден")
-
-    meta = profile.avatar_meta if profile and isinstance(profile.avatar_meta, dict) else {}
-    can_view_details = _community_can_view_details(request.user, viewed_user, profile)
-    fields: list[dict[str, str]] = []
-
-    def add_field(label: str, value: str | None) -> None:
-        text = str(value or '').strip()
-        if text:
-            fields.append({'label': label, 'value': text})
-
-    if can_view_details:
-        add_field('Имя', viewed_user.first_name)
-        add_field('Фамилия', viewed_user.last_name)
-        add_field('Город', meta.get('city', ''))
-        add_field('Ссылка', profile.link if profile else '')
-        add_field('Интересы', meta.get('interests', ''))
-
-    display_name = _community_display_name(viewed_user, profile)
+    profile_data = profile_page['profile']
     return render(
         request,
         'community_user_profile.html',
         {
-            'profile_user': viewed_user,
-            'profile_display_name': display_name,
-            'profile_fields': fields,
-            'avatar_data': meta.get('avatar_data', '') if profile else '',
-            'presence': _community_presence_payload(profile),
-            'can_view_details': can_view_details,
-            'friendship_state': _community_user_payload(viewed_user, request.user)['friendship_state'],
+            'profile_page': profile_page,
+            'profile_nav_section': 'community',
+            'profile_canonical_path': reverse('core:community-user-profile', kwargs={'username': profile_data['username']}),
             **_seo_context(
                 request,
-                title=f'{display_name} - профиль в СКлад',
+                title=f"{profile_data['display_name']} - профиль в СКлад",
                 description='Публичный профиль пользователя раздела Люди в СКладе.',
                 indexable=False,
-                canonical_path=reverse('core:community-user-profile', kwargs={'username': viewed_user.get_username()}),
+                canonical_path=reverse('core:community-user-profile', kwargs={'username': profile_data['username']}),
             ),
         },
     )
@@ -647,7 +644,9 @@ def profile_api(request: HttpRequest) -> JsonResponse:
                 'privacy_level': profile.privacy_level,
                 'avatar_data': profile.avatar_meta.get('avatar_data', ''),
                 'avatar_pos': profile.avatar_meta.get('avatar_pos', {'x': 50, 'y': 50, 'scale': 100}),
+                'background_image': profile.background_image,
             },
+            'backgrounds': get_available_profile_backgrounds(),
         })
 
     try:
@@ -660,6 +659,16 @@ def profile_api(request: HttpRequest) -> JsonResponse:
     request.user.email = str(payload.get('email', request.user.email) or '')[:254]
     profile.link = str(payload.get('link', profile.link) or '')[:255]
     profile.privacy_level = str(payload.get('privacy_level', profile.privacy_level) or 'public')[:50]
+    update_profile_fields = ['link', 'privacy_level', 'avatar_meta']
+    if 'background_image' in payload:
+        try:
+            profile.background_image = validate_profile_background(str(payload.get('background_image') or ''))
+        except ValueError:
+            return JsonResponse(
+                {'success': False, 'errors': {'background_image': ['Выберите фон из доступной галереи.']}},
+                status=400,
+            )
+        update_profile_fields.append('background_image')
 
     meta = profile.avatar_meta if isinstance(profile.avatar_meta, dict) else {}
     meta['city'] = str(payload.get('city', meta.get('city', '')) or '')[:255]
@@ -675,8 +684,14 @@ def profile_api(request: HttpRequest) -> JsonResponse:
     profile.avatar_meta = meta
 
     request.user.save(update_fields=['first_name', 'last_name', 'email'])
-    profile.save(update_fields=['link', 'privacy_level', 'avatar_meta'])
-    return JsonResponse({'success': True})
+    profile.save(update_fields=update_profile_fields)
+    background = None
+    if profile.background_image:
+        background = next(
+            (item for item in get_available_profile_backgrounds() if item['id'] == profile.background_image),
+            None,
+        )
+    return JsonResponse({'success': True, 'background': background, 'background_image': profile.background_image})
 
 
 COMMUNITY_PAGE_SIZE = 12
@@ -1174,7 +1189,7 @@ def archive_state_api(request: HttpRequest) -> JsonResponse:
             continue
         db_rubric.is_public = _coerce_bool(raw_rubric.get('publicEnabled'))
         db_rubric.public_slug = str(raw_rubric.get('publicSlug') or '')[:255]
-        db_rubric.save(update_fields=['is_public', 'public_slug'])
+        db_rubric.save(update_fields=['is_public', 'public_slug', 'updated_at'])
     return JsonResponse({'success': True})
 
 
