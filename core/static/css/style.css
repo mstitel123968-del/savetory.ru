@@ -2075,7 +2075,16 @@ body.landing-page{
 } /* end @media 960px */
 @media (max-width:640px){
   .nav-back-btn span{display:none}
-  .nav-back-btn{padding:0 8px;min-height:34px;border-radius:10px}
+  .nav-back-btn{
+    width:34px;
+    height:34px;
+    min-height:unset;
+    padding:0;
+    border-radius:10px;
+    justify-content:center;
+    align-items:center;
+    flex-shrink:0;
+  }
 }
 
 /* =============================================
@@ -2210,4 +2219,10 @@ body.landing-page{
     min-width:0;
     flex:1;
   }
+
+  /* --- Единые отступы: уравниваем внутренние padding блоков до 8px --- */
+  .rubric-card{padding:10px 12px}
+  .news-card{padding:12px 12px 36px}
+  .news-list{gap:8px}
+  .community-shell{gap:8px}
 }
