@@ -11,7 +11,7 @@
 :root{
   --sidebar-w:220px;
   --topbar-h:60px;
-  --page-padding:28px;
+  --page-padding:12px;
   --bg-intensity:0.68;
   --space-2xs:8px;
   --space-xs:12px;
@@ -1194,7 +1194,7 @@ html.news-guest .news-card{border-radius:18px;width:100%}
 
 /* responsive */
 @media (max-width:960px){
-  :root{--page-padding:20px;}
+  :root{--page-padding:10px;}
   html,body{overflow-x:hidden;}
   .mobile-nav-toggle{display:inline-flex}
   .mobile-nav-backdrop{display:block}
@@ -1328,7 +1328,7 @@ html.news-guest .news-card{border-radius:18px;width:100%}
   }
 }
 @media (max-width:720px){
-  :root{--page-padding:16px;}
+  :root{--page-padding:8px;}
   .topbar-inner{
     grid-template-columns:auto minmax(0,1fr);
     grid-template-areas:
@@ -2043,6 +2043,36 @@ body.landing-page{
   min-height: 1rem;
 }
 
+/* Кнопка "Назад" в topbar */
+.nav-back-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:0 12px;
+  min-height:36px;
+  border-radius:12px;
+  border:1px solid var(--btn-border);
+  background:var(--btn-bg);
+  color:var(--btn-fg);
+  font:inherit;
+  font-size:14px;
+  font-weight:700;
+  cursor:pointer;
+  white-space:nowrap;
+  box-shadow:var(--btn-shadow);
+  transition:background-color .16s ease,transform .14s ease;
+}
+.nav-back-btn:hover,.nav-back-btn:focus-visible{
+  outline:none;
+  background:var(--btn-bg-hover);
+  transform:translateY(-1px);
+}
+.nav-back-btn svg{flex-shrink:0}
+@media (max-width:640px){
+  .nav-back-btn span{display:none}
+  .nav-back-btn{padding:0 8px;min-height:34px;border-radius:10px}
+}
+
 /* =============================================
    MOBILE UX — единый стандарт ≤ 640px
    Только расширение; десктоп не затрагивается
@@ -2056,9 +2086,9 @@ body.landing-page{
 
   /* --- Глобальные отступы --- */
   :root{
-    --page-padding:12px;
-    --app-layout-gap:12px;
-    --archive-layout-gap:10px;
+    --page-padding:6px;
+    --app-layout-gap:8px;
+    --archive-layout-gap:8px;
   }
 
   /* --- Topbar: одна строка, меньше высоты --- */
