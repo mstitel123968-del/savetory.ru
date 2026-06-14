@@ -113,24 +113,23 @@ body.reduce-motion .community-card,body.reduce-motion .community-action{transiti
     align-items:center;
   }
 
-  /* Строка 1: поиск слева, кнопка назад справа */
+  /* Строка 1: поиск (тянется) + квадратная кнопка назад справа */
   .community-topbar-searches{
     grid-area:search;
-    display:flex;
-    flex-direction:row;
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
     align-items:center;
-    gap:6px;
+    gap:8px;
     width:100%;
     justify-self:stretch;
   }
   .community-searchbar--topbar{
-    flex:1;
-    width:auto;
+    grid-column:1;
+    width:100%;
     max-width:none;
-    order:0;
   }
   .community-topbar-searches .nav-back-btn{
-    order:1;
+    grid-column:2;
     flex-shrink:0;
   }
 
@@ -161,9 +160,19 @@ body.reduce-motion .community-card,body.reduce-motion .community-action{transiti
     text-overflow:ellipsis;
   }
 
-  /* Отступ main: topbar строка 1 (~42px) + gap(6px) + строка 2 (~34px) + paddings(~16px) */
+  /* Контраст: чёткие границы, чтобы детали не сливались */
+  .community-searchbar__input{
+    border-color:color-mix(in srgb,var(--accent) 24%,var(--input-border));
+    background:color-mix(in srgb,var(--card) 94%,transparent);
+  }
+  .community-tabs{
+    border-color:color-mix(in srgb,var(--accent) 26%,var(--btn-border));
+    background:color-mix(in srgb,var(--card) 92%,transparent);
+  }
+
+  /* Отступ main: фактическая высота topbar (≈96px) + 8px */
   body.community-page .main{
-    padding-top:calc(52px + 42px + 6px + 34px + 14px)!important;
+    padding-top:calc(42px + 6px + 34px + 14px + 8px)!important;
   }
 
   /* Оболочка без лишних отступов */
