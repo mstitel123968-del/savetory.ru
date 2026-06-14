@@ -20,6 +20,15 @@
     try { return t.toLocaleLowerCase('ru-RU'); } catch (e){ return t.toLowerCase(); }
   }
 
+  function esc(s){
+    return String(s == null ? '' : s)
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
   function collectMatches(query){
     const q = normalize(query).trim();
     if (!q) return [];
@@ -61,9 +70,9 @@
       if (!matches.length){ clear(); return; }
       host.innerHTML = matches.map((m)=>{
         const href = `/archive/?rubric=${encodeURIComponent(m.rubricId)}&file=${encodeURIComponent(m.fileId)}`;
-        return `<a class="search-results__item" href="${href}" data-rubric-id="${m.rubricId}" data-file-id="${m.fileId}">
-          <span class="search-results__title">${m.title}</span>
-          <span class="search-results__rubric">${m.rubricName}</span>
+        return `<a class="search-results__item" href="${esc(href)}" data-rubric-id="${esc(m.rubricId)}" data-file-id="${esc(m.fileId)}">
+          <span class="search-results__title">${esc(m.title)}</span>
+          <span class="search-results__rubric">${esc(m.rubricName)}</span>
         </a>`;
       }).join('');
       host.classList.remove('hidden');

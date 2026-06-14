@@ -203,7 +203,13 @@ body.theme-sepia .pe-dialog{box-shadow:0 20px 44px rgba(62,34,18,0.36);}
 .profile-cover-option:hover,.profile-cover-option:focus-visible{outline:none;border-color:color-mix(in srgb,var(--accent) 54%,var(--card-border));transform:translateY(-1px)}
 .profile-cover-option.is-selected{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 28%,transparent)}
 .profile-cover-option img{width:100%;height:100%;min-height:92px;object-fit:cover;display:block}
+.profile-cover-option img[hidden]{display:none}
 .profile-cover-option__empty{min-height:92px;display:flex;align-items:center;justify-content:center;padding:12px;color:var(--muted);font-weight:800;text-align:center;background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 16%,var(--card)),var(--card))}
+.profile-cover-option--upload{display:flex;align-items:center;justify-content:center}
+.profile-cover-option--upload::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(3,12,18,.08),rgba(3,12,18,.42));opacity:0;transition:opacity .16s ease;pointer-events:none}
+.profile-cover-option--upload.has-preview::before{opacity:1}
+.profile-cover-option__upload-label{position:relative;z-index:1;display:flex;align-items:center;justify-content:center;min-height:92px;width:100%;padding:12px;color:var(--muted);font-weight:800;text-align:center}
+.profile-cover-option--upload.has-preview .profile-cover-option__upload-label{position:absolute;inset:0;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.45)}
 .profile-cover-option__check{position:absolute;right:9px;top:9px;width:24px;height:24px;border-radius:50%;display:none;align-items:center;justify-content:center;background:var(--accent);color:var(--primary-fg);font-size:14px;font-weight:900;box-shadow:0 8px 18px rgba(0,0,0,.22)}
 .profile-cover-option.is-selected .profile-cover-option__check{display:flex}
 .profile-cover-modal__actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px}

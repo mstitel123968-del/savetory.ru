@@ -4,8 +4,11 @@ from __future__ import annotations
 import json
 import logging
 import re
+from pathlib import Path
 from datetime import timedelta
 from urllib.parse import unquote
+
+from PIL import Image, UnidentifiedImageError
 
 from django.db import transaction
 from django.db.models import Q
@@ -15,8 +18,10 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.core.files.storage import default_storage
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
+from django.utils.crypto import get_random_string
 from django.urls import reverse
 from django.utils.text import slugify
 from django.utils import timezone
@@ -51,7 +56,6 @@ from core.services.messages import (
 )
 from core.services.profile_page import (
     build_extended_profile_context,
-    get_available_profile_backgrounds,
     validate_profile_background,
 )
 from .forms import ArchiveFileForm, LoginForm, RegistrationForm, RubricForm
@@ -89,6 +93,73 @@ def _coerce_bool(value) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in {'1', 'true', 'yes', 'on'}
     return False
+
+
+PROFILE_COVER_MAX_SIZE = 10 * 1024 * 1024
+PROFILE_COVER_CONTENT_TYPES = {
+    'image/jpeg': '.jpg',
+    'image/png': '.png',
+    'image/webp': '.webp',
+}
+PROFILE_COVER_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.webp'}
+
+
+def _is_user_profile_cover_path(path: str) -> bool:
+    try:
+        normalized = validate_profile_background(path)
+    except ValueError:
+        return False
+    return bool(normalized)
+
+
+def _delete_profile_cover(path: str) -> None:
+    if _is_user_profile_cover_path(path) and default_storage.exists(path):
+        default_storage.delete(path)
+
+
+def _profile_cover_payload(path: str) -> dict | None:
+    try:
+        normalized = validate_profile_background(path)
+    except ValueError:
+        return None
+    if not normalized:
+        return None
+    return {
+        'id': normalized,
+        'path': normalized,
+        'url': default_storage.url(normalized),
+    }
+
+
+def _save_profile_cover_upload(user: User, upload) -> str:
+    if not upload:
+        raise ValueError('Выберите изображение для обложки.')
+    if upload.size and upload.size > PROFILE_COVER_MAX_SIZE:
+        raise ValueError('Файл слишком большой. Максимальный размер обложки — 10 МБ.')
+
+    content_type = str(getattr(upload, 'content_type', '') or '').lower()
+    source_ext = Path(str(upload.name or '')).suffix.lower()
+    if source_ext not in PROFILE_COVER_EXTENSIONS or content_type not in PROFILE_COVER_CONTENT_TYPES:
+        raise ValueError('Поддерживаются только JPG, PNG и WEBP.')
+
+    try:
+        with Image.open(upload) as image:
+            image.verify()
+            detected_format = str(image.format or '').upper()
+    except (UnidentifiedImageError, OSError, ValueError) as exc:
+        raise ValueError('Файл не похож на корректное изображение.') from exc
+    finally:
+        try:
+            upload.seek(0)
+        except (AttributeError, OSError):
+            pass
+
+    if detected_format not in {'JPEG', 'PNG', 'WEBP'}:
+        raise ValueError('Поддерживаются только JPG, PNG и WEBP.')
+
+    ext = PROFILE_COVER_CONTENT_TYPES[content_type]
+    filename = f"cover_{timezone.now():%Y%m%d%H%M%S}_{get_random_string(8)}{ext}"
+    return default_storage.save(f"profile_covers/user_{user.pk}/{filename}", upload)
 
 
 def _dedupe_public_slug(raw_slug: str, used_slugs: set[str], fallback: str = '') -> str:
@@ -634,13 +705,42 @@ def profile_api(request: HttpRequest) -> JsonResponse:
                 'avatar_pos': profile.avatar_meta.get('avatar_pos', {'x': 50, 'y': 50, 'scale': 100}),
                 'background_image': profile.background_image,
             },
-            'backgrounds': get_available_profile_backgrounds(),
+            'background': _profile_cover_payload(profile.background_image),
         })
 
-    try:
-        payload = json.loads(request.body.decode('utf-8') or '{}')
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        payload = {}
+    is_multipart = request.content_type and request.content_type.startswith('multipart/form-data')
+    if is_multipart:
+        payload = request.POST
+    else:
+        try:
+            payload = json.loads(request.body.decode('utf-8') or '{}')
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            payload = {}
+
+    if is_multipart and ('background_image' in payload or 'background_file' in request.FILES):
+        old_background = profile.background_image
+        new_background_path = None
+        try:
+            if 'background_file' in request.FILES:
+                new_background_path = _save_profile_cover_upload(request.user, request.FILES['background_file'])
+                profile.background_image = new_background_path
+            else:
+                profile.background_image = ''
+            profile.save(update_fields=['background_image'])
+        except ValueError as exc:
+            return JsonResponse(
+                {'success': False, 'errors': {'background_image': [str(exc)]}},
+                status=400,
+            )
+        except Exception:
+            if new_background_path:
+                _delete_profile_cover(new_background_path)
+            raise
+
+        if old_background and old_background != profile.background_image:
+            _delete_profile_cover(old_background)
+        background = _profile_cover_payload(profile.background_image)
+        return JsonResponse({'success': True, 'background': background, 'background_image': profile.background_image})
 
     request.user.first_name = str(payload.get('first', request.user.first_name) or '')[:150]
     request.user.last_name = str(payload.get('last', request.user.last_name) or '')[:150]
@@ -648,14 +748,30 @@ def profile_api(request: HttpRequest) -> JsonResponse:
     profile.link = str(payload.get('link', profile.link) or '')[:255]
     profile.privacy_level = str(payload.get('privacy_level', profile.privacy_level) or 'public')[:50]
     update_profile_fields = ['link', 'privacy_level', 'avatar_meta']
-    if 'background_image' in payload:
+    old_background = profile.background_image
+    new_background_path = None
+    delete_old_background = False
+    background_touched = 'background_image' in payload or 'background_file' in request.FILES
+    if 'background_file' in request.FILES:
+        try:
+            new_background_path = _save_profile_cover_upload(request.user, request.FILES['background_file'])
+        except ValueError as exc:
+            return JsonResponse(
+                {'success': False, 'errors': {'background_image': [str(exc)]}},
+                status=400,
+            )
+        profile.background_image = new_background_path
+        delete_old_background = bool(old_background and old_background != new_background_path)
+        update_profile_fields.append('background_image')
+    elif 'background_image' in payload:
         try:
             profile.background_image = validate_profile_background(str(payload.get('background_image') or ''))
         except ValueError:
             return JsonResponse(
-                {'success': False, 'errors': {'background_image': ['Выберите фон из доступной галереи.']}},
+                {'success': False, 'errors': {'background_image': ['Выберите стандартный фон или загрузите изображение.']}},
                 status=400,
             )
+        delete_old_background = not profile.background_image and bool(old_background)
         update_profile_fields.append('background_image')
 
     meta = profile.avatar_meta if isinstance(profile.avatar_meta, dict) else {}
@@ -671,14 +787,16 @@ def profile_api(request: HttpRequest) -> JsonResponse:
         }
     profile.avatar_meta = meta
 
-    request.user.save(update_fields=['first_name', 'last_name', 'email'])
-    profile.save(update_fields=update_profile_fields)
-    background = None
-    if profile.background_image:
-        background = next(
-            (item for item in get_available_profile_backgrounds() if item['id'] == profile.background_image),
-            None,
-        )
+    try:
+        request.user.save(update_fields=['first_name', 'last_name', 'email'])
+        profile.save(update_fields=update_profile_fields)
+    except Exception:
+        if new_background_path:
+            _delete_profile_cover(new_background_path)
+        raise
+    if delete_old_background:
+        _delete_profile_cover(old_background)
+    background = _profile_cover_payload(profile.background_image) if background_touched else None
     return JsonResponse({'success': True, 'background': background, 'background_image': profile.background_image})
 
 

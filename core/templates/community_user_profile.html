@@ -336,16 +336,16 @@
         </header>
         <div id="profileCoverError" class="profile-cover-modal__error" role="alert" aria-live="polite"></div>
         <div class="profile-cover-grid" role="listbox" aria-label="Доступные обложки">
-          <button type="button" class="profile-cover-option{% if not profile_page.profile.background %} is-selected{% endif %}" data-cover-id="" data-cover-url="" role="option" aria-selected="{% if not profile_page.profile.background %}true{% else %}false{% endif %}">
+          <button type="button" id="profileCoverStandardBtn" class="profile-cover-option{% if not profile_page.profile.background %} is-selected{% endif %}" data-cover-mode="standard" role="option" aria-selected="{% if not profile_page.profile.background %}true{% else %}false{% endif %}">
             <span class="profile-cover-option__empty">Стандартный фон</span>
             <span class="profile-cover-option__check" aria-hidden="true">✓</span>
           </button>
-          {% for background in profile_page.available_backgrounds %}
-            <button type="button" class="profile-cover-option{% if profile_page.profile.background and background.id == profile_page.profile.background.id %} is-selected{% endif %}" data-cover-id="{{ background.id }}" data-cover-url="{{ background.url }}" role="option" aria-selected="{% if profile_page.profile.background and background.id == profile_page.profile.background.id %}true{% else %}false{% endif %}">
-              <img src="{{ background.url }}" alt="" loading="lazy" />
-              <span class="profile-cover-option__check" aria-hidden="true">✓</span>
-            </button>
-          {% endfor %}
+          <button type="button" id="profileCoverUploadBtn" class="profile-cover-option profile-cover-option--upload{% if profile_page.profile.background %} is-selected{% endif %}" data-cover-mode="upload" role="option" aria-selected="{% if profile_page.profile.background %}true{% else %}false{% endif %}">
+            <span class="profile-cover-option__upload-label">Загрузить свою обложку</span>
+            <img id="profileCoverUploadPreview" src="{{ profile_page.profile.background.url|default:'' }}" alt="" {% if not profile_page.profile.background %}hidden{% endif %} />
+            <span class="profile-cover-option__check" aria-hidden="true">✓</span>
+          </button>
+          <input type="file" id="profileCoverFileInput" accept="image/jpeg,image/png,image/webp" hidden />
         </div>
         <div class="profile-cover-modal__actions">
           <button id="profileCoverSaveBtn" class="profile-hero__button profile-hero__button--primary" type="button">Сохранить</button>
@@ -374,12 +374,23 @@
         const errorEl = document.getElementById('profileCoverError');
         const closeBtns = modal ? Array.from(modal.querySelectorAll('[data-cover-close]')) : [];
         const options = modal ? Array.from(modal.querySelectorAll('.profile-cover-option')) : [];
+        const standardBtn = document.getElementById('profileCoverStandardBtn');
+        const uploadBtn = document.getElementById('profileCoverUploadBtn');
+        const fileInput = document.getElementById('profileCoverFileInput');
+        const uploadPreview = document.getElementById('profileCoverUploadPreview');
         if (!hero || !openBtn || !modal || !saveBtn) return;
 
         let savedId = "{{ profile_page.profile.background.id|default:''|escapejs }}";
         let savedUrl = "{{ profile_page.profile.background.url|default:''|escapejs }}";
+        let savedMode = savedUrl ? 'upload' : 'standard';
         let selectedId = savedId;
         let selectedUrl = savedUrl;
+        let selectedMode = savedMode;
+        let selectedFile = null;
+        let previewObjectUrl = '';
+
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        const maxSize = 10 * 1024 * 1024;
 
         function closeMenu(){
           if (!menu || !menuBtn) return;
@@ -409,18 +420,73 @@
           }
         }
 
-        function markSelected(id){
+        function freshUrl(url){
+          if (!url || url.startsWith('blob:') || url.startsWith('data:')) return url;
+          const separator = url.includes('?') ? '&' : '?';
+          return `${url}${separator}v=${Date.now()}`;
+        }
+
+        function clearObjectPreview(){
+          if (previewObjectUrl) {
+            URL.revokeObjectURL(previewObjectUrl);
+            previewObjectUrl = '';
+          }
+        }
+
+        function updateUploadPreview(url){
+          if (!uploadPreview) return;
+          if (url) {
+            uploadPreview.src = url;
+            uploadPreview.hidden = false;
+            if (uploadBtn) uploadBtn.classList.add('has-preview');
+          } else {
+            uploadPreview.removeAttribute('src');
+            uploadPreview.hidden = true;
+            if (uploadBtn) uploadBtn.classList.remove('has-preview');
+          }
+        }
+
+        function markSelected(mode){
           options.forEach((option)=>{
-            const active = option.dataset.coverId === id;
+            const active = option.dataset.coverMode === mode;
             option.classList.toggle('is-selected', active);
             option.setAttribute('aria-selected', active ? 'true' : 'false');
           });
         }
 
+        function selectStandard(){
+          selectedMode = 'standard';
+          selectedId = '';
+          selectedUrl = '';
+          selectedFile = null;
+          clearObjectPreview();
+          if (fileInput) fileInput.value = '';
+          updateUploadPreview('');
+          markSelected('standard');
+          applyPreview('');
+          if (errorEl) errorEl.textContent = '';
+        }
+
+        function selectUpload(url, file){
+          selectedMode = 'upload';
+          selectedId = savedId;
+          selectedUrl = url || savedUrl;
+          selectedFile = file || null;
+          markSelected('upload');
+          updateUploadPreview(selectedUrl);
+          applyPreview(selectedUrl);
+          if (errorEl) errorEl.textContent = '';
+        }
+
         function open(){
           selectedId = savedId;
           selectedUrl = savedUrl;
-          markSelected(selectedId);
+          selectedMode = savedMode;
+          selectedFile = null;
+          clearObjectPreview();
+          if (fileInput) fileInput.value = '';
+          updateUploadPreview(savedUrl);
+          markSelected(selectedMode);
           applyPreview(selectedUrl);
           if (errorEl) errorEl.textContent = '';
           modal.hidden = false;
@@ -429,18 +495,35 @@
 
         function close(revert){
           if (revert) applyPreview(savedUrl);
+          clearObjectPreview();
+          selectedFile = null;
+          if (fileInput) fileInput.value = '';
+          updateUploadPreview(savedUrl);
           modal.hidden = true;
           document.body.classList.remove('profile-modal-open');
           if (errorEl) errorEl.textContent = '';
         }
 
-        options.forEach((option)=>{
-          option.addEventListener('click', ()=>{
-            selectedId = option.dataset.coverId || '';
-            selectedUrl = option.dataset.coverUrl || '';
-            markSelected(selectedId);
-            applyPreview(selectedUrl);
-          });
+        if (standardBtn) standardBtn.addEventListener('click', selectStandard);
+        if (uploadBtn) uploadBtn.addEventListener('click', ()=>{
+          if (fileInput) fileInput.click();
+        });
+        if (fileInput) fileInput.addEventListener('change', ()=>{
+          const file = fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
+          if (!file) return;
+          if (!allowedTypes.includes(file.type)) {
+            fileInput.value = '';
+            if (errorEl) errorEl.textContent = 'Поддерживаются только JPG, PNG и WEBP.';
+            return;
+          }
+          if (file.size > maxSize) {
+            fileInput.value = '';
+            if (errorEl) errorEl.textContent = 'Файл слишком большой. Максимальный размер обложки — 10 МБ.';
+            return;
+          }
+          clearObjectPreview();
+          previewObjectUrl = URL.createObjectURL(file);
+          selectUpload(previewObjectUrl, file);
         });
 
         if (menuBtn) menuBtn.addEventListener('click', (event)=>{
@@ -464,31 +547,56 @@
 
         saveBtn.addEventListener('click', async ()=>{
           if (saveBtn.disabled) return;
+          const originalText = saveBtn.textContent;
           saveBtn.disabled = true;
+          saveBtn.textContent = 'Сохранение...';
           if (errorEl) errorEl.textContent = '';
           try {
+            if (selectedMode === 'upload' && !selectedFile && selectedUrl === savedUrl) {
+              close(false);
+              return;
+            }
+            const formData = new FormData();
+            if (selectedMode === 'standard') {
+              formData.append('background_image', '');
+            } else if (selectedFile) {
+              formData.append('background_file', selectedFile);
+            } else {
+              throw new Error('no file selected');
+            }
             const response = await fetch("{% url 'core:profile-api' %}", {
-              method: 'PATCH',
+              method: 'POST',
               credentials: 'include',
-              headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
-              body: JSON.stringify({ background_image: selectedId }),
+              headers: { 'X-CSRFToken': csrf(), 'Accept': 'application/json' },
+              body: formData,
             });
             const data = await response.json().catch(()=>null);
             if (!response.ok || !data || data.success === false) {
-              throw new Error('save failed');
+              const message = data && data.errors && data.errors.background_image
+                ? data.errors.background_image[0]
+                : data && data.errors && data.errors.__all__
+                  ? data.errors.__all__
+                  : 'Не удалось сохранить обложку.';
+              throw new Error(message);
             }
             savedId = data.background_image || '';
             savedUrl = data.background && data.background.url ? data.background.url : '';
+            savedMode = savedUrl ? 'upload' : 'standard';
             selectedId = savedId;
             selectedUrl = savedUrl;
-            applyPreview(savedUrl);
-            markSelected(savedId);
+            selectedMode = savedMode;
+            selectedFile = null;
+            const freshSavedUrl = freshUrl(savedUrl);
+            applyPreview(freshSavedUrl);
+            updateUploadPreview(freshSavedUrl);
+            markSelected(savedMode);
             close(false);
           } catch (error) {
-            if (errorEl) errorEl.textContent = 'Не удалось сохранить обложку. Выберите изображение из галереи.';
+            if (errorEl) errorEl.textContent = error && error.message ? error.message : 'Не удалось сохранить обложку.';
             applyPreview(selectedUrl);
           } finally {
             saveBtn.disabled = false;
+            saveBtn.textContent = originalText;
           }
         });
       })();

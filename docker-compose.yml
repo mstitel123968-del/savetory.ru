@@ -5,8 +5,8 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DJANGO_DEBUG: "0"
-      DJANGO_SECRET_KEY: "changeme"
+      DJANGO_DEBUG: "1"
+      DJANGO_SECRET_KEY: "dev-only-insecure-key"
       POSTGRES_DB: trezo
       POSTGRES_USER: trezo
       POSTGRES_PASSWORD: trezo

@@ -4,8 +4,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from django.contrib.auth import get_user_model
+from django.core.files.storage import default_storage
 from django.db.models import Count, Max, Prefetch
-from django.templatetags.static import static
 from django.urls import reverse
 from django.utils import timezone
 
@@ -13,64 +13,20 @@ from core.models import ArchiveFile, ArchiveFileImage, ArchiveState, Friendship,
 from core.services.friendships import get_friends, get_relationship_status
 
 
-PROFILE_BACKGROUND_COVERS = [
-    {
-        'id': 'cover-mountain-sunrise.png',
-        'file': 'img/profile-covers/cover-mountain-sunrise.png',
-        'name': 'Горное озеро',
-        'legacy_ids': ['ChatGPT Image 13 июн. 2026 г., 23_37_14 (1).png'],
-    },
-    {
-        'id': 'cover-misty-forest.png',
-        'file': 'img/profile-covers/cover-misty-forest.png',
-        'name': 'Туманный лес',
-        'legacy_ids': ['ChatGPT Image 13 июн. 2026 г., 23_37_14 (2).png'],
-    },
-    {
-        'id': 'cover-sea-sunset.png',
-        'file': 'img/profile-covers/cover-sea-sunset.png',
-        'name': 'Морской закат',
-        'legacy_ids': ['ChatGPT Image 13 июн. 2026 г., 23_37_15 (3).png'],
-    },
-    {
-        'id': 'cover-aurora-lake.png',
-        'file': 'img/profile-covers/cover-aurora-lake.png',
-        'name': 'Северное сияние',
-        'legacy_ids': ['ChatGPT Image 13 июн. 2026 г., 23_37_16 (4).png'],
-    },
-]
-
-
-def get_available_profile_backgrounds() -> list[dict]:
-    """Return built-in selectable profile backgrounds from static assets."""
-
-    items = []
-    for cover in PROFILE_BACKGROUND_COVERS:
-        items.append({
-            'id': cover['id'],
-            'path': cover['file'],
-            'url': static(cover['file']),
-            'name': cover['name'],
-        })
-    return items
-
-
 def validate_profile_background(value: str) -> str:
-    """Return a safe selectable background id or an empty string."""
+    """Return a safe uploaded profile background path or an empty string."""
 
     raw = str(value or '').strip().replace('\\', '/')
     if not raw:
         return ''
-    allowed = {}
-    for cover in PROFILE_BACKGROUND_COVERS:
-        allowed[cover['id']] = cover['id']
-        allowed[cover['file']] = cover['id']
-        allowed[f"profile-covers/{cover['id']}"] = cover['id']
-        for legacy in cover.get('legacy_ids', []):
-            allowed[legacy] = cover['id']
-    if raw not in allowed:
-        raise ValueError('Profile background is not in the allowed list.')
-    return allowed[raw]
+    parts = raw.split('/')
+    if raw.startswith('/') or '..' in parts or len(parts) < 3:
+        raise ValueError('Invalid profile background path.')
+    if parts[0] != 'profile_covers' or not parts[1].startswith('user_'):
+        raise ValueError('Invalid profile background path.')
+    if raw.lower().rsplit('.', 1)[-1] not in {'jpg', 'jpeg', 'png', 'webp'}:
+        raise ValueError('Invalid profile background file type.')
+    return raw
 
 
 def _display_name(user, profile: Profile | None = None) -> str:
@@ -127,13 +83,10 @@ def _background_payload(profile: Profile | None) -> dict | None:
         return None
     if not relative:
         return None
-    background = next((item for item in get_available_profile_backgrounds() if item['id'] == relative), None)
-    if not background:
-        return None
     return {
         'id': relative,
-        'path': background['path'],
-        'url': background['url'],
+        'path': relative,
+        'url': default_storage.url(relative),
     }
 
 
@@ -490,7 +443,6 @@ def build_extended_profile_context(viewer, username: str) -> dict:
         'friends': friends,
         'activity': _activity_payload(user, profile, visible_rubrics, latest_records),
         'actions': _actions_payload(viewer, user, relationship),
-        'available_backgrounds': get_available_profile_backgrounds() if is_owner else [],
     }
 
 

@@ -18,7 +18,7 @@ COPY . /app/
 RUN sed -i 's/\r$//' docker/entrypoint.sh \
     && chmod +x docker/entrypoint.sh
 
-RUN python manage.py collectstatic --noinput
+RUN SECRET_KEY=build-only-dummy-key python manage.py collectstatic --noinput
 
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
 CMD ["gunicorn", "trezo_site.wsgi:application", "--bind", "0.0.0.0:8000"]

@@ -11,8 +11,20 @@ else:
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY', 'django-insecure-change-me')
-DEBUG = os.environ.get('DJANGO_DEBUG', os.environ.get('DEBUG', '1')) == '1'
+from django.core.exceptions import ImproperlyConfigured
+
+_INSECURE_SECRET_KEY = 'django-insecure-change-me'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY', _INSECURE_SECRET_KEY)
+# Secure by default: DEBUG is only enabled when explicitly requested via the
+# environment. Local development should set DJANGO_DEBUG=1 (or DEBUG=1).
+DEBUG = os.environ.get('DJANGO_DEBUG', os.environ.get('DEBUG', '0')) == '1'
+
+# Refuse to boot a production (DEBUG=0) instance that still relies on the
+# placeholder secret key — this prevents accidental deploys with a known key.
+if not DEBUG and SECRET_KEY in {_INSECURE_SECRET_KEY, '', 'changeme'}:
+    raise ImproperlyConfigured(
+        'A strong DJANGO_SECRET_KEY must be set when DEBUG is disabled.'
+    )
 _allowed_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS')
 if _allowed_hosts:
     ALLOWED_HOSTS: list[str] = _allowed_hosts.split()
@@ -38,6 +50,19 @@ if os.environ.get('DJANGO_SECURE_PROXY_SSL_HEADER', '0') == '1':
 USE_X_FORWARDED_HOST = os.environ.get('DJANGO_USE_X_FORWARDED_HOST', '0') == '1'
 SESSION_COOKIE_SECURE = os.environ.get('DJANGO_SESSION_COOKIE_SECURE', '0') == '1'
 CSRF_COOKIE_SECURE = os.environ.get('DJANGO_CSRF_COOKIE_SECURE', '0') == '1'
+
+# Hardening headers. Sensible defaults that do not break HTTP-only local dev;
+# HTTPS-only behaviour (redirect/HSTS) stays opt-in via the environment so it
+# cannot lock out a deployment that is not fully on TLS yet.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SESSION_COOKIE_HTTPONLY = True
+# NB: CSRF cookie must stay readable by JS — the frontend reads the csrftoken
+# cookie to send the X-CSRFToken header, so CSRF_COOKIE_HTTPONLY is left False.
+X_FRAME_OPTIONS = os.environ.get('DJANGO_X_FRAME_OPTIONS', 'DENY')
+SECURE_SSL_REDIRECT = os.environ.get('DJANGO_SECURE_SSL_REDIRECT', '0') == '1'
+SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_SECURE_HSTS_SECONDS', '0') or '0')
+SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS', '0') == '1'
+SECURE_HSTS_PRELOAD = os.environ.get('DJANGO_SECURE_HSTS_PRELOAD', '0') == '1'
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -116,6 +141,9 @@ STATICFILES_DIRS = [BASE_DIR / 'core' / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 STORAGES = {
+    'default': {
+        'BACKEND': 'django.core.files.storage.FileSystemStorage',
+    },
     'staticfiles': {
         'BACKEND': 'core.storage.SafeManifestStaticFilesStorage',
     },
@@ -126,6 +154,7 @@ if USE_WHITENOISE:
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+SERVE_MEDIA_FILES = DEBUG or os.environ.get('DJANGO_SERVE_MEDIA', '0') == '1'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
