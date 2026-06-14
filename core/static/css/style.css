@@ -2043,7 +2043,11 @@ body.landing-page{
   min-height: 1rem;
 }
 
-/* Кнопка "Назад" в topbar */
+/* Кнопка "Назад" в topbar — только на мобиле */
+.nav-back-btn{
+  display:none;
+}
+@media (max-width:960px){
 .nav-back-btn{
   display:inline-flex;
   align-items:center;
@@ -2068,6 +2072,7 @@ body.landing-page{
   transform:translateY(-1px);
 }
 .nav-back-btn svg{flex-shrink:0}
+} /* end @media 960px */
 @media (max-width:640px){
   .nav-back-btn span{display:none}
   .nav-back-btn{padding:0 8px;min-height:34px;border-radius:10px}
@@ -2084,9 +2089,9 @@ body.landing-page{
   h1,h2,h3,.page-title{font-size:18px!important;line-height:1.3}
   .profile-hero__name,.profile-name{font-size:20px!important}
 
-  /* --- Глобальные отступы --- */
+  /* --- Глобальные отступы: единый стандарт 8px везде --- */
   :root{
-    --page-padding:6px;
+    --page-padding:8px;
     --app-layout-gap:8px;
     --archive-layout-gap:8px;
   }
@@ -2099,8 +2104,8 @@ body.landing-page{
     row-gap:0;
     padding-top:6px;
     padding-bottom:6px;
-    padding-left:10px;
-    padding-right:10px;
+    padding-left:8px;
+    padding-right:8px;
   }
   .topbar-actions{
     justify-self:end;
@@ -2158,5 +2163,51 @@ body.landing-page{
     bottom:16px;
     left:16px;
     z-index:300;
+  }
+
+  /* --- Фикс iOS: предотвращаем авто-зум при фокусе на инпутах --- */
+  input[type="text"],
+  input[type="password"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="search"],
+  input[type="number"],
+  input[type="url"],
+  textarea,
+  select{
+    font-size:16px!important;
+  }
+
+  /* --- Модал добавления файла: не выходит за экран --- */
+  .archive-modal-overlay{
+    padding:8px;
+    align-items:flex-end;
+  }
+  .archive-modal{
+    width:100%!important;
+    max-width:100%!important;
+    max-height:94svh;
+    border-radius:18px 18px 0 0;
+    overflow-x:hidden;
+  }
+  .archive-modal__body{
+    padding:14px 14px 16px;
+    overflow-x:hidden;
+  }
+  .archive-modal__header{
+    padding:14px 14px 0;
+  }
+  .archive-modal__footer{
+    padding:0 14px 14px;
+  }
+  /* Отключаем resize зоны фото на мобиле */
+  .image-preview--resizable{
+    resize:none;
+    max-width:100%;
+  }
+  /* Кнопки footer на всю ширину */
+  .archive-modal__footer .side-btn{
+    min-width:0;
+    flex:1;
   }
 }
