@@ -104,39 +104,43 @@ body.reduce-motion .community-card,body.reduce-motion .community-action{transiti
 
   /* topbar-inner: строка 1 = поиск + кнопка назад, строка 2 = заголовок + вкладки */
   body.community-page .topbar-inner{
-    grid-template-columns:auto minmax(0,1fr);
+    grid-template-columns:auto minmax(0,1fr)!important;
     grid-template-areas:
       "menu search"
-      "title title";
-    row-gap:6px;
+      "title title"!important;
+    row-gap:6px!important;
     padding-bottom:8px;
     align-items:center;
   }
 
   /* Строка 1: поиск (тянется) + квадратная кнопка назад справа */
-  .community-topbar-searches{
-    grid-area:search;
-    display:grid;
-    grid-template-columns:minmax(0,1fr) auto;
+  body.community-page .community-topbar-searches{
+    grid-area:search!important;
+    display:flex!important;
+    flex-direction:row!important;
+    flex-wrap:nowrap!important;
     align-items:center;
     gap:8px;
     width:100%;
     justify-self:stretch;
   }
-  .community-searchbar--topbar{
-    grid-column:1;
-    width:100%;
+  body.community-page .community-searchbar--topbar{
+    order:0;
+    flex:1 1 auto;
+    width:auto;
+    min-width:0;
     max-width:none;
   }
-  .community-topbar-searches .nav-back-btn{
-    grid-column:2;
-    flex-shrink:0;
+  body.community-page .community-topbar-searches .nav-back-btn{
+    order:1;
+    flex:0 0 auto;
   }
 
   /* Строка 2: "Люди" + вкладки горизонтально */
-  .community-titlebar{
-    grid-area:title;
-    flex-direction:row;
+  body.community-page .community-titlebar{
+    grid-area:title!important;
+    display:flex!important;
+    flex-direction:row!important;
     align-items:center;
     gap:8px;
     min-width:0;
