@@ -2042,3 +2042,91 @@ body.landing-page{
   margin-bottom: 1rem;
   min-height: 1rem;
 }
+
+/* =============================================
+   MOBILE UX — единый стандарт ≤ 640px
+   Только расширение; десктоп не затрагивается
+   ============================================= */
+@media (max-width:640px){
+
+  /* --- Типографика --- */
+  body{font-size:15px;line-height:1.5}
+  h1,h2,h3,.page-title{font-size:18px!important;line-height:1.3}
+  .profile-hero__name,.profile-name{font-size:20px!important}
+
+  /* --- Глобальные отступы --- */
+  :root{
+    --page-padding:12px;
+    --app-layout-gap:12px;
+    --archive-layout-gap:10px;
+  }
+
+  /* --- Topbar: одна строка, меньше высоты --- */
+  .topbar{min-height:52px}
+  .topbar-inner{
+    grid-template-columns:auto minmax(0,1fr) auto;
+    grid-template-areas:"menu title actions";
+    row-gap:0;
+    padding-top:6px;
+    padding-bottom:6px;
+    padding-left:10px;
+    padding-right:10px;
+  }
+  .topbar-actions{
+    justify-self:end;
+    width:auto;
+  }
+  /* Скрываем строку поиска из topbar на мобиле — она уходит в панель */
+  .search-wrap{display:none}
+
+  /* Меню-кнопка */
+  .mobile-nav-toggle{width:36px;height:36px;border-radius:10px}
+  .mobile-nav-toggle__line:nth-child(1){top:11px}
+  .mobile-nav-toggle__line:nth-child(2){top:17px}
+  .mobile-nav-toggle__line:nth-child(3){top:23px}
+
+  /* main padding под уменьшенный topbar */
+  .main{padding-top:calc(52px + var(--app-layout-gap))!important}
+  body.archive-page .main{padding-top:calc(52px + var(--archive-layout-gap))!important}
+
+  /* --- Кнопки --- */
+  .side-btn,.ios-button,.community-action{min-height:44px}
+
+  /* --- Архив: 2 колонки --- */
+  .rubric-files-grid{grid-template-columns:repeat(2,1fr)!important;gap:10px}
+  .file-add-tile,.file-card{min-height:120px}
+
+  /* --- Рубрики в архиве: горизонтальный скролл --- */
+  .rubric-list-wrap,.rubrics-section{
+    display:flex;
+    flex-direction:row;
+    overflow-x:auto;
+    overflow-y:hidden;
+    scroll-snap-type:x mandatory;
+    -webkit-overflow-scrolling:touch;
+    gap:10px;
+    padding-bottom:6px;
+  }
+  .rubric-list-wrap::-webkit-scrollbar,.rubrics-section::-webkit-scrollbar{height:3px}
+  .rubric-list-wrap .rubric-card,.rubrics-section .rubric-card{
+    scroll-snap-align:start;
+    flex:0 0 min(82vw,320px);
+  }
+
+  /* --- Новости / карточки --- */
+  .news-card{border-radius:12px;padding:12px 12px 40px}
+  .news-title{font-size:15px}
+
+  /* --- Поддержка виджет --- */
+  .support-floating-widget{right:12px;bottom:12px}
+
+  /* --- Кнопка "Меню" (зафиксирована внизу слева) --- */
+  .menu-btn-fixed-wrap,
+  button.menu-btn[data-menu-toggle],
+  .sidebar + .main ~ .menu-btn{
+    position:fixed;
+    bottom:16px;
+    left:16px;
+    z-index:300;
+  }
+}

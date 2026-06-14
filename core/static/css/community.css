@@ -97,6 +97,98 @@ body.reduce-motion .community-card,body.reduce-motion .community-action{transiti
   50%{opacity:1;transform:scale(1.08)}
 }
 
+/* =============================================
+   COMMUNITY — мобильный UX ≤ 640px
+   ============================================= */
+@media (max-width:640px){
+
+  /* Вкладки: переносятся под строку с заголовком */
+  .community-titlebar{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:8px;
+    min-width:0;
+    width:100%;
+  }
+  .community-tabs{
+    width:100%;
+    min-width:0;
+  }
+  .community-tab{
+    min-height:36px;
+    font-size:13px;
+    padding:0 6px;
+  }
+
+  /* Topbar community: titlebar становится колонкой, tabs на всю ширину */
+  .community-titlebar{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:6px;
+    min-width:0;
+    width:100%;
+  }
+  .community-tabs{
+    width:100%;
+    min-width:0;
+  }
+  .community-tab{
+    min-height:36px;
+    font-size:12px;
+    padding:0 4px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+
+  /* topbar-inner: добавляем строку для поиска */
+  body.community-page .topbar-inner{
+    grid-template-columns:auto minmax(0,1fr) auto;
+    grid-template-areas:
+      "menu title actions"
+      "search search search";
+    row-gap:6px;
+    padding-bottom:8px;
+  }
+  .community-searchbar--topbar{
+    width:100%;
+    max-width:none;
+  }
+  .community-topbar-searches{
+    grid-area:search;
+    width:100%;
+    justify-self:stretch;
+  }
+
+  /* Отступ main: topbar = 52px title + tabs (~42px) + search(42px) + paddings */
+  body.community-page .main{
+    padding-top:calc(52px + 42px + 42px + 24px)!important;
+  }
+
+  /* Оболочка без лишних отступов */
+  .community-shell{
+    padding:10px;
+    border-radius:12px;
+    min-height:0;
+  }
+
+  /* Карточки друзей: компактнее */
+  .community-list .community-card{
+    padding:12px;
+    gap:12px;
+  }
+  .community-list .community-avatar{width:56px;height:56px;border-radius:14px}
+
+  /* Кнопки действий: полная ширина */
+  .community-card__actions{
+    grid-template-columns:1fr;
+    gap:8px;
+    margin-top:8px;
+  }
+  .community-card__actions>:only-child{grid-column:1/-1}
+  .community-action{min-height:44px}
+}
+
 /* Square cards for the search tab */
 .community-panel[data-panel="search"] .community-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
 .community-panel[data-panel="search"] .community-card{display:flex;flex-direction:column;align-items:center;text-align:center;aspect-ratio:1;padding:18px 14px;gap:10px;justify-content:center}

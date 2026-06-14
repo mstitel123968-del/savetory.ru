@@ -337,3 +337,58 @@ body.profile-modal-open{overflow:hidden;}
   }
 }
 
+/* =============================================
+   ПРОФИЛЬ — мобильный UX ≤ 640px
+   ============================================= */
+@media (max-width:640px){
+
+  /* Hero: адаптивная высота, компактный аватар */
+  .profile-hero{min-height:0}
+  .profile-hero__content{
+    min-height:0;
+    padding:20px 16px;
+    gap:16px;
+    flex-wrap:wrap;
+  }
+  .profile-hero__avatar{
+    width:80px;
+    height:80px;
+    flex:0 0 80px;
+    font-size:28px;
+  }
+  .profile-hero__title-row h1{font-size:clamp(18px,5vw,26px)}
+  .profile-hero__username{font-size:14px}
+  .profile-hero__meta{font-size:13px;gap:10px}
+  .profile-hero__bio{font-size:14px}
+  .profile-hero__actions{margin-top:6px;gap:8px}
+  .profile-hero__button{min-height:36px;font-size:13px;padding:0 14px}
+
+  /* Статистика: 2x2 */
+  .profile-stats{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+  .profile-stat{
+    min-height:64px;
+    padding:12px 14px;
+    border-right:1px solid var(--card-border);
+    border-bottom:1px solid var(--card-border);
+  }
+  /* убираем правую границу у 2-й и 4-й ячейки */
+  .profile-stat:nth-child(2n){border-right:0}
+  /* убираем нижнюю границу у 3-й и 4-й ячейки */
+  .profile-stat:nth-child(3),
+  .profile-stat:nth-child(4){border-bottom:0}
+  .profile-stat strong{font-size:18px}
+  .profile-stat span:last-child{font-size:11px}
+  .profile-stat__icon svg{width:22px;height:22px}
+
+  /* Dashboard: одна колонка */
+  .profile-dashboard{
+    grid-template-columns:1fr;
+  }
+  .profile-panel{padding:14px}
+  .profile-panel__header{margin-bottom:12px}
+
+  /* Карточки рубрик в карусели: чуть меньше */
+  .profile-rubric-card{flex:0 0 min(72vw,260px);min-height:160px}
+}

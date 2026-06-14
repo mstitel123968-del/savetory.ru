@@ -65,3 +65,76 @@ body.card-flat .messages-compose{box-shadow:none}
   0%,100%{opacity:.45;transform:scale(.82)}
   50%{opacity:1;transform:scale(1.08)}
 }
+
+/* =============================================
+   СООБЩЕНИЯ — мобильный UX ≤ 640px
+   ============================================= */
+@media (max-width:640px){
+  body.messages-page .main{
+    padding-left:8px;
+    padding-right:8px;
+  }
+  .messages-shell{
+    padding:10px;
+    border-radius:12px;
+    min-height:0;
+  }
+  .messages-shell--dialog{
+    min-height:calc(100svh - 52px - var(--app-layout-gap) * 2);
+  }
+
+  /* Пузыри: шире на мобиле */
+  .messages-bubble{
+    max-width:88%;
+    min-width:120px;
+    padding:10px 12px;
+    border-radius:14px;
+  }
+
+  /* Действия над сообщением: всегда видимы на тач */
+  @media (hover:none){
+    .messages-message-actions,
+    .messages-reaction-panel{
+      opacity:0;
+      pointer-events:none;
+    }
+    .messages-bubble.is-touch-active .messages-message-actions{
+      opacity:1;
+      pointer-events:auto;
+      transform:translateY(0);
+    }
+    .messages-bubble.is-touch-active .messages-reaction-panel{
+      opacity:1;
+      pointer-events:auto;
+      transform:translateY(0);
+    }
+  }
+
+  /* Форма ввода */
+  .messages-compose{
+    gap:8px;
+    padding:10px;
+    border-radius:14px;
+  }
+  .messages-compose__submit{
+    min-height:44px;
+    padding:0 14px;
+    font-size:14px;
+  }
+  .messages-compose textarea{
+    min-height:44px;
+    font-size:15px;
+  }
+
+  /* Список диалогов */
+  .messages-dialog{
+    min-height:70px;
+    padding:12px;
+    border-radius:12px;
+  }
+  .messages-dialog__name{font-size:15px}
+  .messages-thread{
+    padding:24px 0 24px 0;
+    gap:calc(var(--app-layout-gap) + 16px);
+  }
+}
