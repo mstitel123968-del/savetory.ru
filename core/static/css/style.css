@@ -555,11 +555,13 @@ body.theme-sepia .site-menu__list{box-shadow:0 20px 42px rgba(60,32,18,0.36)}
 
 .support-floating-widget{
   position:fixed;
-  right:24px;
-  bottom:24px;
-  z-index:220;
+  left:14px;
+  top:8px;
+  right:auto;
+  bottom:auto;
+  z-index:60;
   opacity:0;
-  transform:translateY(10px);
+  transform:translateY(-10px);
   pointer-events:none;
   transition:opacity .28s ease,transform .28s ease;
 }
@@ -574,9 +576,13 @@ body.theme-sepia .site-menu__list{box-shadow:0 20px 42px rgba(60,32,18,0.36)}
 }
 .support-floating-widget__image{
   display:block;
-  width:160px;
-  max-width:min(42vw, 190px);
+  width:184px;
+  max-width:calc(var(--sidebar-w) - 36px);
   height:auto;
+}
+/* На мобиле сайдбар (и логотип) скрыт — прячем виджет, чтобы он не перекрывал topbar */
+@media (max-width:960px){
+  .support-floating-widget{display:none;}
 }
 .side-btn{padding:12px;border-radius:12px;border:1px solid var(--btn-border);background:var(--btn-bg);color:var(--btn-fg);box-shadow:var(--btn-shadow);text-align:left;cursor:pointer;transition:transform .14s ease,background-color .2s ease,color .2s ease,border-color .2s ease,box-shadow .2s ease;text-decoration:none;display:block}
 .side-btn:hover{transform:translateY(-3px);background:var(--btn-bg-hover)}
@@ -2162,8 +2168,7 @@ body.landing-page{
   .news-card{border-radius:12px;padding:12px 12px 40px}
   .news-title{font-size:15px}
 
-  /* --- Поддержка виджет --- */
-  .support-floating-widget{right:12px;bottom:12px}
+  /* --- Поддержка виджет: скрыт на мобиле (логотип не виден) --- */
 
   /* --- Кнопка "Меню" (зафиксирована внизу слева) --- */
   .menu-btn-fixed-wrap,
