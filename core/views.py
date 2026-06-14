@@ -51,6 +51,7 @@ from core.services.messages import (
     get_dialogs,
     get_message_history,
     get_unread_summary,
+    mark_messages_read,
     send_message,
     set_message_reaction,
 )
@@ -488,7 +489,9 @@ def message_dialog_page(request: HttpRequest, user_id: int) -> HttpResponse:
         raise Http404("Пользователь не найден")
     if other_user.pk == request.user.pk:
         return redirect('core:messages')
-    messages_qs = get_message_history(request.user, other_user)
+    # Read receipts are driven by the client once messages actually enter the
+    # viewport with an active tab, so the page load itself must not mark reads.
+    messages_qs = get_message_history(request.user, other_user, mark_read=False)
     display_name = _community_display_name(other_user, getattr(other_user, 'profile', None))
     return render(
         request,
@@ -1123,6 +1126,7 @@ def _message_payload(message, viewer: User) -> dict:
         'is_edited': bool(message.edited_at and not is_deleted),
         'is_deleted': is_deleted,
         'is_read': message.is_read,
+        'read_at': message.read_at.isoformat() if message.read_at else None,
         'is_outgoing': message.sender_id == viewer.pk,
         'can_edit': message.sender_id == viewer.pk and not is_deleted,
         'can_delete': message.sender_id == viewer.pk and not is_deleted,
@@ -1175,7 +1179,9 @@ def message_history_api(request: HttpRequest, user_id: int) -> JsonResponse:
     if not other_user:
         return JsonResponse({'success': False, 'error': 'Пользователь не найден.'}, status=404)
     try:
-        messages_qs = get_message_history(request.user, other_user)
+        # Polling/refreshes must not mark messages read; that is an explicit,
+        # viewport-driven action handled by message_mark_read_api.
+        messages_qs = get_message_history(request.user, other_user, mark_read=False)
     except MessageError as exc:
         return JsonResponse({'success': False, 'error': str(exc), 'code': exc.code}, status=400)
     return JsonResponse({
@@ -1183,6 +1189,25 @@ def message_history_api(request: HttpRequest, user_id: int) -> JsonResponse:
         'user': _message_user_payload(other_user),
         'messages': [_message_payload(message, request.user) for message in messages_qs],
     })
+
+
+@login_required
+@require_POST
+def message_mark_read_api(request: HttpRequest, user_id: int) -> JsonResponse:
+    other_user = User.objects.filter(pk=user_id).first()
+    if not other_user:
+        return JsonResponse({'success': False, 'error': 'Пользователь не найден.'}, status=404)
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        payload = {}
+    raw_ids = payload.get('message_ids')
+    message_ids = raw_ids if isinstance(raw_ids, list) else None
+    try:
+        marked = mark_messages_read(request.user, other_user, message_ids)
+    except MessageError as exc:
+        return JsonResponse({'success': False, 'error': str(exc), 'code': exc.code}, status=400)
+    return JsonResponse({'success': True, 'marked': marked})
 
 
 @login_required

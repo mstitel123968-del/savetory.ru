@@ -101,8 +101,39 @@ def get_message_history(user, other_user, *, mark_read: bool = True):
 
     queryset = DirectMessage.objects.filter(_conversation_filter(user, other_user)).select_related('sender', 'recipient').prefetch_related('reactions').order_by('sent_at', 'id')
     if mark_read:
-        DirectMessage.objects.filter(sender=other_user, recipient=user, is_read=False).update(is_read=True)
+        DirectMessage.objects.filter(sender=other_user, recipient=user, is_read=False).update(is_read=True, read_at=timezone.now())
     return queryset
+
+
+def mark_messages_read(user, other_user, message_ids=None) -> list[int]:
+    """Mark incoming messages from ``other_user`` to ``user`` as read.
+
+    Only the recipient may mark their own incoming messages, so messages from
+    other conversations can never be affected. The operation is idempotent:
+    already-read messages are skipped and re-running it is a no-op. When
+    ``message_ids`` is provided only those incoming messages are marked,
+    otherwise every unread incoming message in the conversation is marked.
+    Returns the list of message ids that were newly marked as read.
+    """
+
+    user_id = _user_id(user)
+    other_id = _user_id(other_user)
+    _assert_distinct(user, other_user)
+    queryset = DirectMessage.objects.filter(
+        sender_id=other_id,
+        recipient_id=user_id,
+        is_read=False,
+        is_deleted=False,
+    )
+    if message_ids is not None:
+        wanted = {int(mid) for mid in message_ids if str(mid).strip().isdigit()}
+        if not wanted:
+            return []
+        queryset = queryset.filter(pk__in=wanted)
+    newly_read = list(queryset.values_list('pk', flat=True))
+    if newly_read:
+        DirectMessage.objects.filter(pk__in=newly_read).update(is_read=True, read_at=timezone.now())
+    return newly_read
 
 
 def get_dialogs(user):

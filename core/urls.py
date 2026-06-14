@@ -42,6 +42,7 @@ urlpatterns = [
     path('api/messages/dialogs/', views.message_dialogs_api, name='message-dialogs-api'),
     path('api/messages/unread/', views.message_unread_api, name='message-unread-api'),
     path('api/messages/users/<int:user_id>/', views.message_history_api, name='message-history-api'),
+    path('api/messages/users/<int:user_id>/read/', views.message_mark_read_api, name='message-mark-read-api'),
     path('api/messages/send/', views.message_send_api, name='message-send-api'),
     path('api/messages/<int:message_id>/edit/', views.message_edit_api, name='message-edit-api'),
     path('api/messages/<int:message_id>/delete/', views.message_delete_api, name='message-delete-api'),

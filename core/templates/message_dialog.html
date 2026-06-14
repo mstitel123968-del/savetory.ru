@@ -35,11 +35,20 @@
     <section class="messages-shell messages-shell--dialog">
       <div id="messagesThread" class="messages-thread" aria-label="История переписки">
         {% for message in messages %}
-          <article class="messages-bubble{% if message.is_outgoing %} messages-bubble--out{% else %} messages-bubble--in{% endif %}{% if message.is_deleted %} messages-bubble--deleted{% endif %}" data-message-id="{{ message.id }}">
+          <article class="messages-bubble{% if message.is_outgoing %} messages-bubble--out{% else %} messages-bubble--in{% endif %}{% if message.is_deleted %} messages-bubble--deleted{% endif %}" data-message-id="{{ message.id }}" data-outgoing="{{ message.is_outgoing|yesno:'true,false' }}" data-read="{{ message.is_read|yesno:'true,false' }}">
             <div class="messages-bubble__text">{{ message.text }}</div>
             <div class="messages-bubble__meta">
               <time class="messages-bubble__time" datetime="{{ message.sent_at }}">{{ message.sent_at_display }}</time>
               {% if message.is_edited %}<span class="messages-bubble__edited">изменено</span>{% endif %}
+              {% if message.is_outgoing and not message.is_deleted %}
+                <span class="messages-bubble__status{% if message.is_read %} is-read{% endif %}" title="{% if message.is_read %}Прочитано{% else %}Отправлено{% endif %}" aria-label="{% if message.is_read %}Прочитано{% else %}Отправлено{% endif %}">
+                  {% if message.is_read %}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 13.5l4.2 4.2L15 7"/><path d="M9 17.7l.7.7L23 6"/></svg>
+                  {% else %}
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 13l4.5 4.5L20 6"/></svg>
+                  {% endif %}
+                </span>
+              {% endif %}
             </div>
             {% if message.can_edit or message.can_delete %}
               <div class="messages-message-actions" aria-label="Действия с сообщением">

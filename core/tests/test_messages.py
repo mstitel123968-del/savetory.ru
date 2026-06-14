@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from core.models import DirectMessage, DirectMessageReaction
-from core.services.messages import MessageError, delete_message, edit_message, get_dialogs, get_message_history, get_unread_summary, send_message, set_message_reaction
+from core.services.messages import MessageError, delete_message, edit_message, get_dialogs, get_message_history, get_unread_summary, mark_messages_read, send_message, set_message_reaction
 
 
 class DirectMessageServiceTests(TestCase):
@@ -40,6 +40,41 @@ class DirectMessageServiceTests(TestCase):
         self.assertEqual(history, [message])
         message.refresh_from_db()
         self.assertTrue(message.is_read)
+
+    def test_history_does_not_mark_read_when_disabled(self) -> None:
+        message = send_message(self.bob, self.alice, 'hello')
+
+        list(get_message_history(self.alice, self.bob, mark_read=False))
+
+        message.refresh_from_db()
+        self.assertFalse(message.is_read)
+        self.assertIsNone(message.read_at)
+
+    def test_mark_messages_read_sets_read_at_and_is_idempotent(self) -> None:
+        message = send_message(self.bob, self.alice, 'hello')
+
+        marked = mark_messages_read(self.alice, self.bob, [message.pk])
+
+        self.assertEqual(marked, [message.pk])
+        message.refresh_from_db()
+        self.assertTrue(message.is_read)
+        self.assertIsNotNone(message.read_at)
+
+        self.assertEqual(mark_messages_read(self.alice, self.bob, [message.pk]), [])
+
+    def test_mark_messages_read_only_affects_own_incoming(self) -> None:
+        incoming = send_message(self.bob, self.alice, 'in')
+        outgoing = send_message(self.alice, self.bob, 'out')
+
+        # The sender cannot mark their own outgoing message as read.
+        self.assertEqual(mark_messages_read(self.alice, self.bob, [outgoing.pk]), [])
+        # A stranger cannot mark a conversation they are not part of.
+        self.assertEqual(mark_messages_read(self.carol, self.bob, [incoming.pk]), [])
+
+        incoming.refresh_from_db()
+        outgoing.refresh_from_db()
+        self.assertFalse(incoming.is_read)
+        self.assertFalse(outgoing.is_read)
 
     def test_unread_summary_groups_by_sender(self) -> None:
         send_message(self.bob, self.alice, 'hello')

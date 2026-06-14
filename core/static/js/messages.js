@@ -9,6 +9,10 @@
   const allowedReactions = ['👍', '❤️', '😂', '😮', '😢'];
   const reactionBusy = new Set();
   const messageBusy = new Set();
+  const recipientId = form.dataset.recipientId;
+
+  const STATUS_ICON_SENT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 13l4.5 4.5L20 6"/></svg>';
+  const STATUS_ICON_READ = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.5 13.5l4.2 4.2L15 7"/><path d="M9 17.7l.7.7L23 6"/></svg>';
 
   function csrf(){
     const match = document.cookie.match(/csrftoken=([^;]+)/);
@@ -75,7 +79,42 @@
       edited.textContent = 'изменено';
       meta.appendChild(edited);
     }
+    const status = buildStatusIcon(message);
+    if (status){
+      meta.appendChild(status);
+    }
     return meta;
+  }
+
+  function buildStatusIcon(message){
+    if (!message.is_outgoing || message.is_deleted){
+      return null;
+    }
+    const status = document.createElement('span');
+    status.className = `messages-bubble__status${message.is_read ? ' is-read' : ''}`;
+    const label = message.is_read ? 'Прочитано' : 'Отправлено';
+    status.title = label;
+    status.setAttribute('aria-label', label);
+    status.innerHTML = message.is_read ? STATUS_ICON_READ : STATUS_ICON_SENT;
+    return status;
+  }
+
+  function updateMessageStatus(article, message){
+    if (!article) return;
+    article.dataset.read = message.is_read ? 'true' : 'false';
+    const meta = article.querySelector('.messages-bubble__meta');
+    if (!meta) return;
+    const current = meta.querySelector('.messages-bubble__status');
+    const next = buildStatusIcon(message);
+    if (next){
+      if (current){
+        current.replaceWith(next);
+      } else {
+        meta.appendChild(next);
+      }
+    } else if (current){
+      current.remove();
+    }
   }
 
   function buildMessageActions(message){
@@ -131,6 +170,8 @@
       article.classList.add('messages-bubble--deleted');
     }
     article.dataset.messageId = message.id;
+    article.dataset.outgoing = message.is_outgoing ? 'true' : 'false';
+    article.dataset.read = message.is_read ? 'true' : 'false';
     const text = document.createElement('div');
     text.className = 'messages-bubble__text';
     text.textContent = message.text || '';
@@ -381,5 +422,226 @@
     });
   }
 
-  if (thread) thread.scrollTop = thread.scrollHeight;
+  // ---------------------------------------------------------------------------
+  // Read receipts: mark incoming messages read once they are actually visible
+  // in the thread viewport while the tab is active. Requests are batched.
+  // ---------------------------------------------------------------------------
+  const pendingRead = new Set();
+  let markReadTimer = null;
+
+  function isBubbleVisible(article){
+    if (!thread) return false;
+    const threadRect = thread.getBoundingClientRect();
+    const rect = article.getBoundingClientRect();
+    return rect.bottom > threadRect.top && rect.top < threadRect.bottom;
+  }
+
+  function flushPendingRead(){
+    markReadTimer = null;
+    if (!pendingRead.size || !recipientId) return;
+    const ids = Array.from(pendingRead);
+    pendingRead.clear();
+    fetch(`/api/messages/users/${recipientId}/read/`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrf(),
+      },
+      body: JSON.stringify({ message_ids: ids }),
+    }).catch(() => {
+      // Marking read is best-effort; re-queue on failure for the next pass.
+      ids.forEach((id) => pendingRead.add(id));
+    });
+  }
+
+  function scheduleMarkRead(){
+    if (markReadTimer) return;
+    markReadTimer = window.setTimeout(flushPendingRead, 400);
+  }
+
+  function markVisibleIncoming(){
+    if (!thread || document.visibilityState !== 'visible') return;
+    thread.querySelectorAll('.messages-bubble--in[data-message-id]').forEach((article) => {
+      if (article.dataset.read === 'true' || article.classList.contains('messages-bubble--deleted')){
+        return;
+      }
+      if (isBubbleVisible(article)){
+        article.dataset.read = 'true';
+        pendingRead.add(article.dataset.messageId);
+      }
+    });
+    if (pendingRead.size){
+      scheduleMarkRead();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Reaction panel positioning: keep the panel on-screen, flipping below the
+  // bubble when the fixed topbar would otherwise cover it.
+  // ---------------------------------------------------------------------------
+  const topbar = document.querySelector('.topbar');
+  let activeReactionBubble = null;
+
+  function positionReactionPanel(article){
+    if (!article) return;
+    const panel = article.querySelector('.messages-reaction-panel');
+    if (!panel) return;
+    const gap = 8;
+    const viewportPadding = 8;
+    const bubbleRect = article.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const panelWidth = panelRect.width || 194;
+    const panelHeight = panelRect.height || 40;
+    const topbarBottom = topbar ? topbar.getBoundingClientRect().bottom : 0;
+    const spaceAbove = bubbleRect.top - topbarBottom;
+
+    let top;
+    if (spaceAbove >= panelHeight + gap){
+      top = bubbleRect.top - panelHeight - gap;
+      panel.classList.remove('messages-reaction-panel--below');
+    } else {
+      top = bubbleRect.bottom + gap;
+      panel.classList.add('messages-reaction-panel--below');
+    }
+
+    let left = bubbleRect.right - panelWidth;
+    const maxLeft = window.innerWidth - panelWidth - viewportPadding;
+    left = Math.min(Math.max(viewportPadding, left), Math.max(viewportPadding, maxLeft));
+
+    panel.style.position = 'fixed';
+    panel.style.left = `${Math.round(left)}px`;
+    panel.style.top = `${Math.round(top)}px`;
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+  }
+
+  function clearReactionPanel(article){
+    if (!article) return;
+    const panel = article.querySelector('.messages-reaction-panel');
+    if (!panel) return;
+    panel.style.position = '';
+    panel.style.left = '';
+    panel.style.top = '';
+    panel.style.right = '';
+    panel.style.bottom = '';
+    panel.classList.remove('messages-reaction-panel--below');
+  }
+
+  function repositionActiveReaction(){
+    if (activeReactionBubble){
+      positionReactionPanel(activeReactionBubble);
+    }
+  }
+
+  if (thread){
+    thread.addEventListener('pointerover', (event) => {
+      const article = event.target.closest('.messages-bubble[data-message-id]');
+      if (!article || !article.querySelector('.messages-reaction-panel')) return;
+      if (article === activeReactionBubble) return;
+      if (activeReactionBubble && activeReactionBubble !== article){
+        clearReactionPanel(activeReactionBubble);
+      }
+      activeReactionBubble = article;
+      requestAnimationFrame(() => positionReactionPanel(article));
+    });
+
+    thread.addEventListener('pointerout', (event) => {
+      const article = event.target.closest('.messages-bubble[data-message-id]');
+      if (!article || article !== activeReactionBubble) return;
+      if (article.contains(event.relatedTarget)) return;
+      clearReactionPanel(article);
+      if (activeReactionBubble === article){
+        activeReactionBubble = null;
+      }
+    });
+
+    thread.addEventListener('focusin', (event) => {
+      const article = event.target.closest('.messages-bubble[data-message-id]');
+      if (!article || !article.querySelector('.messages-reaction-panel')) return;
+      activeReactionBubble = article;
+      requestAnimationFrame(() => positionReactionPanel(article));
+    });
+
+    thread.addEventListener('scroll', () => {
+      repositionActiveReaction();
+      markVisibleIncoming();
+    }, { passive: true });
+  }
+
+  window.addEventListener('resize', repositionActiveReaction);
+  window.addEventListener('scroll', repositionActiveReaction, true);
+
+  // ---------------------------------------------------------------------------
+  // Lightweight polling: refresh read receipts and pick up new messages without
+  // a full page reload, reusing the existing history endpoint (no marking).
+  // ---------------------------------------------------------------------------
+  function isNearBottom(){
+    if (!thread) return true;
+    return thread.scrollHeight - thread.scrollTop - thread.clientHeight < 80;
+  }
+
+  function reconcileMessage(message){
+    if (!thread) return false;
+    const article = thread.querySelector(`.messages-bubble[data-message-id="${message.id}"]`);
+    if (!article){
+      const empty = thread.querySelector('.messages-empty');
+      if (empty) empty.remove();
+      thread.appendChild(renderMessage(message));
+      return true;
+    }
+    if (article.classList.contains('is-editing') || article.classList.contains('is-message-busy')){
+      return false;
+    }
+    const wasDeleted = article.classList.contains('messages-bubble--deleted');
+    const wasEdited = !!article.querySelector('.messages-bubble__edited');
+    if (message.is_deleted !== wasDeleted || message.is_edited !== wasEdited){
+      article.replaceWith(renderMessage(message));
+      return false;
+    }
+    if (message.is_outgoing){
+      updateMessageStatus(article, message);
+    }
+    updateMessageReactions(message);
+    return false;
+  }
+
+  async function pollMessages(){
+    if (!recipientId) return;
+    try {
+      const response = await fetch(`/api/messages/users/${recipientId}/`, {
+        credentials: 'include',
+        headers: { 'Accept': 'application/json' },
+      });
+      if (!response.ok) return;
+      const data = await response.json().catch(() => null);
+      if (!data || data.success === false || !Array.isArray(data.messages)) return;
+      const stickToBottom = isNearBottom();
+      let appended = false;
+      data.messages.forEach((message) => {
+        if (reconcileMessage(message)){
+          appended = true;
+        }
+      });
+      if (appended && stickToBottom && thread){
+        thread.scrollTop = thread.scrollHeight;
+      }
+      markVisibleIncoming();
+    } catch (error){
+      // Polling stays silent.
+    }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible'){
+      markVisibleIncoming();
+      pollMessages();
+    }
+  });
+
+  if (thread){
+    thread.scrollTop = thread.scrollHeight;
+    markVisibleIncoming();
+    window.setInterval(pollMessages, 8000);
+  }
 })();

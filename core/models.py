@@ -163,6 +163,7 @@ class DirectMessage(models.Model):
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(blank=True, null=True)
     is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         ordering = ['sent_at', 'id']
