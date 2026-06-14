@@ -384,6 +384,20 @@
     }
   });
 
+  if (textInput){
+    textInput.addEventListener('keydown', (event) => {
+      // Enter отправляет сообщение, Shift+Enter переносит строку.
+      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing){
+        event.preventDefault();
+        if (typeof form.requestSubmit === 'function'){
+          form.requestSubmit();
+        } else {
+          form.dispatchEvent(new Event('submit', { cancelable: true }));
+        }
+      }
+    });
+  }
+
   if (thread){
     thread.addEventListener('mouseover', (event) => {
       const article = event.target.closest('.messages-bubble[data-message-id]');
@@ -480,52 +494,31 @@
   // Reaction panel positioning: keep the panel on-screen, flipping below the
   // bubble when the fixed topbar would otherwise cover it.
   // ---------------------------------------------------------------------------
-  const topbar = document.querySelector('.topbar');
   let activeReactionBubble = null;
 
+  // The panel is absolutely positioned inside its bubble (default above it).
+  // We only decide whether to flip it below when there is not enough room
+  // above before the message slides under the fixed topbar. Measuring against
+  // the thread's own top edge keeps the panel inside the scroll viewport, so it
+  // is never clipped and never escapes into a backdrop-filtered containing block.
   function positionReactionPanel(article){
-    if (!article) return;
+    if (!article || !thread) return;
     const panel = article.querySelector('.messages-reaction-panel');
     if (!panel) return;
     const gap = 8;
-    const viewportPadding = 8;
     const bubbleRect = article.getBoundingClientRect();
-    const panelRect = panel.getBoundingClientRect();
-    const panelWidth = panelRect.width || 194;
-    const panelHeight = panelRect.height || 40;
-    const topbarBottom = topbar ? topbar.getBoundingClientRect().bottom : 0;
-    const spaceAbove = bubbleRect.top - topbarBottom;
-
-    let top;
-    if (spaceAbove >= panelHeight + gap){
-      top = bubbleRect.top - panelHeight - gap;
-      panel.classList.remove('messages-reaction-panel--below');
-    } else {
-      top = bubbleRect.bottom + gap;
-      panel.classList.add('messages-reaction-panel--below');
-    }
-
-    let left = bubbleRect.right - panelWidth;
-    const maxLeft = window.innerWidth - panelWidth - viewportPadding;
-    left = Math.min(Math.max(viewportPadding, left), Math.max(viewportPadding, maxLeft));
-
-    panel.style.position = 'fixed';
-    panel.style.left = `${Math.round(left)}px`;
-    panel.style.top = `${Math.round(top)}px`;
-    panel.style.right = 'auto';
-    panel.style.bottom = 'auto';
+    const threadRect = thread.getBoundingClientRect();
+    const panelHeight = panel.offsetHeight || 40;
+    const spaceAbove = bubbleRect.top - threadRect.top;
+    panel.classList.toggle('messages-reaction-panel--below', spaceAbove < panelHeight + gap);
   }
 
   function clearReactionPanel(article){
     if (!article) return;
     const panel = article.querySelector('.messages-reaction-panel');
-    if (!panel) return;
-    panel.style.position = '';
-    panel.style.left = '';
-    panel.style.top = '';
-    panel.style.right = '';
-    panel.style.bottom = '';
-    panel.classList.remove('messages-reaction-panel--below');
+    if (panel){
+      panel.classList.remove('messages-reaction-panel--below');
+    }
   }
 
   function repositionActiveReaction(){
