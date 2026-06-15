@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.sitemaps',
     'django.contrib.staticfiles',
+    'storages',
     'core',
     'market',
 ]
@@ -140,10 +141,39 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'core' / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-STORAGES = {
-    'default': {
+# --- User media storage --------------------------------------------------------
+# User-uploaded media defaults to the local filesystem. Yandex Object Storage
+# (S3-compatible API) is an opt-in alternative, enabled only when
+# YANDEX_STORAGE_ENABLED=1 and the AWS_* credentials below are provided via the
+# environment. Static files are intentionally left untouched — they keep using
+# WhiteNoise / the manifest storage backend and are never moved to S3.
+YANDEX_STORAGE_ENABLED = os.environ.get('YANDEX_STORAGE_ENABLED', '0') == '1'
+
+if YANDEX_STORAGE_ENABLED:
+    _MEDIA_STORAGE = {
+        'BACKEND': 'storages.backends.s3.S3Storage',
+        'OPTIONS': {
+            'access_key': os.environ.get('AWS_ACCESS_KEY_ID'),
+            'secret_key': os.environ.get('AWS_SECRET_ACCESS_KEY'),
+            'bucket_name': os.environ.get('AWS_STORAGE_BUCKET_NAME'),
+            'endpoint_url': os.environ.get('AWS_S3_ENDPOINT_URL'),
+            'region_name': os.environ.get('AWS_S3_REGION_NAME'),
+            'location': 'media',
+            'default_acl': None,
+            'querystring_auth': True,
+            'querystring_expire': 3600,
+            'file_overwrite': False,
+            'signature_version': 's3v4',
+            'addressing_style': 'path',
+        },
+    }
+else:
+    _MEDIA_STORAGE = {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',
-    },
+    }
+
+STORAGES = {
+    'default': _MEDIA_STORAGE,
     'staticfiles': {
         'BACKEND': 'core.storage.SafeManifestStaticFilesStorage',
     },

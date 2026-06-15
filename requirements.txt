@@ -3,3 +3,7 @@ psycopg2-binary>=2.9
 gunicorn>=20.1
 Pillow>=10.0
 whitenoise>=6.6
+# Optional Yandex Object Storage (S3-compatible) backend for user media files.
+# Only activated when YANDEX_STORAGE_ENABLED=1; see trezo_site/settings.py.
+django-storages>=1.14,<2.0
+boto3>=1.34

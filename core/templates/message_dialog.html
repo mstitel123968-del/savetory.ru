@@ -23,8 +23,10 @@
   <header class="topbar">
     <div class="topbar-inner">
       <div class="logo-wrap messages-dialog-titlebar">
-        <a class="messages-back" href="{% url 'core:messages' %}" aria-label="Вернуться к сообщениям">‹</a>
-        <span class="page-title">{{ dialog_display_name }}</span>
+        <a class="messages-back" href="{% url 'core:messages' %}" aria-label="Вернуться к сообщениям">
+          <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </a>
+        <a class="page-title messages-dialog-name" href="{% url 'core:community-user-profile' username=dialog_user.username %}">{{ dialog_display_name }}</a>
       </div>
       <div class="topbar-spacer"></div>
       <div class="topbar-actions"></div>
