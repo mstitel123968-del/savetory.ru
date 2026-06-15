@@ -8,3 +8,11 @@ __pycache__/
 venv/
 staticfiles/
 media/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Deployment backups
+deploy/*.bak_*
