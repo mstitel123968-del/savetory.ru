@@ -15,7 +15,7 @@
     <nav class="side-nav">
       <div class="side-nav-divider" aria-hidden="true"></div>
       <div class="side-nav-footer">
-        {% include 'includes/side_nav_links.html' with current_section='subscriptions' %}
+        {% include 'includes/side_nav_links.html' with current_section='settings' %}
       </div>
     </nav>
   </aside>
@@ -54,7 +54,7 @@
         <p class="settings-note">{{ result_message }}</p>
       {% endif %}
       <div class="tariff-card__actions">
-        <a class="side-btn danger" href="{% url 'core:subscriptions' %}">Вернуться к тарифам</a>
+        <a class="side-btn danger" href="{% url 'core:settings' %}">Вернуться в настройки</a>
       </div>
     </section>
   </main>

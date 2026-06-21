@@ -314,8 +314,8 @@ def _return_url() -> str:
     if settings.YOOKASSA_RETURN_URL:
         return settings.YOOKASSA_RETURN_URL
     if settings.SITE_URL:
-        return f"{settings.SITE_URL.rstrip('/')}/subscriptions/"
-    return '/subscriptions/'
+        return f"{settings.SITE_URL.rstrip('/')}/settings/"
+    return '/settings/'
 
 
 def _payment_amount(plan: SubscriptionPlan, period: str) -> Decimal:

@@ -57,20 +57,21 @@ class PublicDocumentTests(TestCase):
         self.assertContains(response, "Реквизиты")
 
 
-class PublicSubscriptionsTests(TestCase):
+class SettingsSubscriptionTests(TestCase):
     def setUp(self) -> None:
         subscriptions.seed_default_plans()
+        self.user = get_user_model().objects.create_user("subscriber", password="pass1234")
+        Profile.objects.create(user=self.user, terms_version_accepted=settings.TERMS_VERSION)
 
-    def test_subscriptions_page_is_public(self) -> None:
-        response = self.client.get(reverse("core:subscriptions"))
+    def test_subscriptions_page_is_removed(self) -> None:
+        response = self.client.get("/subscriptions/")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Plus")
-        self.assertContains(response, "Pro")
-        self.assertContains(response, 'data-auth-redirect="/subscriptions/"')
+        self.assertEqual(response.status_code, 404)
 
-    def test_subscriptions_page_displays_exact_prices(self) -> None:
-        response = self.client.get(reverse("core:subscriptions"))
+    def test_settings_displays_exact_subscription_prices(self) -> None:
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("core:settings"))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "99 ₽/месяц")

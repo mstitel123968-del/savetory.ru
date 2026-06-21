@@ -75,9 +75,17 @@
             <div class="subscription-plan__limits">
               <span>Архив: {{ plan.archive_limit_label }}</span>
               <span>Аукционы: {{ plan.active_auction_limit }}</span>
+              {% if plan.is_paid %}
+              <span>Месяц: {{ plan.monthly_price_label }}</span>
+              <span>Год: {{ plan.yearly_price_label }}</span>
+              {% endif %}
             </div>
             {% if plan.is_paid %}
             <div class="subscription-plan__actions">
+              {% if not payment_enabled %}
+              <button class="side-btn side-btn--disabled" type="button" disabled>Оплата временно недоступна</button>
+              <button class="side-btn side-btn--disabled" type="button" disabled>Оплата временно недоступна</button>
+              {% else %}
               <form method="post" action="{% url 'core:subscription-checkout' %}">
                 {% csrf_token %}
                 <input type="hidden" name="plan" value="{{ plan.code }}" />
@@ -90,6 +98,7 @@
                 <input type="hidden" name="period" value="year" />
                 <button class="side-btn" type="submit">{{ plan.yearly_price_label }}</button>
               </form>
+              {% endif %}
             </div>
             {% else %}
             <span class="settings-note">Базовый тариф назначается автоматически.</span>

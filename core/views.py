@@ -421,6 +421,7 @@ def settings(request: HttpRequest) -> HttpResponse:
             'subscription_plan': limits['plan'],
             'subscription_limits': limits,
             'available_plans': subscriptions.available_plan_cards(),
+            'payment_enabled': subscriptions.yookassa_is_configured(),
         }
     return render(
         request,
@@ -433,48 +434,6 @@ def settings(request: HttpRequest) -> HttpResponse:
             description='Персональные настройки интерфейса и приватности пользователя.',
             indexable=False,
             canonical_path=reverse('core:settings'),
-            ),
-        },
-    )
-
-
-@ensure_csrf_cookie
-def subscriptions_page(request: HttpRequest) -> HttpResponse:
-    plans = [
-        plan
-        for plan in subscriptions.available_plan_cards()
-        if plan['code'] in {'plus', 'pro'} and plan['is_paid']
-    ]
-    subscription_context = {}
-    if request.user.is_authenticated:
-        limits = subscriptions.subscription_limits(request.user)
-        recent_payments = (
-            SubscriptionPayment.objects
-            .filter(user=request.user)
-            .select_related('tariff')
-            .order_by('-created_at', '-id')[:5]
-        )
-        subscription_context = {
-            'subscription': limits['subscription'],
-            'subscription_plan': limits['plan'],
-            'subscription_limits': limits,
-            'recent_payments': recent_payments,
-        }
-
-    return render(
-        request,
-        'subscriptions.html',
-        {
-            'plans': plans,
-            'auth_redirect': reverse('core:subscriptions'),
-            'payment_enabled': subscriptions.yookassa_is_configured(),
-            **subscription_context,
-            **_seo_context(
-                request,
-                title='Тарифы - СКлад',
-                description='Платные тарифы онлайн-сервиса СКлад — Savetory: Plus и Pro.',
-                indexable=True,
-                canonical_path=reverse('core:subscriptions'),
             ),
         },
     )

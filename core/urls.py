@@ -16,7 +16,6 @@ urlpatterns = [
     path('messages/', views.messages_page, name='messages'),
     path('messages/<int:user_id>/', views.message_dialog_page, name='message-dialog'),
     path('settings/', views.settings, name='settings'),
-    path('subscriptions/', views.subscriptions_page, name='subscriptions'),
     path('subscriptions/payment/result/', views.subscription_payment_result, name='payment-result'),
     path('subscriptions/yookassa/webhook/', views.yookassa_webhook, name='yookassa-webhook'),
     path('terms/', views.terms, name='terms'),

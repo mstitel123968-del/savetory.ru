@@ -123,8 +123,10 @@ class YooKassaPaymentTests(TestCase):
         self.assertNotIn('sdk boom', payment.error_message)
 
     @override_settings(YOOKASSA_ENABLED=False, YOOKASSA_SHOP_ID='', YOOKASSA_SECRET_KEY='')
-    def test_disabled_payments_do_not_break_public_page(self):
-        response = self.client.get(reverse('core:subscriptions'))
+    def test_disabled_payments_do_not_break_settings_page(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse('core:settings'))
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Оплата временно недоступна')
