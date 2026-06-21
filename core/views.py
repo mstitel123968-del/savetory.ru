@@ -425,7 +425,7 @@ def settings(request: HttpRequest) -> HttpResponse:
             'subscription_plan': limits['plan'],
             'subscription_limits': limits,
             'available_plans': subscriptions.available_plan_cards(),
-            'payment_enabled': subscriptions.yookassa_is_configured(),
+            'payment_enabled': True,
         }
     return render(
         request,

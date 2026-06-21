@@ -90,13 +90,13 @@
                 {% csrf_token %}
                 <input type="hidden" name="plan" value="{{ plan.code }}" />
                 <input type="hidden" name="period" value="month" />
-                <button class="side-btn" type="submit">{{ plan.monthly_price_label }}</button>
+                <button class="side-btn" type="submit">Оплатить {{ plan.monthly_price_label }}</button>
               </form>
               <form method="post" action="{% url 'core:subscription-checkout' %}">
                 {% csrf_token %}
                 <input type="hidden" name="plan" value="{{ plan.code }}" />
                 <input type="hidden" name="period" value="year" />
-                <button class="side-btn" type="submit">{{ plan.yearly_price_label }}</button>
+                <button class="side-btn" type="submit">Оплатить {{ plan.yearly_price_label }}</button>
               </form>
               {% endif %}
             </div>
