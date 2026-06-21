@@ -335,30 +335,16 @@ def landing(request: HttpRequest) -> HttpResponse:
 @ensure_csrf_cookie
 @never_cache
 def archive(request: HttpRequest) -> HttpResponse:
-    subscription_context = {}
-    if request.user.is_authenticated:
-        snapshot = subscriptions.archive_limit_snapshot(request.user)
-        if snapshot.archive_limit is None:
-            archive_usage_label = f'Использовано {snapshot.archive_used} · без ограничений'
-        else:
-            archive_usage_label = (
-                f'Использовано {snapshot.archive_used} из '
-                f'{subscriptions.archive_limit_label(snapshot.archive_limit)}'
-            )
-        subscription_context = {'archive_usage_label': archive_usage_label}
     return render(
         request,
         'archive.html',
-        {
-            **subscription_context,
-            **_seo_context(
+        _seo_context(
             request,
             title='Ваш архив - СКлад',
             description='Личный архив пользователя для хранения вещей, заметок и файлов.',
             indexable=False,
             canonical_path=reverse('core:archive'),
-            ),
-        },
+        ),
     )
 
 
