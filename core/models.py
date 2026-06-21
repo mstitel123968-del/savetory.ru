@@ -41,6 +41,7 @@ class Profile(models.Model):
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
     avatar_meta = models.JSONField(default=dict, blank=True)
     privacy_level = models.CharField(max_length=50, default='public')
+    is_hidden = models.BooleanField(default=False)
     last_seen_at = models.DateTimeField(blank=True, null=True, db_index=True)
     bio = models.TextField(blank=True, default='')
     background_image = models.CharField(max_length=255, blank=True, default='')

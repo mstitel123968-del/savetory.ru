@@ -66,6 +66,8 @@ def _is_friend(viewer, user) -> bool:
 def _can_view_details(viewer, user, profile: Profile | None) -> bool:
     if viewer.is_authenticated and (viewer.pk == user.pk or viewer.is_superuser):
         return True
+    if profile and profile.is_hidden:
+        return False
     privacy = (profile.privacy_level if profile else 'public') or 'public'
     if privacy == 'public':
         return True
@@ -308,7 +310,7 @@ def _friends_payload(user, viewer) -> dict:
     friends_queryset = get_friends(user).filter(is_active=True).select_related('profile')
     can_view_private_friends = viewer.is_authenticated and (viewer.pk == user.pk or viewer.is_superuser)
     if not can_view_private_friends:
-        friends_queryset = friends_queryset.exclude(profile__privacy_level='private')
+        friends_queryset = friends_queryset.exclude(profile__is_hidden=True).exclude(profile__privacy_level='private')
     visible_friends = list(friends_queryset[:5])
     total = friends_queryset.count()
     viewer_friends = set()
@@ -387,6 +389,9 @@ def build_extended_profile_context(viewer, username: str) -> dict:
     profile = getattr(user, 'profile', None)
     if profile is None:
         profile = Profile(user=user)
+
+    if profile.is_hidden and not (viewer.is_authenticated and (viewer.pk == user.pk or viewer.is_superuser)):
+        return {'found': False}
 
     can_view_details = _can_view_details(viewer, user, profile)
     relationship = _relationship_payload(viewer, user)

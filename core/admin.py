@@ -5,6 +5,7 @@ from .models import (
     DirectMessage,
     DirectMessageReaction,
     Friendship,
+    Profile,
     SubscriptionHistory,
     SubscriptionPayment,
     SubscriptionPlan,
@@ -18,6 +19,15 @@ class UserProfileAdmin(admin.ModelAdmin):
     list_display = ('login', 'name', 'last_name', 'city', 'mail', 'delete', 'update_date')
     search_fields = ('login', 'name', 'last_name', 'city', 'mail')
     list_filter = ('delete', 'city')
+
+
+@admin.register(Profile)
+class ProfileAdmin(admin.ModelAdmin):
+    list_display = ('user', 'display_name', 'privacy_level', 'is_hidden', 'terms_version_accepted', 'updated_at')
+    list_filter = ('privacy_level', 'is_hidden', 'updated_at')
+    search_fields = ('user__username', 'user__email', 'display_name')
+    autocomplete_fields = ('user',)
+    readonly_fields = ('updated_at',)
 
 
 @admin.register(Friendship)

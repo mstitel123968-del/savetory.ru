@@ -354,6 +354,10 @@ def public_collection(request: HttpRequest, username: str, rubric_slug: str) -> 
     user = User.objects.filter(username__iexact=username).first()
     if not user:
         return render(request, 'public_collection_unavailable.html', status=404)
+    profile = getattr(user, 'profile', None)
+    can_view_hidden = request.user.is_authenticated and (request.user.pk == user.pk or request.user.is_superuser)
+    if profile and profile.is_hidden and not can_view_hidden:
+        return render(request, 'public_collection_unavailable.html', status=404)
 
     state = ArchiveState.objects.filter(user=user).first()
     state_data = state.data if state and isinstance(state.data, dict) else {'rubrics': []}
@@ -1016,6 +1020,10 @@ def _community_presence_payload(profile: Profile | None) -> dict:
 def _community_can_view_details(viewer: User, user: User, profile: Profile | None = None) -> bool:
     if viewer.pk == user.pk:
         return True
+    if viewer.is_superuser:
+        return True
+    if profile and profile.is_hidden:
+        return False
     privacy = (profile.privacy_level if profile else 'public') or 'public'
     if privacy == 'public':
         return True
@@ -1029,8 +1037,13 @@ def _community_is_private_profile(user: User, profile: Profile | None = None) ->
     return ((profile.privacy_level if profile else 'public') or 'public') == 'private'
 
 
+def _community_is_hidden_profile(user: User, profile: Profile | None = None) -> bool:
+    profile = profile if profile is not None else getattr(user, 'profile', None)
+    return bool(profile and profile.is_hidden)
+
+
 def _community_visible_users(queryset):
-    return queryset.filter(Q(profile__isnull=True) | ~Q(profile__privacy_level='private'))
+    return queryset.exclude(profile__is_hidden=True).filter(Q(profile__isnull=True) | ~Q(profile__privacy_level='private'))
 
 
 def _community_user_payload(user: User, viewer: User, relation_cache: dict[int, dict] | None = None) -> dict:
@@ -1075,7 +1088,7 @@ def _community_relation_payload(relation: Friendship, viewer: User) -> dict:
 
 def _community_relation_is_visible(relation: Friendship, viewer: User) -> bool:
     other = relation.user_high if relation.user_low_id == viewer.pk else relation.user_low
-    return not _community_is_private_profile(other)
+    return not (_community_is_private_profile(other) or _community_is_hidden_profile(other))
 
 
 def _community_counts(user: User) -> dict:
@@ -1217,7 +1230,7 @@ def community_friendship_action_api(request: HttpRequest) -> JsonResponse:
     target = User.objects.filter(pk=target_id).first()
     if not target:
         return JsonResponse({'success': False, 'error': 'Пользователь не найден.'}, status=404)
-    if _community_is_private_profile(target):
+    if _community_is_private_profile(target) or _community_is_hidden_profile(target):
         return JsonResponse({'success': False, 'error': 'Пользователь не найден.'}, status=404)
 
     try:
