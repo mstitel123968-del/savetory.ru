@@ -1,0 +1,63 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/subscriptions.css' %}" />
+</head>
+<body class="subscriptions-page">
+  <script src="{% static 'js/prefs.js' %}"></script>
+  <aside class="sidebar">
+    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
+    <nav class="side-nav">
+      <div class="side-nav-divider" aria-hidden="true"></div>
+      <div class="side-nav-footer">
+        {% include 'includes/side_nav_links.html' with current_section='subscriptions' %}
+      </div>
+    </nav>
+  </aside>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo-wrap"><span class="page-title">Статус платежа</span></div>
+      <div class="topbar-spacer"></div>
+    </div>
+  </header>
+
+  <main class="main subscriptions-main">
+    <section class="subscription-account">
+      <div class="subscription-account__summary">
+        <div>
+          <span class="subscription-label">Платеж</span>
+          <h1>{{ payment.tariff.name }} · {{ payment.get_period_display }}</h1>
+        </div>
+        <div class="subscription-status">{{ result_status }}</div>
+      </div>
+      <div class="subscription-account__grid">
+        <div>
+          <span class="subscription-label">Сумма</span>
+          <strong>{{ payment.amount|floatformat:0 }} {{ payment.currency }}</strong>
+        </div>
+        <div>
+          <span class="subscription-label">Создан</span>
+          <strong>{{ payment.created_at|date:"d.m.Y H:i" }}</strong>
+        </div>
+        <div>
+          <span class="subscription-label">Оплачен</span>
+          <strong>{% if payment.paid_at %}{{ payment.paid_at|date:"d.m.Y H:i" }}{% else %}Ожидается{% endif %}</strong>
+        </div>
+      </div>
+      {% if result_message %}
+        <p class="settings-note">{{ result_message }}</p>
+      {% endif %}
+      <div class="tariff-card__actions">
+        <a class="side-btn danger" href="{% url 'core:subscriptions' %}">Вернуться к тарифам</a>
+      </div>
+    </section>
+  </main>
+  <script src="{% static 'js/nav.js' %}"></script>
+</body>
+</html>

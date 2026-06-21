@@ -252,31 +252,14 @@
 
     const body = document.createElement('div');
     body.className = 'community-card__body';
+    // Unified card content: avatar + name only (login/city/interests are
+    // intentionally omitted so every card stays the same square size).
     const name = document.createElement('div');
     name.className = 'community-card__name';
-    name.textContent = user.display_name || user.username;
-    if (opts.mode === 'friend' && user.presence && user.presence.label){
-      const presence = document.createElement('span');
-      presence.className = `community-presence ${user.presence.is_online ? 'community-presence--online' : 'community-presence--offline'}`;
-      presence.textContent = user.presence.label;
-      name.appendChild(presence);
-    }
-    const username = document.createElement('div');
-    username.className = 'community-card__username';
-    username.textContent = `@${user.username}`;
-    body.append(name, username);
-    if (user.city){
-      const city = document.createElement('div');
-      city.className = 'community-card__meta';
-      city.textContent = user.city;
-      body.appendChild(city);
-    }
-    if (user.interests){
-      const interests = document.createElement('div');
-      interests.className = 'community-card__interests';
-      interests.textContent = user.interests;
-      body.appendChild(interests);
-    }
+    const fullName = user.display_name || user.username;
+    name.textContent = fullName;
+    name.title = fullName; // full name on hover when the line is truncated
+    body.append(name);
 
     if (opts.mode === 'friend'){
       const actions = document.createElement('div');
@@ -375,7 +358,7 @@
     const button = document.createElement('button');
     button.className = 'community-action community-card-menu__button';
     button.type = 'button';
-    button.textContent = 'Действия';
+    button.textContent = 'Действие';
     const list = document.createElement('div');
     list.className = 'community-card-menu__list';
     list.hidden = true;

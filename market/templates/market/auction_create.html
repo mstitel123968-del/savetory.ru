@@ -1,0 +1,138 @@
+{% extends 'market/base_market.html' %}
+{% load static %}
+
+{% block extra_filters %}{% endblock %}
+
+{% block content %}
+  <div class="market-heading-row">
+    <h1 class="market-heading">Создать лот</h1>
+    <a class="ios-button" href="{{ back_url }}">К аукциону</a>
+  </div>
+
+  <div class="auction-create" data-auction-create>
+    <p class="market-detail__formfeedback auction-create__error" data-create-error role="alert"></p>
+
+    <!-- Step 1: choose source -->
+    <section class="auction-create__step" data-step="choose">
+      <h2 class="auction-create__step-title">С чего начнём?</h2>
+      <div class="auction-create__choices">
+        <button type="button" class="auction-create__choice" data-choose="archive">
+          <span class="auction-create__choice-title">Выбрать карточку из «Вашего архива»</span>
+          <span class="auction-create__choice-sub">Доступно карточек: {{ eligible_cards|length }}</span>
+        </button>
+        <button type="button" class="auction-create__choice" data-choose="new">
+          <span class="auction-create__choice-title">Создать новую карточку</span>
+          <span class="auction-create__choice-sub">Поля системной рубрики «Аукцион»</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Step 2a: pick an archive card -->
+    <section class="auction-create__step is-hidden" data-step="pick">
+      <div class="auction-create__step-head">
+        <h2 class="auction-create__step-title">Выберите карточку</h2>
+        <button type="button" class="ios-button" data-back="choose">Назад</button>
+      </div>
+      {% if eligible_cards %}
+        <div class="auction-create__cards">
+          {% for card in eligible_cards %}
+            <button type="button" class="auction-create__card" data-card-id="{{ card.id }}"
+                    data-card-title="{{ card.title }}" data-card-description="{{ card.description }}">
+              <span class="auction-create__card-thumb">
+                {% if card.thumb %}<img src="{{ card.thumb }}" alt="" loading="lazy" />{% else %}<span class="market-card__placeholder">⧉</span>{% endif %}
+              </span>
+              <span class="auction-create__card-title">{{ card.title }}</span>
+              <span class="auction-create__card-rubric">{{ card.rubric }}</span>
+            </button>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="market-empty">Нет доступных карточек. Создайте новую карточку или освободите карточку из активных торгов.</p>
+      {% endif %}
+    </section>
+
+    <!-- Step 2b: new card fixed fields -->
+    <section class="auction-create__step is-hidden" data-step="newcard">
+      <div class="auction-create__step-head">
+        <h2 class="auction-create__step-title">Новая карточка</h2>
+        <button type="button" class="ios-button" data-back="choose">Назад</button>
+      </div>
+      <form class="auction-create__form" data-newcard-form>
+        {% for field in field_schema %}
+          <label class="auction-create__field">
+            <span>{{ field.label }}{% if field.id == 'title' %} *{% endif %}</span>
+            {% if field.type == 'textarea' %}
+              <textarea name="{{ field.id }}" rows="3" data-field="{{ field.id }}"></textarea>
+            {% elif field.type == 'select' %}
+              <select name="{{ field.id }}" data-field="{{ field.id }}" data-theme-select>
+                <option value="">—</option>
+                {% for opt in field.options %}<option value="{{ opt.value }}">{{ opt.label }}</option>{% endfor %}
+              </select>
+            {% elif field.type == 'image' %}
+              <input type="file" name="{{ field.id }}" accept="image/*" multiple data-field="{{ field.id }}" disabled />
+              <small class="auction-create__hint">Фотографии можно добавить после создания карточки в разделе «Ваш архив».</small>
+            {% else %}
+              <input type="text" name="{{ field.id }}" data-field="{{ field.id }}" />
+            {% endif %}
+          </label>
+        {% endfor %}
+        <button type="button" class="ios-button ios-button--primary" data-newcard-next>Далее: условия торгов</button>
+      </form>
+    </section>
+
+    <!-- Step 3: auction terms -->
+    <section class="auction-create__step is-hidden" data-step="terms">
+      <div class="auction-create__step-head">
+        <h2 class="auction-create__step-title">Условия торгов</h2>
+        <button type="button" class="ios-button" data-back-dynamic>Назад</button>
+      </div>
+      <div class="auction-create__summary is-hidden" data-card-summary></div>
+      <form class="auction-create__form" data-terms-form>
+        <label class="auction-create__field">
+          <span>Категория товара *</span>
+          <select name="category" required data-theme-select>
+            <option value="">—</option>
+            {% for c in categories_list %}<option value="{{ c.value }}">{{ c.label }}</option>{% endfor %}
+          </select>
+        </label>
+        <div class="auction-create__grid2">
+          <label class="auction-create__field"><span>Стартовая цена, ₽ *</span><input type="number" step="0.01" min="0.01" name="start_price" required /></label>
+          <label class="auction-create__field"><span>Шаг ставки, ₽ *</span><input type="number" step="0.01" min="0.01" name="min_bid_step" value="1" required /></label>
+          <label class="auction-create__field"><span>Начало торгов *</span><input type="datetime-local" name="start_at" required /></label>
+          <label class="auction-create__field"><span>Завершение торгов *</span><input type="datetime-local" name="end_at" required /></label>
+          <label class="auction-create__field"><span>Цена «Купить сейчас», ₽</span><input type="number" step="0.01" min="0.01" name="buy_now_price" placeholder="необязательно" /></label>
+          <label class="auction-create__field"><span>Резервная цена, ₽</span><input type="number" step="0.01" min="0.01" name="reserve_price" placeholder="необязательно" /></label>
+        </div>
+        <button type="button" class="ios-button ios-button--primary" data-terms-next>Предпросмотр</button>
+      </form>
+    </section>
+
+    <!-- Step 4: preview + publish actions -->
+    <section class="auction-create__step is-hidden" data-step="preview">
+      <div class="auction-create__step-head">
+        <h2 class="auction-create__step-title">Предварительный просмотр</h2>
+        <button type="button" class="ios-button" data-back="terms">Назад</button>
+      </div>
+      <div class="auction-create__preview" data-preview></div>
+      <div class="auction-create__publish">
+        <button type="button" class="ios-button" data-publish="draft">Сохранить черновик</button>
+        <button type="button" class="ios-button" data-publish="schedule">Запланировать</button>
+        <button type="button" class="ios-button ios-button--primary" data-publish="publish">Опубликовать</button>
+      </div>
+    </section>
+  </div>
+
+  <script type="application/json" data-create-config>
+    {
+      "endpoints": {
+        "createFromCard": "{% url 'auction:lot-create-from-card' %}",
+        "createNew": "{% url 'auction:lot-create' %}"
+      },
+      "fieldIds": [{% for field in field_schema %}"{{ field.id }}"{% if not forloop.last %},{% endif %}{% endfor %}]
+    }
+  </script>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="{% static 'market/auction.js' %}"></script>
+{% endblock %}

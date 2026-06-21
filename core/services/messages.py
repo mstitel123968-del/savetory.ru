@@ -7,6 +7,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from core.models import DirectMessage, DirectMessageReaction
+from core.utils import moderation
 
 
 ALLOWED_MESSAGE_REACTIONS = tuple(choice.value for choice in DirectMessageReaction.Reaction)
@@ -40,15 +41,25 @@ def _conversation_filter(user, other_user) -> Q:
     )
 
 
-def send_message(sender, recipient, text: str) -> DirectMessage:
-    """Create a new private message."""
+def send_message(sender, recipient, text: str, attachment=None) -> DirectMessage:
+    """Create a new private message with optional text and/or file attachment."""
 
     _assert_distinct(sender, recipient)
     body = str(text or '').strip()
-    if not body:
-        raise MessageError('empty_message', 'Message text cannot be empty.')
+    if not body and attachment is None:
+        raise MessageError('empty_message', 'Message must contain text or an attachment.')
+    if attachment is not None:
+        # Reuse the project-wide file validator (size / banned ext / banned MIME).
+        moderation.validate_uploaded_file(attachment)
     with transaction.atomic():
         message = DirectMessage(sender=sender, recipient=recipient, text=body)
+        if attachment is not None:
+            content_type = (getattr(attachment, 'content_type', '') or '').lower()
+            message.attachment = attachment
+            message.attachment_name = (getattr(attachment, 'name', '') or 'file')[:255]
+            message.attachment_size = getattr(attachment, 'size', None)
+            message.attachment_content_type = content_type[:120]
+            message.attachment_kind = 'image' if content_type.startswith('image/') else 'file'
         message.full_clean()
         message.save()
         return message

@@ -1,0 +1,112 @@
+{% comment %}
+Auction filters — a single flat form shown inside the «Фильтр» dropdown.
+All controls submit via GET to the auction board; «q» is carried as a hidden
+field so a search is preserved. No collapsible sections.
+{% endcomment %}
+<form class="filter-menu__form" method="get" action="{{ reset_url }}" data-market-filters>
+  <input type="hidden" name="q" value="{{ query|default:'' }}" />
+
+  <div class="filter-menu__grid">
+    <label class="mf-field">
+      <span class="mf-field__label">Сортировка</span>
+      <select class="mf-control" name="order" data-theme-select>
+        <option value="-date"{% if order == '-date' %} selected{% endif %}>Сначала новые</option>
+        <option value="date"{% if order == 'date' %} selected{% endif %}>Сначала старые</option>
+        <option value="ending"{% if order == 'ending' %} selected{% endif %}>Скоро завершатся</option>
+        <option value="price"{% if order == 'price' %} selected{% endif %}>Сначала дешёвые</option>
+        <option value="-price"{% if order == '-price' %} selected{% endif %}>Сначала дорогие</option>
+        <option value="bids"{% if order == 'bids' %} selected{% endif %}>Больше ставок</option>
+      </select>
+    </label>
+
+    <label class="mf-field">
+      <span class="mf-field__label">Состояние</span>
+      <select class="mf-control" name="condition" data-theme-select>
+        <option value=""{% if not active_condition %} selected{% endif %}>Любое</option>
+        {% for c in conditions %}
+          <option value="{{ c.value }}"{% if active_condition == c.value %} selected{% endif %}>{{ c.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="mf-field">
+      <span class="mf-field__label">Рубрика</span>
+      <select class="mf-control" name="category" data-theme-select>
+        <option value=""{% if not active_category %} selected{% endif %}>Все рубрики</option>
+        {% for c in category_options %}
+          <option value="{{ c.value }}"{% if active_category == c.value %} selected{% endif %}>{{ c.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="mf-field">
+      <span class="mf-field__label">Статус аукциона</span>
+      <select class="mf-control" name="state" data-theme-select>
+        <option value=""{% if not state %} selected{% endif %}>Все</option>
+        <option value="active"{% if state == 'active' %} selected{% endif %}>Идут сейчас</option>
+        <option value="scheduled"{% if state == 'scheduled' %} selected{% endif %}>Запланированы</option>
+        <option value="ended"{% if state == 'ended' %} selected{% endif %}>Завершены</option>
+      </select>
+    </label>
+
+    <label class="mf-field">
+      <span class="mf-field__label">Способ получения</span>
+      <select class="mf-control" name="delivery" data-theme-select>
+        <option value=""{% if not active_delivery %} selected{% endif %}>Любой</option>
+        {% for d in delivery_options %}
+          <option value="{{ d.value }}"{% if active_delivery == d.value %} selected{% endif %}>{{ d.label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label class="mf-field">
+      <span class="mf-field__label">Город</span>
+      <input class="mf-control" type="text" name="city" value="{{ city }}" placeholder="Введите город" />
+    </label>
+
+    <div class="mf-field">
+      <span class="mf-field__label">Цена, ₽</span>
+      <div class="mf-pair">
+        <input class="mf-control" type="number" min="0" step="1" inputmode="numeric" name="price_min" value="{{ f_price_min }}" placeholder="от" />
+        <input class="mf-control" type="number" min="0" step="1" inputmode="numeric" name="price_max" value="{{ f_price_max }}" placeholder="до" />
+      </div>
+    </div>
+
+    <div class="mf-field">
+      <span class="mf-field__label">Ставки</span>
+      <div class="mf-pair">
+        <input class="mf-control" type="number" min="0" step="1" inputmode="numeric" name="bids_min" value="{{ f_bids_min }}" placeholder="от" />
+        <input class="mf-control" type="number" min="0" step="1" inputmode="numeric" name="bids_max" value="{{ f_bids_max }}" placeholder="до" />
+      </div>
+    </div>
+
+    <div class="mf-field">
+      <span class="mf-field__label">Начало</span>
+      <input class="mf-control" type="date" name="start_from" value="{{ f_start_from }}" />
+    </div>
+
+    <div class="mf-field">
+      <span class="mf-field__label">Завершение</span>
+      <input class="mf-control" type="date" name="end_from" value="{{ f_end_from }}" />
+    </div>
+
+    <div class="mf-checks">
+      <span class="mf-field__label">Дополнительно</span>
+      <div class="mf-checks__grid">
+        <label class="mf-check"><input type="checkbox" name="photo" value="1"{% if f_only_photo %} checked{% endif %} /><span>Только с фото</span></label>
+        <label class="mf-check"><input type="checkbox" name="reserve" value="1"{% if f_only_reserve %} checked{% endif %} /><span>С резервной ценой</span></label>
+        <label class="mf-check"><input type="checkbox" name="reserve_reached" value="1"{% if f_reserve_reached %} checked{% endif %} /><span>Резерв достигнут</span></label>
+        <label class="mf-check"><input type="checkbox" name="no_bids" value="1"{% if f_only_no_bids %} checked{% endif %} /><span>Без ставок</span></label>
+        <label class="mf-check"><input type="checkbox" name="only_active" value="1"{% if f_only_active %} checked{% endif %} /><span>Только активные</span></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="filter-menu__actions">
+    <p class="filter-menu__count">Найдено: <b>{{ found_count }}</b> {{ found_word }}</p>
+    <div class="filter-menu__buttons">
+      <a class="ios-button mf-reset" href="{{ reset_url }}">Сбросить</a>
+      <button type="submit" class="ios-button ios-button--primary mf-apply">Показать</button>
+    </div>
+  </div>
+</form>

@@ -107,7 +107,7 @@ class MarketApiTests(TestCase):
             reverse('market_api_bid'),
             data=json.dumps({
                 'listing_id': listing.pk,
-                'amount': '110.00',
+                'amount': '10.00',
             }),
             content_type='application/json',
         )
@@ -120,7 +120,7 @@ class MarketApiTests(TestCase):
             reverse('market_api_bid'),
             data=json.dumps({
                 'listing_id': listing.pk,
-                'amount': '130.00',
+                'amount': '30.00',
             }),
             content_type='application/json',
         )

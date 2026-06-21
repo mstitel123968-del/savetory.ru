@@ -17,11 +17,8 @@
       {% endif %}
       <a class="site-menu__item{% if current == 'messages' %} is-active{% endif %}" href="{% url 'core:messages' %}" role="menuitem" data-nav-section="messages"{% if current == 'messages' %} aria-current="page"{% endif %}>Сообщения</a>
     {% endif %}
-    {% if current != 'market' %}
-      <button class="site-menu__item site-menu__item--disabled has-tooltip" type="button" role="menuitem" aria-disabled="true" data-tooltip="в разработке">
-        Маркет
-      </button>
-    {% endif %}
+    <a class="site-menu__item{% if current == 'market' %} is-active{% endif %}" href="{% url 'market_root' %}" role="menuitem" data-nav-section="market"{% if current == 'market' %} aria-current="page"{% endif %}>Маркет</a>
+    <a class="site-menu__item{% if current == 'subscriptions' %} is-active{% endif %}" href="{% url 'core:subscriptions' %}" role="menuitem"{% if current == 'subscriptions' %} aria-current="page"{% endif %}>Тарифы</a>
     {% if user.is_authenticated and current != 'settings' %}
       <a class="site-menu__item" href="{% url 'core:settings' %}" role="menuitem">Настройки</a>
     {% endif %}

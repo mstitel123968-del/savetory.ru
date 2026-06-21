@@ -12,35 +12,44 @@
   <aside class="sidebar">
     {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
     <nav class="side-nav">
+      {% block sidebar_filters %}{% endblock %}
       <div class="side-nav-footer">
         {% include 'includes/side_nav_links.html' with current_section='market' %}
       </div>
     </nav>
   </aside>
 
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div class="logo-wrap"><span class="page-title">Маркет</span></div>
+  <header class="topbar market-topbar">
+    <div class="topbar-inner market-topbar-inner">
+      <div class="market-brand">
+        <span class="page-title">Маркет</span>
+        <span class="market-brand__desc">Сейчас в Маркете открыты аукционные торги вещами из вашего архива. Остальные направления появятся позже.</span>
+      </div>
       {% if show_search|default:True %}
-      <div class="search-wrap">
-        <form method="get" class="market-search" data-market-search-form>
+      <div class="search-wrap market-search-wrap">
+        <form method="get" class="market-search" action="{{ search_action|default:'' }}" data-market-search-form>
           <input class="search" type="search" name="q" placeholder="Поиск по объявлениям" value="{{ query|default:'' }}" />
-          {% block extra_filters %}{% endblock %}
+          {% for key, value in preserved_params.items %}<input type="hidden" name="{{ key }}" value="{{ value }}" />{% endfor %}
         </form>
       </div>
       {% else %}
       <div class="topbar-spacer"></div>
       {% endif %}
-      <div class="topbar-actions"></div>
+      <nav class="market-tabs" role="tablist">
+        {% for tab in tabs %}
+          {% if tab.enabled %}
+            <a href="{% url tab.url_name %}" class="market-tab{% if tab.active %} market-tab--active{% endif %}" role="tab" aria-selected="{% if tab.active %}true{% else %}false{% endif %}">
+              {{ tab.label }}
+            </a>
+          {% else %}
+            <span class="market-tab market-tab--disabled" role="tab" aria-disabled="true" title="Скоро">
+              {{ tab.label }}<span class="market-tab__soon">Скоро</span>
+            </span>
+          {% endif %}
+        {% endfor %}
+        {% block extra_tabs %}{% endblock %}
+      </nav>
     </div>
-    <nav class="market-tabs" role="tablist">
-      {% for tab in tabs %}
-        <a href="{% url tab.url_name %}" class="market-tab{% if tab.active %} market-tab--active{% endif %}" role="tab" aria-selected="{% if tab.active %}true{% else %}false{% endif %}">
-          {{ tab.label }}
-        </a>
-      {% endfor %}
-      {% block extra_tabs %}{% endblock %}
-    </nav>
   </header>
 
   <main class="main market-main">
@@ -52,6 +61,7 @@
 
   <script src="{% static 'js/nav.js' %}"></script>
   <script src="{% static 'js/prefs.js' %}"></script>
+  <script src="{% static 'js/theme-select.js' %}"></script>
   <script src="{% static 'market/market.js' %}"></script>
   {% block extra_scripts %}{% endblock %}
   {% include 'includes/terms_modal.html' %}

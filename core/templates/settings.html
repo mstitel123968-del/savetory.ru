@@ -35,6 +35,71 @@
 
   <main class="main settings-main">
     <div class="settings-grid">
+      {% if user.is_authenticated and subscription_plan %}
+      <section class="card settings-card subscription-card">
+        <h2>Подписка</h2>
+        <div class="subscription-current">
+          <div>
+            <span class="settings-note">Текущий тариф</span>
+            <h3 class="settings-subtitle">{{ subscription_plan.name }}</h3>
+          </div>
+          <div class="subscription-status">{{ subscription.get_status_display }}</div>
+        </div>
+
+        <div class="subscription-usage-grid">
+          <div class="subscription-usage">
+            <span class="setting-option__title">Архив</span>
+            <span class="setting-option__desc">{{ subscription_limits.archive_used }} / {{ subscription_limits.archive_limit_label }}</span>
+          </div>
+          <div class="subscription-usage">
+            <span class="setting-option__title">Активные аукционы</span>
+            <span class="setting-option__desc">{{ subscription_limits.active_auction_used }} / {{ subscription_limits.active_auction_limit }}</span>
+          </div>
+          <div class="subscription-usage">
+            <span class="setting-option__title">Период</span>
+            <span class="setting-option__desc">{{ subscription.get_billing_period_display }}</span>
+          </div>
+          <div class="subscription-usage">
+            <span class="setting-option__title">Действует до</span>
+            <span class="setting-option__desc">{% if subscription.ends_at %}{{ subscription.ends_at|date:"d.m.Y H:i" }}{% else %}Без окончания{% endif %}</span>
+          </div>
+        </div>
+
+        <div class="subscription-plan-grid">
+          {% for plan in available_plans %}
+          <article class="subscription-plan{% if plan.code == subscription_plan.code %} subscription-plan--current{% endif %}">
+            <div>
+              <h3>{{ plan.name }}</h3>
+              {% if plan.description %}<p class="settings-note">{{ plan.description }}</p>{% endif %}
+            </div>
+            <div class="subscription-plan__limits">
+              <span>Архив: {{ plan.archive_limit_label }}</span>
+              <span>Аукционы: {{ plan.active_auction_limit }}</span>
+            </div>
+            {% if plan.is_paid %}
+            <div class="subscription-plan__actions">
+              <form method="post" action="{% url 'core:subscription-checkout' %}">
+                {% csrf_token %}
+                <input type="hidden" name="plan" value="{{ plan.code }}" />
+                <input type="hidden" name="period" value="month" />
+                <button class="side-btn" type="submit">{{ plan.monthly_price_label }}</button>
+              </form>
+              <form method="post" action="{% url 'core:subscription-checkout' %}">
+                {% csrf_token %}
+                <input type="hidden" name="plan" value="{{ plan.code }}" />
+                <input type="hidden" name="period" value="year" />
+                <button class="side-btn" type="submit">{{ plan.yearly_price_label }}</button>
+              </form>
+            </div>
+            {% else %}
+            <span class="settings-note">Базовый тариф назначается автоматически.</span>
+            {% endif %}
+          </article>
+          {% endfor %}
+        </div>
+      </section>
+      {% endif %}
+
       <section class="card settings-card">
         <h2>Оформление</h2>
 

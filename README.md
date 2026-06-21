@@ -38,3 +38,46 @@ source venv/bin/activate  # Windows: .\\venv\\Scripts\\activate
 pip install -r requirements.txt
 python -m app.main
 ```
+## Docker build TLS workaround
+
+If `pip install -r requirements.txt` fails inside Docker with
+`SSL: UNEXPECTED_EOF_WHILE_READING`, retry after Docker Desktop has a stable
+network connection:
+
+```bash
+docker compose build --no-cache web
+```
+
+The Dockerfile installs CA certificates and uses longer pip retries/timeouts.
+If the local network, VPN, proxy, or provider still breaks TLS to PyPI, build
+with an explicit index or local proxy:
+
+```bash
+docker compose build --build-arg PIP_INDEX_URL=https://pypi.org/simple web
+docker compose build --build-arg PIP_INDEX_URL=http://your-proxy/simple --build-arg PIP_TRUSTED_HOST=your-proxy web
+```
+
+
+## YooKassa
+
+Платежи включаются только переменными окружения. Реальные ключи нельзя
+коммитить, выводить в HTML, JavaScript или логи.
+
+```env
+YOOKASSA_ENABLED=0
+YOOKASSA_SHOP_ID=
+YOOKASSA_SECRET_KEY=
+SITE_URL=https://example.com
+YOOKASSA_RETURN_URL=https://example.com/subscriptions/payment/result/
+YOOKASSA_SEND_RECEIPT=0
+YOOKASSA_VAT_CODE=
+```
+
+Для production `docker-compose.prod.yml` читает эти значения через `.env.prod`.
+Для локального `docker-compose.yml` переменные пробрасываются из окружения с
+безопасными пустыми значениями по умолчанию. Если `YOOKASSA_ENABLED=0` или
+отсутствуют `YOOKASSA_SHOP_ID`/`YOOKASSA_SECRET_KEY`, страница тарифов остается
+доступной, а кнопки оплаты показывают временную недоступность.
+
+Webhook URL для ЮKassa: `/subscriptions/yookassa/webhook/`.
+Return URL для пользователя: `/subscriptions/payment/result/`.

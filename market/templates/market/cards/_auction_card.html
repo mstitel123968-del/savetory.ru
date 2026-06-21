@@ -1,0 +1,32 @@
+{% load market_extras %}
+<a class="market-card market-card--auction" href="{% url 'market_auction_detail' listing.id %}"
+   data-listing-id="{{ listing.id }}" data-listing-type="auction"
+   data-auction-start="{{ listing.auction_start|date:'c' }}" data-auction-end="{{ listing.auction_end|date:'c' }}">
+  <div class="market-card__media">
+    {% if listing.cover_url %}
+      <img src="{{ listing.cover_url }}" alt="{{ listing.title|default:listing.item.title }}" loading="lazy" />
+    {% else %}
+      <div class="market-card__placeholder" aria-hidden="true">
+        <span class="market-card__placeholder-icon">🖼️</span>
+        <span class="market-card__placeholder-text">Без фото</span>
+      </div>
+    {% endif %}
+    <span class="market-card__status auction-status--{{ listing.status }}">{{ listing.status_text }}</span>
+    {% if listing.status == 'scheduled' or listing.status == 'active' %}
+      <span class="market-card__timer-chip" data-auction-timer data-auction-timer-mode="card">—</span>
+    {% endif %}
+  </div>
+  <div class="market-card__body">
+    <h3 class="market-card__title">{{ listing.title|default:listing.item.title }}</h3>
+    <p class="market-card__price">
+      <span class="market-card__price-label">{% if listing.num_bids %}Текущая цена{% else %}Стартовая цена{% endif %}</span>
+      <span class="market-card__price-amount">{% if listing.num_bids %}{{ listing.current_price|money }}{% else %}{{ listing.auction_start_price|money }}{% endif %}&nbsp;₽</span>
+    </p>
+    <ul class="market-card__facts">
+      <li><span>Ставок</span><b>{{ listing.num_bids }}</b></li>
+      {% if listing.condition_label %}<li><span>Состояние</span><b>{{ listing.condition_label }}</b></li>{% endif %}
+      {% if listing.city %}<li><span>Город</span><b>{{ listing.city }}</b></li>{% endif %}
+      {% if listing.reserve_label %}<li><span>Резерв</span><b>{{ listing.reserve_label }}</b></li>{% endif %}
+    </ul>
+  </div>
+</a>

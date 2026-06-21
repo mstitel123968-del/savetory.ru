@@ -177,8 +177,44 @@
     text.textContent = message.text || '';
     text.dataset.rawText = message.raw_text || message.text || '';
 
-    article.append(text, buildMessageMeta(message), buildMessageActions(message), buildReactionControls(message));
+    const parts = [text];
+    const attachment = buildMessageAttachment(message);
+    if (attachment) parts.push(attachment);
+    parts.push(buildMessageMeta(message), buildMessageActions(message), buildReactionControls(message));
+    article.append(...parts);
     return article;
+  }
+
+  function buildMessageAttachment(message){
+    const att = message && message.attachment;
+    if (!att || !att.url) return null;
+    if (att.is_image){
+      const link = document.createElement('a');
+      link.className = 'messages-attachment messages-attachment--image';
+      link.href = att.url; link.target = '_blank'; link.rel = 'noopener';
+      link.title = att.name || '';
+      const img = document.createElement('img');
+      img.src = att.url; img.alt = att.name || ''; img.loading = 'lazy';
+      link.appendChild(img);
+      return link;
+    }
+    const link = document.createElement('a');
+    link.className = 'messages-attachment messages-attachment--file';
+    link.href = att.url; link.target = '_blank'; link.rel = 'noopener';
+    if (att.name) link.download = att.name;
+    const icon = document.createElement('span');
+    icon.className = 'messages-attachment__icon'; icon.setAttribute('aria-hidden', 'true'); icon.textContent = '📄';
+    const info = document.createElement('span');
+    info.className = 'messages-attachment__info';
+    const name = document.createElement('span');
+    name.className = 'messages-attachment__name'; name.textContent = att.name || 'Файл';
+    const size = document.createElement('span');
+    size.className = 'messages-attachment__size'; size.textContent = att.size_display || '';
+    info.append(name, size);
+    const dl = document.createElement('span');
+    dl.className = 'messages-attachment__dl'; dl.setAttribute('aria-hidden', 'true'); dl.textContent = '↓';
+    link.append(icon, info, dl);
+    return link;
   }
 
   function appendMessage(message){
@@ -347,28 +383,116 @@
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Attachments: paperclip picker, selected-file preview, multipart send.
+  // ---------------------------------------------------------------------------
+  const attachBtn = document.getElementById('messageAttachBtn');
+  const attachInput = document.getElementById('messageAttachInput');
+  const attachPreview = document.getElementById('messageComposeAttachment');
+  const MAX_ATTACHMENT_MB = 10;
+  let selectedFile = null;
+  let sending = false;
+  let previewUrl = null;
+
+  function formatSize(bytes){
+    if (bytes == null) return '';
+    if (bytes < 1024) return bytes + ' Б';
+    let value = bytes;
+    const units = ['КБ', 'МБ', 'ГБ'];
+    let i = -1;
+    do { value /= 1024; i += 1; } while (value >= 1024 && i < units.length - 1);
+    return value.toFixed(1).replace(/\.0$/, '') + ' ' + units[i];
+  }
+
+  function clearAttachment(){
+    selectedFile = null;
+    if (attachInput) attachInput.value = '';
+    if (previewUrl){ URL.revokeObjectURL(previewUrl); previewUrl = null; }
+    renderAttachmentPreview();
+  }
+
+  function renderAttachmentPreview(){
+    if (!attachPreview) return;
+    attachPreview.innerHTML = '';
+    if (!selectedFile){ attachPreview.hidden = true; return; }
+    attachPreview.hidden = false;
+    const item = document.createElement('div');
+    item.className = 'messages-compose__attach-item';
+    if (selectedFile.type && selectedFile.type.indexOf('image/') === 0){
+      const img = document.createElement('img');
+      img.className = 'messages-compose__attach-thumb';
+      img.alt = '';
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      previewUrl = URL.createObjectURL(selectedFile);
+      img.src = previewUrl;
+      item.appendChild(img);
+    } else {
+      const icon = document.createElement('span');
+      icon.className = 'messages-compose__attach-icon';
+      icon.textContent = '📄';
+      item.appendChild(icon);
+    }
+    const info = document.createElement('div');
+    info.className = 'messages-compose__attach-info';
+    const name = document.createElement('span');
+    name.className = 'messages-compose__attach-name';
+    name.textContent = selectedFile.name;
+    const size = document.createElement('span');
+    size.className = 'messages-compose__attach-size';
+    size.textContent = formatSize(selectedFile.size);
+    info.append(name, size);
+    item.appendChild(info);
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'messages-compose__attach-remove';
+    remove.setAttribute('aria-label', 'Удалить вложение');
+    remove.textContent = '×';
+    remove.addEventListener('click', clearAttachment);
+    item.appendChild(remove);
+    attachPreview.appendChild(item);
+  }
+
+  if (attachBtn && attachInput){
+    attachBtn.addEventListener('click', () => { if (!sending) attachInput.click(); });
+    attachInput.addEventListener('change', () => {
+      const file = attachInput.files && attachInput.files[0];
+      if (!file) return;
+      if (file.size > MAX_ATTACHMENT_MB * 1024 * 1024){
+        setError('Файл слишком большой. Максимум ' + MAX_ATTACHMENT_MB + ' МБ.');
+        attachInput.value = '';
+        return;
+      }
+      setError('');
+      selectedFile = file;
+      renderAttachmentPreview();
+    });
+  }
+
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (sending) return; // protect against a double submit
     setError('');
     const text = (textInput.value || '').trim();
-    if (!text){
-      setError('Введите текст сообщения.');
+    if (!text && !selectedFile){
+      setError('Введите текст сообщения или прикрепите файл.');
       textInput.focus();
       return;
     }
+    sending = true;
     submit.disabled = true;
+    form.classList.add('is-sending');
+    const restore = submit.textContent;
+    submit.textContent = 'Отправка…';
     try {
+      const body = new FormData();
+      body.append('recipient_id', form.dataset.recipientId);
+      body.append('text', text);
+      if (selectedFile) body.append('attachment', selectedFile);
       const response = await fetch('/api/messages/send/', {
         method: 'POST',
         credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-CSRFToken': csrf(),
-        },
-        body: JSON.stringify({
-          recipient_id: form.dataset.recipientId,
-          text,
-        }),
+        headers: { 'X-CSRFToken': csrf() }, // let the browser set the multipart boundary
+        body,
       });
       const data = await response.json().catch(() => null);
       if (!response.ok || !data || data.success === false){
@@ -376,11 +500,15 @@
       }
       appendMessage(data.message);
       textInput.value = '';
+      clearAttachment();
       textInput.focus();
     } catch (error){
       setError(error.message || 'Не удалось отправить сообщение.');
     } finally {
+      sending = false;
       submit.disabled = false;
+      form.classList.remove('is-sending');
+      submit.textContent = restore;
     }
   });
 

@@ -1,0 +1,185 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/modal.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/subscriptions.css' %}" />
+</head>
+<body class="subscriptions-page">
+  <script src="{% static 'js/prefs.js' %}"></script>
+  <aside class="sidebar">
+    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
+    <nav class="side-nav">
+      <div class="side-nav-divider" aria-hidden="true"></div>
+      <div class="side-nav-footer">
+        {% include 'includes/side_nav_links.html' with current_section='subscriptions' %}
+      </div>
+    </nav>
+  </aside>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="logo-wrap">
+        <span class="page-title">Тарифы</span>
+      </div>
+      <div class="topbar-spacer"></div>
+    </div>
+  </header>
+
+  <main class="main subscriptions-main">
+    <section class="subscriptions-intro">
+      <h1>Подписка на СКлад — Savetory</h1>
+      <p>Платные тарифы расширяют доступ к возможностям онлайн-сервиса и увеличивают лимит архива.</p>
+    </section>
+
+    {% if user.is_authenticated and subscription_plan %}
+    <section class="subscription-account" aria-label="Текущая подписка">
+      <div class="subscription-account__summary">
+        <div>
+          <span class="subscription-label">Текущий тариф</span>
+          <h2>{{ subscription_plan.name }}</h2>
+        </div>
+        <div class="subscription-status">{{ subscription.get_status_display }}</div>
+      </div>
+      <div class="subscription-account__grid">
+        <div>
+          <span class="subscription-label">Действует до</span>
+          <strong>{% if subscription.expires_at %}{{ subscription.expires_at|date:"d.m.Y H:i" }}{% else %}Без окончания{% endif %}</strong>
+        </div>
+        <div>
+          <span class="subscription-label">Архив</span>
+          <strong>{{ subscription_limits.archive_used }} / {{ subscription_limits.archive_limit_label }}</strong>
+        </div>
+        <div>
+          <span class="subscription-label">Остаток</span>
+          <strong>{% if subscription_limits.archive_remaining == None %}Без ограничений{% else %}{{ subscription_limits.archive_remaining }}{% endif %}</strong>
+        </div>
+      </div>
+      <div class="subscription-payments">
+        <h3>Последние платежи</h3>
+        {% if recent_payments %}
+          <ul>
+            {% for payment in recent_payments %}
+              <li>
+                <span>{{ payment.tariff.name }} · {{ payment.get_period_display }}</span>
+                <span>{{ payment.amount|floatformat:0 }} {{ payment.currency }} · {{ payment.get_status_display }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p>Платежей пока нет.</p>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+
+    <section class="tariff-grid" aria-label="Доступные тарифы">
+      {% for plan in plans %}
+      <article class="tariff-card">
+        <div class="tariff-card__head">
+          <h2>{{ plan.name }}</h2>
+          <p>{% if plan.code == 'plus' %}До {{ plan.archive_limit_label }} объектов в архиве{% else %}Неограниченный архив{% endif %}</p>
+        </div>
+        <div class="tariff-card__prices">
+          <div>
+            <span>Месяц</span>
+            <strong>{{ plan.monthly_price_label }}</strong>
+          </div>
+          <div>
+            <span>Год</span>
+            <strong>{{ plan.yearly_price_label }}</strong>
+          </div>
+        </div>
+        <div class="tariff-card__actions">
+          {% if not payment_enabled %}
+            <button class="side-btn side-btn--disabled" type="button" disabled>Оплата временно недоступна</button>
+            <button class="side-btn side-btn--disabled" type="button" disabled>Оплата временно недоступна</button>
+          {% elif user.is_authenticated %}
+            <form method="post" action="{% url 'core:subscription-checkout' %}">
+              {% csrf_token %}
+              <input type="hidden" name="plan" value="{{ plan.code }}" />
+              <input type="hidden" name="period" value="month" />
+              <button class="side-btn danger" type="submit">Оплатить {{ plan.monthly_button_label }}</button>
+            </form>
+            <form method="post" action="{% url 'core:subscription-checkout' %}">
+              {% csrf_token %}
+              <input type="hidden" name="plan" value="{{ plan.code }}" />
+              <input type="hidden" name="period" value="year" />
+              <button class="side-btn" type="submit">Оплатить {{ plan.yearly_button_label }}</button>
+            </form>
+          {% else %}
+            <button class="side-btn danger" type="button" data-open-auth>Оплатить {{ plan.monthly_button_label }}</button>
+            <button class="side-btn" type="button" data-open-auth>Оплатить {{ plan.yearly_button_label }}</button>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </section>
+  </main>
+
+  {% if not user.is_authenticated %}
+  <div id="authModal" class="modal" data-auth-redirect="{{ auth_redirect }}">
+    <div class="modal-content">
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Войти</button>
+        <button class="tab" data-tab="register">Регистрация</button>
+      </div>
+      <div class="tab-content active" id="login">
+        <input type="text" id="loginUser" placeholder="Логин">
+        <small id="loginAuthError" class="error"></small>
+        <input type="password" id="loginPass" placeholder="Пароль">
+        <button class="btn">Войти</button>
+      </div>
+      <div class="tab-content" id="register">
+        <input type="text" id="regLogin" placeholder="Логин">
+        <small id="loginError" class="error"></small>
+        <input type="password" id="regPass" placeholder="Пароль">
+        <input type="password" id="regPass2" placeholder="Повторите пароль">
+        <small id="passError" class="error"></small>
+        <input type="email" id="regEmail" placeholder="Введите ваш Email" aria-label="Введите ваш Email">
+        <small id="emailError" class="error"></small>
+        <div class="modal-footer">
+          <button id="registerSubmit" type="button" class="btn ios-button">Зарегистрироваться</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% include 'includes/registration_terms_modal.html' %}
+  <script src="{% static 'js/modal.js' %}"></script>
+  {% endif %}
+  <script src="{% static 'js/nav.js' %}"></script>
+  {% if user.is_authenticated and payment_enabled %}
+  <script>
+    document.querySelectorAll('.tariff-card__actions form').forEach((form) => {
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const buttons = Array.from(form.querySelectorAll('button'));
+        buttons.forEach((button) => { button.disabled = true; });
+        try {
+          const response = await fetch(form.action, {
+            method: 'POST',
+            credentials: 'same-origin',
+            body: new FormData(form),
+            headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          });
+          const data = await response.json().catch(() => ({}));
+          if (response.ok && data.confirmation_url) {
+            window.location.assign(data.confirmation_url);
+            return;
+          }
+          buttons.forEach((button) => { button.disabled = false; });
+          alert((data.errors && Object.values(data.errors).flat().join('\n')) || 'Не удалось создать платеж.');
+        } catch (error) {
+          buttons.forEach((button) => { button.disabled = false; });
+          alert('Не удалось создать платеж.');
+        }
+      });
+    });
+  </script>
+  {% endif %}
+</body>
+</html>

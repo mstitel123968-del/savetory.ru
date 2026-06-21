@@ -1,5 +1,6 @@
 """Replaces the original Java entity classes with Django ORM models."""
 import json
+import uuid
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -157,13 +158,22 @@ class DirectMessage(models.Model):
         on_delete=models.CASCADE,
         related_name='received_direct_messages',
     )
-    text = models.TextField()
+    # Text may be empty when the message carries only an attachment.
+    text = models.TextField(blank=True, default='')
     sent_at = models.DateTimeField(auto_now_add=True)
     edited_at = models.DateTimeField(blank=True, null=True)
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(blank=True, null=True)
     is_read = models.BooleanField(default=False)
     read_at = models.DateTimeField(blank=True, null=True)
+
+    # Optional file/image attachment stored on the project's default storage
+    # (Yandex S3 when enabled, local filesystem otherwise).
+    attachment = models.FileField(upload_to='message_attachments/%Y/%m/', blank=True, null=True)
+    attachment_name = models.CharField(max_length=255, blank=True, default='')
+    attachment_size = models.PositiveBigIntegerField(null=True, blank=True)
+    attachment_content_type = models.CharField(max_length=120, blank=True, default='')
+    attachment_kind = models.CharField(max_length=10, blank=True, default='')  # 'image' | 'file'
 
     class Meta:
         ordering = ['sent_at', 'id']
@@ -178,6 +188,14 @@ class DirectMessage(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"DirectMessage<{self.sender_id}->{self.recipient_id}:{self.sent_at:%Y-%m-%d %H:%M:%S}>"
+
+    @property
+    def has_attachment(self) -> bool:
+        return bool(self.attachment)
+
+    @property
+    def is_image_attachment(self) -> bool:
+        return self.attachment_kind == 'image'
 
     def clean(self) -> None:
         super().clean()
@@ -238,6 +256,10 @@ class Rubric(models.Model):
     profile = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='rubrics')
     name = models.CharField(max_length=255)
     slug = models.SlugField(max_length=255)
+    # System rubrics (e.g. the «Аукцион» rubric) are managed by the platform:
+    # they cannot be renamed, deleted, have their fields changed, or receive
+    # cards moved in manually. Regular user rubrics keep is_system=False.
+    is_system = models.BooleanField(default=False)
     is_public = models.BooleanField(default=False)
     public_slug = models.SlugField(max_length=255, blank=True, default='', allow_unicode=True, db_index=True)
     is_text_mode = models.BooleanField(default=False)
@@ -276,7 +298,7 @@ class ArchiveFile(models.Model):
     title = models.CharField(max_length=255)
     normalized_title = models.CharField(max_length=255, blank=True, default='')
     content_hash = models.CharField(max_length=64, blank=True, default='')
-    data = models.JSONField(default=dict)
+    data = models.JSONField(default=dict, blank=True)
     status = models.CharField(max_length=20, choices=Status.choices, default=Status.KEEP)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -362,6 +384,159 @@ class ArchiveState(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"ArchiveState<{self.user_id}>"
+
+
+class SubscriptionPlan(models.Model):
+    """Account tariff with limits managed from Django Admin."""
+
+    class Code(models.TextChoices):
+        FREE = 'free', 'Free'
+        PLUS = 'plus', 'Plus'
+        PRO = 'pro', 'Pro'
+
+    code = models.SlugField(max_length=32, unique=True)
+    name = models.CharField(max_length=80)
+    description = models.TextField(blank=True, default='')
+    archive_limit = models.PositiveIntegerField(null=True, blank=True)
+    active_auction_limit = models.PositiveIntegerField()
+    monthly_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    yearly_price = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    is_paid = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+    sort_order = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', 'id']
+
+    def __str__(self) -> str:  # pragma: no cover
+        return self.name
+
+
+class UserSubscription(models.Model):
+    """Current or historical subscription interval for a user account."""
+
+    class Status(models.TextChoices):
+        ACTIVE = 'active', 'Active'
+        EXPIRED = 'expired', 'Expired'
+        CANCELED = 'canceled', 'Canceled'
+
+    class BillingPeriod(models.TextChoices):
+        FREE = 'free', 'Free'
+        MONTH = 'month', 'Month'
+        YEAR = 'year', 'Year'
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='subscriptions')
+    tariff = models.ForeignKey(SubscriptionPlan, on_delete=models.PROTECT, related_name='subscriptions')
+    starts_at = models.DateTimeField(default=timezone.now)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    last_successful_payment = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.ACTIVE, db_index=True)
+    billing_period = models.CharField(max_length=16, choices=BillingPeriod.choices, default=BillingPeriod.FREE)
+    auto_renew = models.BooleanField(default=False)
+    provider = models.CharField(max_length=32, blank=True, default='')
+    provider_payment_id = models.CharField(max_length=128, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-starts_at', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=models.Q(status='active'),
+                name='uniq_active_subscription_per_user',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['user', 'status'], name='usersub_user_status_idx'),
+            models.Index(fields=['status', 'expires_at'], name='usersub_status_exp_idx'),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"{self.user_id}: {self.tariff.code} ({self.status})"
+
+    @property
+    def plan(self):  # Backwards-compatible alias for older service/view code.
+        return self.tariff
+
+    @plan.setter
+    def plan(self, value) -> None:
+        self.tariff = value
+
+    @property
+    def ends_at(self):  # Backwards-compatible alias for templates/tests.
+        return self.expires_at
+
+    @ends_at.setter
+    def ends_at(self, value) -> None:
+        self.expires_at = value
+
+
+class SubscriptionPayment(models.Model):
+    """Payment attempt prepared for a future YooKassa integration."""
+
+    class Period(models.TextChoices):
+        MONTH = 'month', 'Month'
+        YEAR = 'year', 'Year'
+
+    class Status(models.TextChoices):
+        CREATED = 'created', 'Created'
+        PENDING = 'pending', 'Pending'
+        SUCCEEDED = 'succeeded', 'Succeeded'
+        CANCELED = 'canceled', 'Canceled'
+        FAILED = 'failed', 'Failed'
+
+    internal_uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='subscription_payments')
+    tariff = models.ForeignKey(SubscriptionPlan, on_delete=models.PROTECT, related_name='payments')
+    period = models.CharField(max_length=16, choices=Period.choices)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=3, default='RUB')
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.CREATED, db_index=True)
+    yookassa_payment_id = models.CharField(max_length=128, blank=True, default='', db_index=True)
+    idempotence_key = models.CharField(max_length=128, unique=True)
+    confirmation_url = models.URLField(blank=True, default='')
+    metadata = models.JSONField(default=dict, blank=True)
+    error_message = models.TextField(blank=True, default='')
+    paid_at = models.DateTimeField(null=True, blank=True)
+    subscription_activated = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['user', 'status'], name='subpay_user_status_idx'),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"SubscriptionPayment<{self.internal_uuid}:{self.status}>"
+
+
+class SubscriptionHistory(models.Model):
+    """Audit trail for subscription status and plan changes."""
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='subscription_history')
+    subscription = models.ForeignKey(UserSubscription, on_delete=models.SET_NULL, null=True, blank=True, related_name='history')
+    from_plan = models.ForeignKey(SubscriptionPlan, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    to_plan = models.ForeignKey(SubscriptionPlan, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    from_status = models.CharField(max_length=16, blank=True, default='')
+    to_status = models.CharField(max_length=16, blank=True, default='')
+    billing_period = models.CharField(max_length=16, blank=True, default='')
+    reason = models.CharField(max_length=120, blank=True, default='')
+    metadata = models.JSONField(default=dict, blank=True)
+    changed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-changed_at', '-id']
+        indexes = [
+            models.Index(fields=['user', 'changed_at'], name='subhist_user_changed_idx'),
+        ]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"SubscriptionHistory<{self.user_id}:{self.reason}>"
 
 
 class Review(models.Model):

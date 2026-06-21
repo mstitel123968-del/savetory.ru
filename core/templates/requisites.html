@@ -1,0 +1,54 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/terms.css' %}" />
+</head>
+<body class="terms-body">
+  <main class="terms-container requisites-container">
+    <nav class="terms-links" aria-label="Документы">
+      <a href="{% url 'core:terms' %}">Пользовательское соглашение</a>
+      <span aria-hidden="true">·</span>
+      <a href="{% url 'core:requisites' %}" aria-current="page">Реквизиты</a>
+    </nav>
+
+    <h1>Реквизиты</h1>
+    <p class="terms-version">Информация для проверки платежного провайдера.</p>
+
+    <dl class="requisites-list">
+      <div>
+        <dt>Наименование</dt>
+        <dd>ИП Макаров Пётр Михайлович</dd>
+      </div>
+      <div>
+        <dt>ИНН</dt>
+        <dd>440123173264</dd>
+      </div>
+      <div>
+        <dt>ОГРНИП</dt>
+        <dd>326440000016619</dd>
+      </div>
+      <div>
+        <dt>Email поддержки</dt>
+        <dd><a href="mailto:savetory.ru@yandex.ru">savetory.ru@yandex.ru</a></dd>
+      </div>
+      <div>
+        <dt>Рабочий телефон</dt>
+        <dd><a href="tel:+79607488435">+7 (960) 748-84-35</a></dd>
+      </div>
+      <div>
+        <dt>Сайт</dt>
+        <dd><a href="https://www.savetory.ru" rel="noopener">https://www.savetory.ru</a></dd>
+      </div>
+      <div>
+        <dt>Описание услуг</dt>
+        <dd>Предоставление доступа к платным функциям онлайн-сервиса «СКлад — Savetory».</dd>
+      </div>
+    </dl>
+  </main>
+</body>
+</html>

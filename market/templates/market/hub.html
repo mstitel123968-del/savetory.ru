@@ -1,0 +1,20 @@
+{% extends 'market/base_market.html' %}
+
+{% block content %}
+  <div class="market-hub__grid">
+    <a class="market-hub__card market-hub__card--active" href="{{ auction_url }}">
+      <span class="market-hub__badge market-hub__badge--open">Открыто</span>
+      <span class="market-hub__card-title">Аукцион</span>
+      <span class="market-hub__card-note">Выставляйте лоты и участвуйте в торгах.</span>
+      <span class="market-hub__card-cta">Перейти в Аукцион →</span>
+    </a>
+
+    {% for direction in soon_directions %}
+      <div class="market-hub__card market-hub__card--soon" aria-disabled="true">
+        <span class="market-hub__badge">Скоро</span>
+        <span class="market-hub__card-title">{{ direction.label }}</span>
+        <span class="market-hub__card-note">{{ direction.note }}</span>
+      </div>
+    {% endfor %}
+  </div>
+{% endblock %}

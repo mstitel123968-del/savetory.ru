@@ -69,10 +69,24 @@ body.theme-sepia .pref-dropdown__menu{box-shadow:0 20px 40px rgba(60,32,18,0.36)
 .settings-reset-card{align-items:flex-start}
 .settings-reset-btn{width:auto;min-width:220px;border-color:color-mix(in srgb,var(--danger-fg) 34%,var(--btn-border));background:color-mix(in srgb,var(--danger-bg) 70%,var(--btn-bg));color:var(--danger-fg)}
 .settings-reset-btn:hover,.settings-reset-btn:focus-visible{background:color-mix(in srgb,var(--danger-bg) 86%,var(--btn-bg));border-color:color-mix(in srgb,var(--danger-fg) 48%,var(--btn-border))}
+.subscription-current{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.subscription-status{padding:6px 10px;border-radius:999px;border:1px solid color-mix(in srgb,var(--accent) 34%,var(--card-border));color:var(--accent);font-size:13px;font-weight:700;text-transform:uppercase}
+.subscription-usage-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.subscription-usage{display:flex;flex-direction:column;gap:6px;padding:12px;border:1px solid color-mix(in srgb,var(--btn-border) 80%,transparent);border-radius:12px;background:color-mix(in srgb,var(--card) 88%,transparent)}
+.subscription-plan-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.subscription-plan{display:flex;flex-direction:column;gap:12px;padding:14px;border:1px solid color-mix(in srgb,var(--btn-border) 82%,transparent);border-radius:14px;background:color-mix(in srgb,var(--card) 90%,transparent)}
+.subscription-plan--current{border-color:color-mix(in srgb,var(--accent) 54%,var(--btn-border));box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 18%,transparent)}
+.subscription-plan h3{margin:0;font-size:17px}
+.subscription-plan__limits{display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:13px}
+.subscription-plan__actions{display:flex;gap:8px;flex-wrap:wrap}
+.subscription-plan__actions form{margin:0}
 
 @media (max-width:960px){
   .card.settings-card{
     padding:18px 18px;
+  }
+  .subscription-usage-grid,.subscription-plan-grid{
+    grid-template-columns:repeat(2,minmax(0,1fr));
   }
   .settings-card .row.range-row{
     align-items:flex-start;
@@ -120,5 +134,11 @@ body.theme-sepia .pref-dropdown__menu{box-shadow:0 20px 40px rgba(60,32,18,0.36)
   .settings-reset-btn{
     width:100%;
     min-width:0;
+  }
+  .subscription-usage-grid,.subscription-plan-grid{
+    grid-template-columns:1fr;
+  }
+  .subscription-plan__actions .side-btn{
+    width:100%;
   }
 }

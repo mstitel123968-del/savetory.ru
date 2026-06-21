@@ -75,6 +75,7 @@ INSTALLED_APPS = [
     'storages',
     'core',
     'market',
+    'auction',
 ]
 
 MIDDLEWARE = [
@@ -213,3 +214,12 @@ MAX_FILE_SIZE_MB = int(os.environ.get('MAX_UPLOAD_MB', '10'))
 # Bump this version whenever the public terms text changes. Users must re-accept
 # the latest version before continuing to use interactive features.
 TERMS_VERSION = os.environ.get('TERMS_VERSION', '2024-01')
+
+# --- YooKassa payments --------------------------------------------------------
+YOOKASSA_ENABLED = os.environ.get('YOOKASSA_ENABLED', '0') == '1'
+YOOKASSA_SHOP_ID = os.environ.get('YOOKASSA_SHOP_ID', '')
+YOOKASSA_SECRET_KEY = os.environ.get('YOOKASSA_SECRET_KEY', '')
+SITE_URL = os.environ.get('SITE_URL', '')
+YOOKASSA_RETURN_URL = os.environ.get('YOOKASSA_RETURN_URL', '')
+YOOKASSA_SEND_RECEIPT = os.environ.get('YOOKASSA_SEND_RECEIPT', '0') == '1'
+YOOKASSA_VAT_CODE = os.environ.get('YOOKASSA_VAT_CODE', '')

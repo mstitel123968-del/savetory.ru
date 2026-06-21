@@ -11,6 +11,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from core.models import ArchiveState, Profile, Rubric
+from core.services import subscriptions
 
 
 class ArchiveViewTests(TestCase):
@@ -33,6 +34,53 @@ class LandingRedirectTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.headers["Location"], reverse("core:archive"))
+
+
+class PublicDocumentTests(TestCase):
+    def test_requisites_page_is_public(self) -> None:
+        response = self.client.get(reverse("core:requisites"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "ИП Макаров Пётр Михайлович")
+        self.assertContains(response, "440123173264")
+        self.assertContains(response, "326440000016619")
+        self.assertContains(response, "savetory.ru@yandex.ru")
+        self.assertContains(response, "+7 (960) 748-84-35")
+        self.assertContains(response, "https://www.savetory.ru")
+        self.assertContains(response, "СКлад — Savetory")
+
+    def test_terms_page_links_to_requisites(self) -> None:
+        response = self.client.get(reverse("core:terms"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse("core:requisites"))
+        self.assertContains(response, "Реквизиты")
+
+
+class PublicSubscriptionsTests(TestCase):
+    def setUp(self) -> None:
+        subscriptions.seed_default_plans()
+
+    def test_subscriptions_page_is_public(self) -> None:
+        response = self.client.get(reverse("core:subscriptions"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Plus")
+        self.assertContains(response, "Pro")
+        self.assertContains(response, 'data-auth-redirect="/subscriptions/"')
+
+    def test_subscriptions_page_displays_exact_prices(self) -> None:
+        response = self.client.get(reverse("core:subscriptions"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "99 ₽/месяц")
+        self.assertContains(response, "990 ₽/год")
+        self.assertContains(response, "199 ₽/месяц")
+        self.assertContains(response, "1 990 ₽/год")
+        self.assertContains(response, "Оплатить 99 ₽")
+        self.assertContains(response, "Оплатить 990 ₽")
+        self.assertContains(response, "Оплатить 199 ₽")
+        self.assertContains(response, "Оплатить 1 990 ₽")
 
 
 class PublicCollectionTests(TestCase):
@@ -63,7 +111,7 @@ class PublicCollectionTests(TestCase):
                                     "photo": {"items": [{"id": "img-1", "src": "data:image/png;base64,abc"}]},
                                     "title": "Sunset",
                                     "description": "Oil on canvas",
-                                    "private_note": "hidden",
+                                    "private_note": "private-note-value",
                                 },
                             }
                         ],
@@ -90,7 +138,7 @@ class PublicCollectionTests(TestCase):
         self.assertContains(response, "Sunset")
         self.assertContains(response, "Готов продать")
         self.assertContains(response, "Oil on canvas")
-        self.assertNotContains(response, "hidden")
+        self.assertNotContains(response, "private-note-value")
 
     def test_private_collection_is_unavailable(self) -> None:
         response = self.client.get(reverse("core:public-collection", args=["collector", "private"]))

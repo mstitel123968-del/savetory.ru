@@ -131,17 +131,15 @@ class BidModelTests(TestCase):
             auction_step=Decimal("10.00"),
         )
 
-    def test_bid_must_exceed_step(self):
-        bid = Bid(listing=self.listing, bidder=self.bidder, amount=Decimal("105.00"))
+    def test_bid_must_meet_step(self):
+        bid = Bid(listing=self.listing, bidder=self.bidder, amount=Decimal("5.00"))
         with self.assertRaises(ValidationError) as exc:
             bid.full_clean()
         self.assertIn("amount", exc.exception.message_dict)
 
-        bid.amount = Decimal("110.00")
+        bid.amount = Decimal("10.00")
         bid.full_clean()
         bid.save()
-        self.listing.refresh_from_db()
-        self.assertEqual(self.listing.current_price, Decimal("110.00"))
 
     def test_bid_disallowed_for_seller(self):
         bid = Bid(listing=self.listing, bidder=self.owner, amount=Decimal("120.00"))

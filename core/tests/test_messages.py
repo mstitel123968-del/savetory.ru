@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 
 from django.contrib.auth import get_user_model
+from django.conf import settings
 from django.test import TestCase
 from django.urls import reverse
 
-from core.models import DirectMessage, DirectMessageReaction
+from core.models import DirectMessage, DirectMessageReaction, Profile
 from core.services.messages import MessageError, delete_message, edit_message, get_dialogs, get_message_history, get_unread_summary, mark_messages_read, send_message, set_message_reaction
 
 
@@ -147,6 +148,8 @@ class DirectMessageApiTests(TestCase):
         User = get_user_model()
         self.alice = User.objects.create_user('alice', password='pass1234')
         self.bob = User.objects.create_user('bob', password='pass1234')
+        Profile.objects.create(user=self.alice, terms_version_accepted=settings.TERMS_VERSION)
+        Profile.objects.create(user=self.bob, terms_version_accepted=settings.TERMS_VERSION)
 
     def test_send_requires_authentication(self) -> None:
         response = self.client.post(

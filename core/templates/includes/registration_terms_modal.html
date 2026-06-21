@@ -3,6 +3,10 @@
     <h2 id="registrationTermsTitle">Пользовательское соглашение</h2>
     <p class="reg-terms-modal__subtitle">Чтобы завершить регистрацию, необходимо принять актуальную версию соглашения.</p>
     <p class="reg-terms-modal__version">Версия: {{ terms_version }}</p>
+    <div class="terms-modal__links reg-terms-modal__links">
+      <a href="{{ terms_page_url }}" target="_blank" rel="noopener" class="terms-modal__link">Полная версия</a>
+      <a href="{{ requisites_page_url }}" target="_blank" rel="noopener" class="terms-modal__link">Реквизиты</a>
+    </div>
     <div class="reg-terms-modal__content">
       {% include 'includes/terms_content.html' %}
     </div>

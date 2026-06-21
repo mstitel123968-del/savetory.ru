@@ -111,8 +111,47 @@
     });
   }
 
+  function initFilterMenu(){
+    document.querySelectorAll('[data-filter-menu]').forEach((menu) => {
+      const btn = menu.querySelector('.filter-menu__toggle');
+      const panel = menu.querySelector('.filter-menu__panel');
+      if (!btn || !panel){
+        return;
+      }
+      function onDoc(event){
+        if (!menu.contains(event.target)){
+          close();
+        }
+      }
+      function onKey(event){
+        if (event.key === 'Escape'){
+          close();
+          btn.focus();
+        }
+      }
+      function open(){
+        panel.hidden = false;
+        menu.classList.add('is-open');
+        btn.setAttribute('aria-expanded', 'true');
+        document.addEventListener('mousedown', onDoc, true);
+        document.addEventListener('keydown', onKey, true);
+      }
+      function close(){
+        panel.hidden = true;
+        menu.classList.remove('is-open');
+        btn.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('mousedown', onDoc, true);
+        document.removeEventListener('keydown', onKey, true);
+      }
+      btn.addEventListener('click', () => {
+        panel.hidden ? open() : close();
+      });
+    });
+  }
+
   document.addEventListener('DOMContentLoaded', () => {
     initAuctionTimers();
     initSwapCollapsible();
+    initFilterMenu();
   });
 })();

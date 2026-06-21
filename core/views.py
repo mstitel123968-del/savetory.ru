@@ -26,11 +26,12 @@ from django.urls import reverse
 from django.utils.text import slugify
 from django.utils import timezone
 from django.views.decorators.cache import never_cache
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_GET, require_http_methods, require_POST
 
 from core import messages
 from core import exporters
+from core.utils import moderation
 from core.services.friendships import (
     FriendshipError,
     accept_request,
@@ -59,10 +60,12 @@ from core.services.profile_page import (
     build_extended_profile_context,
     validate_profile_background,
 )
+from core.services import subscriptions
 from .forms import ArchiveFileForm, LoginForm, RegistrationForm, RubricForm
-from .models import ArchiveFile, ArchiveState, DirectMessage, Friendship, Profile, Review, Rubric
+from .models import ArchiveFile, ArchiveState, DirectMessage, Friendship, Profile, Review, Rubric, SubscriptionPayment
 
 logger = logging.getLogger("core.moderation")
+payment_logger = logging.getLogger("core.payments")
 
 FILE_STATUS_LABELS = {
     'keep': 'Храню',
@@ -332,16 +335,30 @@ def landing(request: HttpRequest) -> HttpResponse:
 @ensure_csrf_cookie
 @never_cache
 def archive(request: HttpRequest) -> HttpResponse:
+    subscription_context = {}
+    if request.user.is_authenticated:
+        snapshot = subscriptions.archive_limit_snapshot(request.user)
+        if snapshot.archive_limit is None:
+            archive_usage_label = f'Использовано {snapshot.archive_used} · без ограничений'
+        else:
+            archive_usage_label = (
+                f'Использовано {snapshot.archive_used} из '
+                f'{subscriptions.archive_limit_label(snapshot.archive_limit)}'
+            )
+        subscription_context = {'archive_usage_label': archive_usage_label}
     return render(
         request,
         'archive.html',
-        _seo_context(
+        {
+            **subscription_context,
+            **_seo_context(
             request,
             title='Ваш архив - СКлад',
             description='Личный архив пользователя для хранения вещей, заметок и файлов.',
             indexable=False,
             canonical_path=reverse('core:archive'),
-        ),
+            ),
+        },
     )
 
 
@@ -410,16 +427,84 @@ def profile(request: HttpRequest) -> HttpResponse:
 
 @ensure_csrf_cookie
 def settings(request: HttpRequest) -> HttpResponse:
+    subscription_context = {}
+    if request.user.is_authenticated:
+        limits = subscriptions.subscription_limits(request.user)
+        subscription_context = {
+            'subscription': limits['subscription'],
+            'subscription_plan': limits['plan'],
+            'subscription_limits': limits,
+            'available_plans': subscriptions.available_plan_cards(),
+        }
     return render(
         request,
         'settings.html',
-        _seo_context(
+        {
+            **subscription_context,
+            **_seo_context(
             request,
             title='Настройки - СКлад',
             description='Персональные настройки интерфейса и приватности пользователя.',
             indexable=False,
             canonical_path=reverse('core:settings'),
+            ),
+        },
+    )
+
+
+@ensure_csrf_cookie
+def subscriptions_page(request: HttpRequest) -> HttpResponse:
+    plans = [
+        plan
+        for plan in subscriptions.available_plan_cards()
+        if plan['code'] in {'plus', 'pro'} and plan['is_paid']
+    ]
+    subscription_context = {}
+    if request.user.is_authenticated:
+        limits = subscriptions.subscription_limits(request.user)
+        recent_payments = (
+            SubscriptionPayment.objects
+            .filter(user=request.user)
+            .select_related('tariff')
+            .order_by('-created_at', '-id')[:5]
+        )
+        subscription_context = {
+            'subscription': limits['subscription'],
+            'subscription_plan': limits['plan'],
+            'subscription_limits': limits,
+            'recent_payments': recent_payments,
+        }
+
+    return render(
+        request,
+        'subscriptions.html',
+        {
+            'plans': plans,
+            'auth_redirect': reverse('core:subscriptions'),
+            'payment_enabled': subscriptions.yookassa_is_configured(),
+            **subscription_context,
+            **_seo_context(
+                request,
+                title='Тарифы - СКлад',
+                description='Платные тарифы онлайн-сервиса СКлад — Savetory: Plus и Pro.',
+                indexable=True,
+                canonical_path=reverse('core:subscriptions'),
+            ),
+        },
+    )
+
+
+def market_closed(request: HttpRequest, path: str = '') -> HttpResponse:
+    return render(
+        request,
+        'market_closed.html',
+        _seo_context(
+            request,
+            title='Market temporarily closed - SKLad',
+            description='Market access is temporarily closed.',
+            indexable=False,
         ),
+        status=503,
     )
 
 
@@ -449,18 +534,35 @@ def community(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _dialog_preview_text(message, viewer: User) -> str:
+    """Dialog-list preview that shows who sent the last message.
+
+    Outgoing messages are prefixed with «Вы: »; incoming ones show the plain
+    text. A message with no text (an attachment) shows a generic label instead.
+    Deleted messages keep their neutral system note without a prefix.
+    """
+    if message.is_deleted:
+        return 'Сообщение удалено'
+    body = (message.text or '').strip()
+    if not body:
+        # Attachment without text: show a fitting label by kind.
+        body = 'Фото' if message.attachment_kind == 'image' else 'Файл'
+    if message.sender_id == viewer.pk:
+        return f'Вы: {body}'
+    return body
+
+
 @login_required
 @ensure_csrf_cookie
 def messages_page(request: HttpRequest) -> HttpResponse:
     dialogs = get_dialogs(request.user)
     dialog_rows = []
     for dialog in dialogs:
-        latest_payload = _message_payload(dialog['latest_message'], request.user)
         dialog_rows.append({
             'user': dialog['user'],
             'display_name': _community_display_name(dialog['user'], getattr(dialog['user'], 'profile', None)),
             'latest_message': dialog['latest_message'],
-            'latest_text': latest_payload['text'],
+            'latest_text': _dialog_preview_text(dialog['latest_message'], request.user),
             'latest_at': timezone.localtime(dialog['latest_at']),
             'unread_count': dialog['unread_count'],
             'url': reverse('core:message-dialog', kwargs={'user_id': dialog['user'].pk}),
@@ -552,6 +654,22 @@ def terms(request: HttpRequest) -> HttpResponse:
                 description='Пользовательское соглашение сервиса СКлад и актуальная версия условий использования сайта.',
                 indexable=True,
                 canonical_path=reverse('core:terms'),
+            ),
+        },
+    )
+
+
+def requisites(request: HttpRequest) -> HttpResponse:
+    return render(
+        request,
+        'requisites.html',
+        {
+            **_seo_context(
+                request,
+                title='Реквизиты - СКлад',
+                description='Реквизиты ИП Макарова Петра Михайловича для проверки платежного провайдера.',
+                indexable=True,
+                canonical_path=reverse('core:requisites'),
             ),
         },
     )
@@ -680,6 +798,115 @@ def login_user(request: HttpRequest) -> JsonResponse:
         _touch_user_last_seen(user)
         return JsonResponse({'success': True})
     return JsonResponse({'success': False, 'errors': form.errors}, status=400)
+
+
+@login_required
+@require_POST
+def subscription_checkout(request: HttpRequest) -> JsonResponse:
+    plan_code = str(request.POST.get('plan') or '').strip().lower()
+    billing_period = str(request.POST.get('period') or '').strip().lower()
+    try:
+        intent = subscriptions.create_checkout_intent(
+            request.user,
+            plan_code,
+            billing_period,
+        )
+    except (subscriptions.SubscriptionLimitError, ValidationError) as exc:
+        errors = exc.message_dict if hasattr(exc, 'message_dict') else {'__all__': exc.messages}
+        return JsonResponse({'success': False, 'errors': errors}, status=400)
+    except subscriptions.SubscriptionPlan.DoesNotExist:
+        return JsonResponse({'success': False, 'errors': {'plan': ['Unknown subscription plan.']}}, status=404)
+    return JsonResponse({
+        'success': True,
+        'provider': intent.provider,
+        'payment_uuid': intent.payment_uuid,
+        'subscription_id': intent.subscription_id,
+        'confirmation_url': intent.confirmation_url,
+        'message': 'Payment integration is prepared but not connected yet.',
+    })
+
+
+@csrf_exempt
+@require_POST
+def yookassa_webhook(request: HttpRequest) -> JsonResponse:
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        return JsonResponse({'ok': True, 'status': 'ignored'})
+
+    event = str(payload.get('event') or '')
+    if event not in {'payment.succeeded', 'payment.canceled'}:
+        return JsonResponse({'ok': True, 'status': 'ignored'})
+
+    payment_id = str((payload.get('object') or {}).get('id') or '').strip()
+    if not payment_id:
+        return JsonResponse({'ok': True, 'status': 'ignored'})
+
+    payment_logger.info('YooKassa webhook received: event=%s payment_id=%s', event, payment_id)
+    try:
+        result = subscriptions.process_yookassa_payment(payment_id)
+    except (subscriptions.PaymentUnavailable, subscriptions.PaymentGatewayError) as exc:
+        errors = exc.message_dict if hasattr(exc, 'message_dict') else {'payment': exc.messages}
+        payment_logger.warning('YooKassa webhook API/config error: payment_id=%s error=%s', payment_id, exc.__class__.__name__)
+        return JsonResponse({'ok': False, 'errors': errors}, status=503)
+    except Exception as exc:  # noqa: BLE001 - transient DB/API failures should be retried by YooKassa
+        payment_logger.warning('YooKassa webhook processing failed: payment_id=%s error=%s', payment_id, exc.__class__.__name__)
+        return JsonResponse({'ok': False, 'errors': {'payment': ['Temporary processing error.']}}, status=503)
+
+    return JsonResponse({
+        'ok': True,
+        'status': result.status,
+        'activated': result.activated,
+        'message': result.message,
+    })
+
+
+@login_required
+@require_GET
+def subscription_payment_result(request: HttpRequest) -> HttpResponse:
+    payment_uuid = str(request.GET.get('payment') or request.GET.get('payment_uuid') or '').strip()
+    try:
+        payment = SubscriptionPayment.objects.filter(internal_uuid=payment_uuid, user=request.user).select_related('tariff').first()
+    except (ValueError, ValidationError):
+        payment = None
+    if payment is None:
+        raise Http404('Payment not found')
+
+    result_status = payment.status
+    result_message = ''
+    if payment.yookassa_payment_id:
+        try:
+            result = subscriptions.process_yookassa_payment(payment.yookassa_payment_id)
+            if result.payment and result.payment.user_id == request.user.id:
+                payment = result.payment
+                result_status = result.status
+                result_message = result.message
+        except Exception as exc:  # noqa: BLE001 - render a safe error instead of trusting return redirect
+            payment_logger.warning(
+                'YooKassa return status check failed: payment_uuid=%s payment_id=%s error=%s',
+                payment.internal_uuid,
+                payment.yookassa_payment_id,
+                exc.__class__.__name__,
+            )
+            result_status = 'error'
+            result_message = 'Не удалось проверить статус платежа. Попробуйте обновить страницу позже.'
+
+    return render(
+        request,
+        'subscription_payment_result.html',
+        {
+            'payment': payment,
+            'result_status': result_status,
+            'result_message': result_message,
+            **_seo_context(
+                request,
+                title='Статус платежа - СКлад',
+                description='Проверка статуса платежа подписки.',
+                indexable=False,
+                canonical_path=reverse('core:payment-result'),
+            ),
+        },
+    )
 
 
 @require_POST
@@ -1111,6 +1338,40 @@ def _message_reactions_payload(message, viewer: User) -> tuple[list[dict], str]:
     return [item for item in grouped.values() if item['count']], viewer_reaction
 
 
+def _format_file_size(size) -> str:
+    """Human-readable file size, e.g. «1.4 МБ»."""
+    try:
+        size = int(size)
+    except (TypeError, ValueError):
+        return ''
+    if size < 1024:
+        return f'{size} Б'
+    for unit in ('КБ', 'МБ', 'ГБ'):
+        size /= 1024.0
+        if size < 1024 or unit == 'ГБ':
+            return f'{size:.1f} {unit}'.replace('.0 ', ' ')
+    return ''
+
+
+def _attachment_payload(message) -> dict | None:
+    """Serialise a message attachment (or ``None`` when there is none)."""
+    if not message.attachment:
+        return None
+    try:
+        url = message.attachment.url
+    except Exception:  # noqa: BLE001 - storage may raise on a missing file
+        url = ''
+    return {
+        'url': url,
+        'name': message.attachment_name or 'Файл',
+        'size': message.attachment_size,
+        'size_display': _format_file_size(message.attachment_size),
+        'kind': message.attachment_kind or 'file',
+        'is_image': message.attachment_kind == 'image',
+        'content_type': message.attachment_content_type or '',
+    }
+
+
 def _message_payload(message, viewer: User) -> dict:
     reactions, viewer_reaction = _message_reactions_payload(message, viewer)
     is_deleted = bool(message.is_deleted)
@@ -1133,6 +1394,7 @@ def _message_payload(message, viewer: User) -> dict:
         'can_react': not is_deleted,
         'reactions': reactions,
         'viewer_reaction': viewer_reaction,
+        'attachment': None if is_deleted else _attachment_payload(message),
     }
 
 
@@ -1213,16 +1475,24 @@ def message_mark_read_api(request: HttpRequest, user_id: int) -> JsonResponse:
 @login_required
 @require_POST
 def message_send_api(request: HttpRequest) -> JsonResponse:
-    try:
-        payload = json.loads(request.body.decode('utf-8') or '{}')
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        payload = {}
-    recipient_id = payload.get('recipient_id')
+    content_type = request.content_type or ''
+    attachment = None
+    if content_type.startswith('multipart/form-data'):
+        recipient_id = request.POST.get('recipient_id')
+        text = request.POST.get('text', '')
+        attachment = request.FILES.get('attachment')
+    else:
+        try:
+            payload = json.loads(request.body.decode('utf-8') or '{}')
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            payload = {}
+        recipient_id = payload.get('recipient_id')
+        text = payload.get('text', '')
     recipient = User.objects.filter(pk=recipient_id).select_related('profile').first()
     if not recipient:
         return JsonResponse({'success': False, 'error': 'Получатель не найден.'}, status=404)
     try:
-        message = send_message(request.user, recipient, payload.get('text', ''))
+        message = send_message(request.user, recipient, text, attachment=attachment)
     except MessageError as exc:
         return JsonResponse({'success': False, 'error': str(exc), 'code': exc.code}, status=400)
     except ValidationError as exc:
@@ -1306,6 +1576,14 @@ def archive_state_api(request: HttpRequest) -> JsonResponse:
         return JsonResponse({'success': False, 'errors': {'state': ['Ожидается объект состояния']}}, status=400)
 
     _normalize_public_rubric_state(state_payload)
+    try:
+        subscriptions.assert_archive_state_within_limit(
+            request.user,
+            state_payload,
+            state.data if isinstance(state.data, dict) else {'rubrics': []},
+        )
+    except subscriptions.SubscriptionLimitError as exc:
+        return JsonResponse({'success': False, 'errors': exc.message_dict}, status=400)
     state.data = state_payload
     state.save(update_fields=['data', 'updated_at'])
 
@@ -1377,8 +1655,13 @@ def create_rubric(request: HttpRequest) -> JsonResponse:
     form = RubricForm(request.POST)
     if form.is_valid():
         rubric = form.save(commit=False)
+        # «Аукцион» is a reserved system rubric managed by the platform; users
+        # cannot create a regular rubric that shadows its name or slug.
+        if rubric.slug == 'auction' or (rubric.name or '').strip().casefold() == 'аукцион':
+            return JsonResponse({'success': False, 'errors': {'name': ['Название «Аукцион» зарезервировано для системной рубрики.']}}, status=400)
         profile, _ = Profile.objects.get_or_create(user=request.user)
         rubric.profile = profile
+        rubric.is_system = False
         rubric.save()
         return JsonResponse({'success': True, 'rubric_id': rubric.pk})
     return JsonResponse({'success': False, 'errors': form.errors}, status=400)
@@ -1401,6 +1684,10 @@ def create_archive_file(request: HttpRequest) -> JsonResponse:
         archive_file = form.save(commit=False)
         if archive_file.rubric.profile.user != request.user:
             return JsonResponse({'success': False, 'errors': {'rubric': ['Недостаточно прав для добавления файла.']}}, status=403)
+        try:
+            subscriptions.assert_can_create_archive_file(request.user)
+        except subscriptions.SubscriptionLimitError as exc:
+            return JsonResponse({'success': False, 'errors': exc.message_dict}, status=400)
         archive_file.owner = request.user
         archive_file.update_signatures()
 
@@ -1413,12 +1700,13 @@ def create_archive_file(request: HttpRequest) -> JsonResponse:
             logger.warning("Duplicate archive title blocked for user %s: %s", request.user.pk, archive_file.title)
             return JsonResponse({'success': False, 'errors': {'title': [messages.DUPLICATE_TITLE_ERROR.format(id=duplicate_title.pk)]}}, status=400)
 
-        if archive_file.content_hash:
-            duplicate_hash = (
-                ArchiveFile.objects.filter(owner=request.user, content_hash=archive_file.content_hash)
-                .exclude(pk=archive_file.pk)
-                .first()
-            )
+        payload_hash = moderation.compute_payload_hash(archive_file.data)
+        if payload_hash:
+            duplicate_hash = None
+            for candidate in ArchiveFile.objects.filter(owner=request.user).exclude(pk=archive_file.pk).only("pk", "data"):
+                if moderation.compute_payload_hash(candidate.data) == payload_hash:
+                    duplicate_hash = candidate
+                    break
             if duplicate_hash:
                 logger.warning(
                     "Duplicate archive content blocked for user %s: file %s matches %s",
@@ -1484,6 +1772,12 @@ def move_archive_file(request: HttpRequest) -> JsonResponse:
         return JsonResponse({'success': False, 'errors': {'target_rubric_id': ['Не указана рубрика назначения.']}}, status=400)
     if source_rubric_id == target_rubric_id:
         return JsonResponse({'success': False, 'errors': {'target_rubric_id': ['Файл уже находится в выбранной рубрике.']}}, status=400)
+
+    system_ids = _system_rubric_ids(request.user)
+    if target_rubric_id in system_ids:
+        return JsonResponse({'success': False, 'errors': {'target_rubric_id': ['В системную рубрику «Аукцион» нельзя переместить карточку вручную.']}}, status=400)
+    if source_rubric_id in system_ids:
+        return JsonResponse({'success': False, 'errors': {'source_rubric_id': ['Карточки системной рубрики «Аукцион» нельзя перемещать вручную.']}}, status=400)
 
     state, _ = ArchiveState.objects.get_or_create(user=request.user, defaults={'data': {'rubrics': []}})
     state_data = state.data if isinstance(state.data, dict) else {'rubrics': []}
@@ -1573,6 +1867,41 @@ def _normalize_archive_file_refs(raw_items) -> tuple[list[dict[str, str]], dict[
     return normalized, errors
 
 
+def _system_rubric_ids(user) -> set[str]:
+    """DB ids (as strings) of the user's system rubrics, e.g. «Аукцион».
+
+    JSON-state rubric ids match the DB Rubric pk for DB-backed rubrics, so this
+    lets the JSON-state endpoints enforce system-rubric immutability.
+    """
+    profile = Profile.objects.filter(user=user).first()
+    if profile is None:
+        return set()
+    return {
+        str(pk)
+        for pk in Rubric.objects.filter(profile=profile, is_system=True).values_list('id', flat=True)
+    }
+
+
+def _card_active_lot_error(user, file_id: str) -> str | None:
+    """Return a deletion-block message if the DB card has a live auction lot."""
+    if not str(file_id).isdigit():
+        return None
+    card = ArchiveFile.objects.filter(pk=int(file_id), owner=user).first()
+    if card is None:
+        return None
+    try:
+        from auction.services import card_active_lot
+    except Exception:  # pragma: no cover - auction app optional
+        return None
+    lot = card_active_lot(card)
+    if lot is None:
+        return None
+    return (
+        'Нельзя удалить карточку: товар участвует в активных торгах '
+        f'(лот #{lot.pk}). Сначала завершите или отмените лот.'
+    )
+
+
 def _get_archive_state_for_user(user) -> tuple[ArchiveState, dict, list]:
     state, _ = ArchiveState.objects.get_or_create(user=user, defaults={'data': {'rubrics': []}})
     state_data = state.data if isinstance(state.data, dict) else {'rubrics': []}
@@ -1612,6 +1941,11 @@ def bulk_delete_archive_files(request: HttpRequest) -> JsonResponse:
         rubric = rubric_map.get(source_rubric_id)
         if rubric is None:
             item_errors[file_id] = ['Исходная рубрика не найдена.']
+            continue
+
+        lot_block = _card_active_lot_error(request.user, file_id)
+        if lot_block:
+            item_errors[file_id] = [lot_block]
             continue
 
         source_files = rubric.get('files')
@@ -1658,6 +1992,9 @@ def bulk_move_archive_files(request: HttpRequest) -> JsonResponse:
         errors.setdefault('target_rubric_id', []).append('Не указана рубрика назначения.')
     if errors:
         return JsonResponse({'success': False, 'errors': errors}, status=400)
+
+    if target_rubric_id in _system_rubric_ids(request.user):
+        return JsonResponse({'success': False, 'errors': {'target_rubric_id': ['В системную рубрику «Аукцион» нельзя переместить карточки вручную.']}}, status=400)
 
     state, state_data, rubrics = _get_archive_state_for_user(request.user)
     rubric_map = {

@@ -4432,6 +4432,10 @@
       modal.body.appendChild(view);
       modal.body.scrollTop = 0;
 
+      // Show the auction status (and a link to the lot) for cards that already
+      // have a lot, so the seller sees the outcome right inside the card.
+      renderCardAuctionStatus(view, file);
+
       const viewCleanups = [];
       if (heroTitleElements){
         const cleanup = setupHeroTitleOverflow(
@@ -4462,91 +4466,14 @@
 
       const actionNodes = [editBtn];
 
-      const marketWrapper = document.createElement('div');
-      marketWrapper.className = 'file-view__action-wrapper';
+      // «В Маркет» is available to the card owner. The archive only ever shows
+      // the signed-in user's own cards, so simply enabling it here keeps the
+      // action owner-only; the server also enforces ownership on publish.
       const marketBtn = createActionButton('В Маркет');
-      const isMarketDisabled = true;
-      marketBtn.classList.add('file-view__action');
-      marketBtn.setAttribute('aria-haspopup', 'menu');
-      marketBtn.setAttribute('aria-expanded', 'false');
-      if (isMarketDisabled){
-        marketBtn.classList.add('side-btn--inactive', 'has-tooltip');
-        marketBtn.setAttribute('aria-disabled', 'true');
-        marketBtn.setAttribute('tabindex', '-1');
-        marketBtn.setAttribute('data-tooltip', 'в разработке');
-        marketBtn.setAttribute('data-disabled', 'true');
-      }
-
-      const marketMenu = document.createElement('div');
-      marketMenu.className = 'file-view__sell-menu';
-      marketMenu.setAttribute('role', 'menu');
-      const marketMenuId = createId('market-menu');
-      marketMenu.id = marketMenuId;
-      marketBtn.setAttribute('aria-controls', marketMenuId);
-
-      const marketOptions = [
-        { id: 'shop', label: 'Магазин' },
-        { id: 'auction', label: 'Аукцион' },
-        { id: 'free', label: 'Даром' },
-        { id: 'wanted', label: 'Спрос' },
-        { id: 'swap', label: 'Обмен' }
-      ];
-
-      marketOptions.forEach((option) => {
-        const optBtn = document.createElement('button');
-        optBtn.type = 'button';
-        optBtn.textContent = option.label;
-        optBtn.setAttribute('role', 'menuitem');
-        optBtn.addEventListener('click', (event) => {
-          event.stopPropagation();
-          closeMenu();
-          openMarketFlow(option.id, rubric, file);
-        });
-        marketMenu.appendChild(optBtn);
-      });
-
-      function handleOutsideClick(event){
-        if (!marketWrapper.contains(event.target)){
-          closeMenu();
-        }
-      }
-
-      function openMenu(){
-        marketWrapper.classList.add('file-view__action-wrapper--open');
-        marketBtn.setAttribute('aria-expanded', 'true');
-        if (releaseSellMenuListener){
-          releaseSellMenuListener();
-        }
-        document.addEventListener('click', handleOutsideClick);
-        releaseSellMenuListener = () => {
-          document.removeEventListener('click', handleOutsideClick);
-          releaseSellMenuListener = null;
-        };
-      }
-
-      function closeMenu(){
-        marketWrapper.classList.remove('file-view__action-wrapper--open');
-        marketBtn.setAttribute('aria-expanded', 'false');
-        if (releaseSellMenuListener){
-          releaseSellMenuListener();
-        }
-      }
-
-      if (!isMarketDisabled){
-        marketBtn.addEventListener('click', (event) => {
-          event.stopPropagation();
-          if (marketWrapper.classList.contains('file-view__action-wrapper--open')){
-            closeMenu();
-          } else {
-            openMenu();
-          }
-        });
-      }
-
-      marketMenu.addEventListener('click', (event) => event.stopPropagation());
-
-      marketWrapper.append(marketBtn, marketMenu);
-      actionNodes.push(marketWrapper);
+      marketBtn.classList.add('file-view__action', 'file-view__market-cta');
+      marketBtn.setAttribute('aria-haspopup', 'dialog');
+      marketBtn.addEventListener('click', () => openAuctionForCard(rubric, file));
+      actionNodes.push(marketBtn);
 
       const deleteBtn = createActionButton('Удалить', { variant: 'danger' });
       deleteBtn.addEventListener('click', () => {
@@ -5156,6 +5083,1287 @@
       }
       openFileFromSearch(payload.rubricId, payload.fileId);
     }
+  }
+
+  const AUCTION_CONDITION_OPTIONS = [
+    { value: '', label: 'Не указано' },
+    { value: 'Новый', label: 'Новый' },
+    { value: 'Отличное', label: 'Отличное' },
+    { value: 'Хорошее', label: 'Хорошее' },
+    { value: 'Удовлетворительное', label: 'Удовлетворительное' },
+    { value: 'Требует восстановления', label: 'Требует восстановления' },
+  ];
+  const AUCTION_HANDOVER_OPTIONS = [
+    { value: '', label: 'Не указано' },
+    { value: 'Доставка', label: 'Доставка' },
+    { value: 'Самовывоз', label: 'Самовывоз' },
+    { value: 'По договорённости', label: 'По договорённости' },
+  ];
+  const AUCTION_START_OPTIONS = [
+    { value: 'now', label: 'Сразу после публикации' },
+    { value: 'scheduled', label: 'Запланировать' },
+  ];
+  const AUCTION_DURATION_OPTIONS = [
+    { value: '1', label: '1 день' },
+    { value: '3', label: '3 дня' },
+    { value: '5', label: '5 дней' },
+    { value: '7', label: '7 дней' },
+    { value: '14', label: '14 дней' },
+    { value: 'custom', label: 'Своя дата окончания' },
+  ];
+
+  // --- Market auction draft API (Task 2) -----------------------------------
+  function marketRequest(url, method, payload){
+    const options = { method: method, headers: { 'X-CSRFToken': getCsrfToken() }, credentials: 'include' };
+    if (payload !== undefined){
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(payload);
+    }
+    return fetch(url, options).then((response) =>
+      response.json().catch(() => null).then((data) => ({
+        ok: response.ok && data && data.ok,
+        status: response.status,
+        data: data || {},
+      })));
+  }
+
+  // Status is resolved by the archive SPA card id (no ArchiveFile.pk exists
+  // until the card is materialised on the server).
+  const cardStatusUrl = (id) => '/market/api/auction/card-status/?card_id=' + encodeURIComponent(id);
+  const draftCreateUrl = '/market/api/auction/draft/';
+  const draftUrl = (id) => '/market/api/auction/draft/' + encodeURIComponent(id) + '/';
+  const draftPublishUrl = (id) => '/market/api/auction/draft/' + encodeURIComponent(id) + '/publish/';
+
+  function buildLotAbsoluteUrl(path){
+    try { return new URL(path, window.location.origin).href; }
+    catch (e) { return path; }
+  }
+
+  function shareLot(path){
+    const url = buildLotAbsoluteUrl(path);
+    if (navigator.share){ navigator.share({ url }).catch(() => {}); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(url).then(() => setArchiveStatus('Ссылка на лот скопирована')).catch(() => window.prompt('Ссылка на лот:', url));
+      return;
+    }
+    window.prompt('Ссылка на лот:', url);
+  }
+
+  // Read-only auction status banner inside the open card; also relabels the
+  // «В Маркет» action to «На аукционе» and shows the lifecycle status.
+  function renderCardAuctionStatus(view, file){
+    if (!view || !file || !file.id) return;
+    const existing = view.querySelector(':scope > .file-view__auction-status');
+    if (existing) existing.remove();
+    marketRequest(cardStatusUrl(file.id), 'GET').then(({ data }) => {
+      if (!data || !data.has_lot) return;
+      const cta = modalHost.querySelector('.file-view__market-cta');
+      if (cta) cta.textContent = 'На аукционе';
+
+      const banner = document.createElement('div');
+      banner.className = 'file-view__auction-status auction-status--' + (data.status || '');
+      const label = document.createElement('span');
+      label.className = 'file-view__auction-status-label';
+      label.textContent = 'Аукцион: ' + (data.status_label || '');
+      banner.appendChild(label);
+      if (data.listing_url && !data.is_draft){
+        const link = document.createElement('a');
+        link.className = 'file-view__auction-link';
+        link.href = data.listing_url;
+        link.textContent = 'Перейти к лоту';
+        banner.appendChild(link);
+      }
+      view.insertBefore(banner, view.firstChild);
+    });
+  }
+
+  function refreshOpenCardAuctionStatus(file){
+    const view = modalHost.querySelector('.file-view');
+    if (view) renderCardAuctionStatus(view, file);
+  }
+
+  // Build the card payload the server materialises into a real ArchiveFile.
+  function buildAuctionCardPayload(rubric, file){
+    const imageField = rubric && rubric.mode !== 'text' && Array.isArray(rubric.fields)
+      ? rubric.fields.find((f) => f.type === 'image') : null;
+    const photoValue = imageField ? getFieldValue(rubric, file, imageField) : null;
+    const images = (photoValue && Array.isArray(photoValue.items))
+      ? photoValue.items.filter((it) => it && it.src).map((it) => ({ src: it.src })) : [];
+    return {
+      card_id: String(file.id),
+      title: getDisplayName(rubric, file) || cardValue(file, 'title') || 'Лот',
+      description: cardValue(file, 'description'),
+      rubric: rubric ? (rubric.name || '') : '',
+      images: images,
+    };
+  }
+
+  // Entry point for «В Маркет» / «На аукционе». Sends the card to the draft API
+  // (which materialises a real ArchiveFile), then opens the wizard, the
+  // existing draft, or the "already listed" notice. Errors stay in a modal —
+  // never a page banner — and the archive card view stays open meanwhile.
+  function openAuctionForCard(rubric, file){
+    if (!file || !file.id) return;
+    const card = buildAuctionCardPayload(rubric, file);
+    marketRequest(draftCreateUrl, 'POST', { card: card }).then(({ ok, status, data }) => {
+      if (!ok){
+        if (window.console) console.error('Auction draft create failed', status, data);
+        openAuctionErrorModal(firstApiError(data) || 'Не удалось открыть аукцион.');
+        return;
+      }
+      // A live (scheduled/active/completed) lot already exists for this card.
+      if (data.status && data.status !== 'draft' && data.status !== 'cancelled'){
+        openAlreadyListedModal({ status_label: data.status_label || data.status, url: data.published_url || data.listing_url });
+        return;
+      }
+      marketRequest(draftUrl(data.listing_id), 'GET').then(({ ok: ok2, data: detail }) => {
+        if (!ok2){ openAuctionErrorModal('Не удалось загрузить настройку лота.'); return; }
+        openAuctionWizard(file, detail);
+      });
+    }).catch(() => openAuctionErrorModal('Сетевая ошибка. Попробуйте ещё раз.'));
+  }
+
+  function openAuctionErrorModal(message){
+    const modal = openModal({ title: 'Не удалось открыть аукцион', overlayClass: 'lot-status-overlay' });
+    const text = document.createElement('p');
+    text.className = 'lot-status__text';
+    text.textContent = message;
+    modal.body.appendChild(text);
+    const close = createActionButton('Закрыть');
+    close.addEventListener('click', () => modal.close());
+    modal.footer.append(close);
+  }
+
+  function firstApiError(data){
+    if (!data || !data.errors) return '';
+    const value = Object.values(data.errors)[0];
+    return Array.isArray(value) ? value.join(' ') : String(value || '');
+  }
+
+  // «Этот предмет уже размещён на аукционе» + «Перейти к лоту».
+  function openAlreadyListedModal(info){
+    const modal = openModal({ title: 'Предмет уже на аукционе', overlayClass: 'lot-status-overlay' });
+    const wrap = document.createElement('div');
+    wrap.className = 'lot-status';
+    const text = document.createElement('p');
+    text.className = 'lot-status__text';
+    text.textContent = 'Этот предмет уже размещён на аукционе'
+      + (info.status_label ? ' (' + info.status_label + ')' : '') + '.';
+    wrap.appendChild(text);
+    modal.body.appendChild(wrap);
+
+    const open = createActionButton('Перейти к лоту');
+    open.classList.add('lot-config__publish');
+    open.addEventListener('click', () => { if (info.url) window.location.href = info.url; });
+    const close = createActionButton('Закрыть');
+    close.addEventListener('click', () => modal.close());
+    modal.footer.append(open, close);
+  }
+
+  function openAuctionToast(message, success){
+    setArchiveStatus(message);
+    if (success && window.console) { /* noop hook */ }
+  }
+
+  // Clear post-publish confirmation. Replaces an abrupt page redirect: the
+  // wizard is already closed, so this shows an understandable success notice
+  // with an explicit link to the live lot (no surprise navigation).
+  function openPublishSuccessModal(redirect){
+    setArchiveStatus('Лот опубликован');
+    const modal = openModal({ title: 'Аукцион опубликован', overlayClass: 'lot-status-overlay' });
+    const wrap = document.createElement('div');
+    wrap.className = 'lot-status';
+    const text = document.createElement('p');
+    text.className = 'lot-status__text';
+    text.textContent = 'Лот опубликован и виден в Маркете.';
+    wrap.appendChild(text);
+    modal.body.appendChild(wrap);
+    if (redirect){
+      const go = createActionButton('Перейти к лоту');
+      go.classList.add('lot-config__publish');
+      go.addEventListener('click', () => { window.location.href = redirect; });
+      modal.footer.append(go);
+    }
+    const close = createActionButton('Закрыть');
+    close.addEventListener('click', () => modal.close());
+    modal.footer.append(close);
+  }
+
+  function cardValue(file, id){
+    if (!file || !file.values) return '';
+    const value = file.values[id];
+    return typeof value === 'string' ? value : '';
+  }
+
+  function toDatetimeLocal(date){
+    const pad = (n) => String(n).padStart(2, '0');
+    return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate())
+      + 'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+  }
+
+  function isoToDatetimeLocal(iso){
+    if (!iso) return '';
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? '' : toDatetimeLocal(d);
+  }
+
+  function lotField(labelText, control){
+    const label = document.createElement('label');
+    label.className = 'lot-config__field';
+    const span = document.createElement('span');
+    span.textContent = labelText;
+    label.append(span, control);
+    return label;
+  }
+
+  function lotSelect(options, value){
+    const select = document.createElement('select');
+    select.setAttribute('data-theme-select', '');
+    options.forEach((opt) => {
+      const node = document.createElement('option');
+      node.value = opt.value;
+      node.textContent = opt.label;
+      if (opt.value === value) node.selected = true;
+      select.appendChild(node);
+    });
+    // NB: do NOT enhance here — the <select> is still detached. Enhancement is
+    // applied with ThemeSelect.enhanceAll() once the modal body is in the DOM.
+    return select;
+  }
+
+  function postLotRequest(url, payload){
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    }).then((response) => response.json().catch(() => null).then((data) => ({ ok: response.ok && data && data.success, data: data || {} })));
+  }
+
+  function firstLotError(data){
+    if (!data || !data.errors) return 'Не удалось сохранить лот.';
+    return Object.keys(data.errors).map((key) => {
+      const value = data.errors[key];
+      return Array.isArray(value) ? value.join(' ') : String(value);
+    }).join('\n') || 'Не удалось сохранить лот.';
+  }
+
+  const AUCTION_DAY_MS = 24 * 60 * 60 * 1000;
+
+  // Build one labelled field with an inline error slot. Errors clear on edit.
+  function lotConfigField(labelText, control, options){
+    options = options || {};
+    const wrap = document.createElement('div');
+    wrap.className = 'lot-config__field';
+    if (options.full) wrap.classList.add('lot-config__field--full');
+    const label = document.createElement('label');
+    label.className = 'lot-config__label';
+    const span = document.createElement('span');
+    span.textContent = labelText;
+    label.appendChild(span);
+    label.appendChild(control);
+    wrap.appendChild(label);
+    if (options.hint){
+      const hint = document.createElement('small');
+      hint.className = 'lot-config__hint';
+      hint.textContent = options.hint;
+      wrap.appendChild(hint);
+    }
+    const error = document.createElement('p');
+    error.className = 'lot-config__error';
+    error.setAttribute('role', 'alert');
+    wrap.appendChild(error);
+    control.lotErrorEl = error;
+    const clear = () => { error.textContent = ''; };
+    control.addEventListener('input', clear);
+    control.addEventListener('change', clear);
+    return wrap;
+  }
+
+  function numberInput(value){
+    const input = document.createElement('input');
+    input.type = 'number'; input.step = '0.01'; input.min = '0';
+    if (value !== undefined && value !== null && value !== '') input.value = value;
+    return input;
+  }
+
+  // ====================== Auction setup wizard ============================
+  function awDebounce(fn, ms){
+    let timer = null;
+    return function(){
+      const args = arguments, ctx = this;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => { timer = null; fn.apply(ctx, args); }, ms);
+    };
+  }
+
+  const AW_DURATION_OPTIONS = [
+    { value: '1', label: '1 день' }, { value: '3', label: '3 дня' }, { value: '5', label: '5 дней' },
+    { value: '7', label: '7 дней' }, { value: '14', label: '14 дней' }, { value: 'custom', label: 'Выбрать дату' },
+  ];
+  const AW_DURATION_MINUTES = { '1': 1440, '3': 4320, '5': 7200, '7': 10080, '14': 20160 };
+  const AW_MONTHS = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
+
+  function awFormatDateTime(date){
+    if (!date || Number.isNaN(date.getTime())) return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    return date.getDate() + ' ' + AW_MONTHS[date.getMonth()] + ' в ' + pad(date.getHours()) + ':' + pad(date.getMinutes());
+  }
+
+  function awSuggestStep(price){
+    const value = parseFloat(price);
+    if (!(value > 0)) return null;
+    if (value < 1000) return 50;
+    if (value < 5000) return 100;
+    if (value < 20000) return 500;
+    return 1000;
+  }
+
+  function awDeriveDuration(detail){
+    const map = { 1440: '1', 4320: '3', 7200: '5', 10080: '7', 20160: '14' };
+    if (detail.auction_duration_minutes && map[detail.auction_duration_minutes]) return map[detail.auction_duration_minutes];
+    if (detail.auction_end) return 'custom';
+    return '7';
+  }
+
+  function awText(value){ const i = document.createElement('input'); i.type = 'text'; i.value = value || ''; return i; }
+  function awNumber(value){ const i = document.createElement('input'); i.type = 'number'; i.step = '0.01'; i.min = '0'; if (value !== '' && value != null) i.value = value; return i; }
+  function awTextarea(value){ const t = document.createElement('textarea'); t.rows = 3; t.value = value || ''; return t; }
+
+  function awField(labelText, control, opts){
+    opts = opts || {};
+    const wrap = document.createElement('div');
+    wrap.className = 'aw-field' + (opts.full ? ' aw-field--full' : '');
+    if (labelText){
+      const lab = document.createElement('label');
+      lab.className = 'aw-field__label';
+      const span = document.createElement('span');
+      span.textContent = labelText;
+      lab.append(span, control);
+      wrap.appendChild(lab);
+    } else {
+      wrap.appendChild(control);
+    }
+    if (opts.hint){
+      const hint = document.createElement('small');
+      hint.className = 'aw-field__hint';
+      hint.textContent = opts.hint;
+      wrap.appendChild(hint);
+    }
+    const error = document.createElement('p');
+    error.className = 'aw-field__error';
+    error.setAttribute('role', 'alert');
+    wrap.appendChild(error);
+    control.awError = error;
+    const clear = () => { error.textContent = ''; };
+    control.addEventListener('input', clear);
+    control.addEventListener('change', clear);
+    return wrap;
+  }
+
+  // Main wizard: a single large modal with four steps, autosave and publish.
+  function openAuctionWizard(file, detail){
+    const labelOf = (list, value) => {
+      const found = (list || []).find((o) => o.value === value);
+      return found ? found.label : value;
+    };
+    const options = detail.options || {};
+
+    const m = {
+      listing_id: detail.listing_id,
+      title: detail.title || '',
+      description: detail.description || '',
+      category: detail.category || '',
+      condition: detail.condition || '',
+      location: detail.location || '',
+      delivery_methods: Array.isArray(detail.delivery_methods) ? detail.delivery_methods.slice() : [],
+      delivery_cost: detail.delivery_cost || '',
+      delivery_note: detail.delivery_note || '',
+      start_mode: detail.auction_start_mode || 'now',
+      start_at: isoToDatetimeLocal(detail.auction_start),
+      duration: awDeriveDuration(detail),
+      end_at: isoToDatetimeLocal(detail.auction_end),
+      start_price: detail.auction_start_price || '',
+      step: detail.auction_step || '',
+      reserve: detail.auction_reserve_price || '',
+      auto_extend: detail.auction_auto_extend !== false,
+      images: Array.isArray(detail.images) ? detail.images.slice() : [],
+      cover_image_id: detail.cover_image_id,
+      stepEdited: false,
+    };
+
+    const STEPS = [
+      { key: 'lot', label: 'Лот' },
+      { key: 'price', label: 'Цена и срок' },
+      { key: 'delivery', label: 'Получение' },
+      { key: 'review', label: 'Проверка' },
+    ];
+    let currentStep = 0;
+    let dirty = false;
+    let publishing = false;
+    const controls = {}; // field key -> { control, step }
+
+    const modal = openModal({ title: 'Создание аукционного лота', overlayClass: 'auction-wizard-overlay', showClose: false });
+    modal.overlay.classList.add('archive-modal-overlay--auction-wizard');
+
+    // --- Header: subtitle, stepper, close -----------------------------------
+    const subtitle = document.createElement('div');
+    subtitle.className = 'aw-subtitle';
+    subtitle.textContent = m.title || 'Аукционный лот';
+    const stepper = document.createElement('div');
+    stepper.className = 'aw-stepper';
+    const stepDots = STEPS.map((s, i) => {
+      const dot = document.createElement('button');
+      dot.type = 'button';
+      dot.className = 'aw-stepper__item';
+      dot.innerHTML = '<span class="aw-stepper__num">' + (i + 1) + '</span><span class="aw-stepper__label">' + s.label + '</span>';
+      dot.addEventListener('click', () => { if (i <= currentStep || m.stepEdited) goToStep(i); });
+      stepper.appendChild(dot);
+      return dot;
+    });
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'archive-modal__dismiss aw-close';
+    closeBtn.textContent = 'Закрыть';
+    closeBtn.addEventListener('click', requestClose);
+    modal.header.append(subtitle, stepper, closeBtn);
+
+    // --- Body: form (left) + live preview (right) ---------------------------
+    const layout = document.createElement('div');
+    layout.className = 'aw';
+    const main = document.createElement('div');
+    main.className = 'aw__main';
+    const stepHost = document.createElement('div');
+    stepHost.className = 'aw__step';
+    main.appendChild(stepHost);
+    const previewWrap = document.createElement('aside');
+    previewWrap.className = 'aw__preview';
+    const preview = document.createElement('div');
+    preview.className = 'aw-preview';
+    previewWrap.appendChild(preview);
+    layout.append(main, previewWrap);
+    modal.body.appendChild(layout);
+
+    // --- Footer: save status + navigation -----------------------------------
+    const saveStatus = document.createElement('span');
+    saveStatus.className = 'aw-savestatus';
+    const previewToggle = createActionButton('Предпросмотр');
+    previewToggle.classList.add('aw-preview-toggle');
+    previewToggle.addEventListener('click', () => layout.classList.toggle('aw--preview-open'));
+    const backBtn = createActionButton('Назад');
+    backBtn.addEventListener('click', () => goToStep(currentStep - 1));
+    const saveCloseBtn = createActionButton('Сохранить и закрыть');
+    saveCloseBtn.addEventListener('click', () => saveScalars().then(() => modal.close()));
+    const nextBtn = createActionButton('Продолжить');
+    nextBtn.classList.add('lot-config__publish');
+    nextBtn.addEventListener('click', onNext);
+    modal.footer.append(saveStatus, previewToggle, backBtn, saveCloseBtn, nextBtn);
+
+    function setSaveStatus(state){
+      saveStatus.classList.remove('is-saving', 'is-saved', 'is-error');
+      if (state === 'saving'){ saveStatus.textContent = 'Сохранение…'; saveStatus.classList.add('is-saving'); }
+      else if (state === 'saved'){ saveStatus.textContent = 'Черновик сохранён'; saveStatus.classList.add('is-saved'); }
+      else if (state === 'error'){ saveStatus.textContent = 'Не удалось сохранить'; saveStatus.classList.add('is-error'); }
+      else { saveStatus.textContent = ''; }
+    }
+
+    // --- Saving --------------------------------------------------------------
+    function scalarPayload(){
+      const payload = {
+        title: m.title, description: m.description, category: m.category, condition: m.condition,
+        location: m.location, delivery_methods: m.delivery_methods, delivery_note: m.delivery_note,
+        auction_start_mode: m.start_mode, auction_auto_extend: m.auto_extend,
+        delivery_cost: m.delivery_cost === '' ? null : m.delivery_cost,
+        auction_start_price: m.start_price === '' ? null : m.start_price,
+        auction_step: m.step === '' ? null : m.step,
+        auction_reserve_price: m.reserve === '' ? null : m.reserve,
+        auction_start: (m.start_mode === 'scheduled' && m.start_at) ? m.start_at : null,
+      };
+      if (m.duration === 'custom'){
+        payload.auction_duration_minutes = null;
+        payload.auction_end = m.end_at || null;
+      } else {
+        payload.auction_duration_minutes = AW_DURATION_MINUTES[m.duration] || 10080;
+        payload.auction_end = null;
+      }
+      return payload;
+    }
+
+    function distributeErrors(errors){
+      let general = '';
+      Object.keys(errors || {}).forEach((key) => {
+        const message = Array.isArray(errors[key]) ? errors[key].join(' ') : String(errors[key]);
+        const entry = controls[key];
+        if (entry && entry.control.awError){ entry.control.awError.textContent = message; }
+        else { general = general ? general + '\n' + message : message; }
+      });
+      return general;
+    }
+
+    function saveScalars(){
+      setSaveStatus('saving');
+      return marketRequest(draftUrl(m.listing_id), 'PATCH', scalarPayload()).then(({ ok, data }) => {
+        if (ok){ dirty = false; setSaveStatus('saved'); }
+        else { setSaveStatus('error'); distributeErrors(data && data.errors); }
+        return ok;
+      }).catch(() => { setSaveStatus('error'); return false; });
+    }
+
+    const scheduleSave = awDebounce(() => { saveScalars(); }, 700);
+    function markDirty(){ dirty = true; updatePreview(); scheduleSave(); }
+
+    function saveImages(extra){
+      setSaveStatus('saving');
+      return marketRequest(draftUrl(m.listing_id), 'PATCH', extra).then(({ ok, data }) => {
+        if (ok){
+          if (Array.isArray(data.images)) m.images = data.images;
+          if ('cover_image_id' in data) m.cover_image_id = data.cover_image_id;
+          setSaveStatus('saved');
+          renderPhotos();
+          updatePreview();
+        } else { setSaveStatus('error'); }
+        return ok;
+      }).catch(() => { setSaveStatus('error'); return false; });
+    }
+
+    // --- Photos (thumbnails, cover, drag reorder, exclude) -------------------
+    const photoHost = document.createElement('div');
+    photoHost.className = 'aw-photos';
+    let dragIndex = null;
+
+    function renderPhotos(){
+      photoHost.innerHTML = '';
+      m.images.forEach((image, index) => {
+        const thumb = document.createElement('div');
+        thumb.className = 'aw-photo' + (image.is_cover ? ' aw-photo--cover' : '');
+        thumb.draggable = true;
+        const img = document.createElement('img');
+        img.src = image.url; img.alt = '';
+        thumb.appendChild(img);
+        if (image.is_cover){
+          const badge = document.createElement('span');
+          badge.className = 'aw-photo__badge';
+          badge.textContent = 'Обложка';
+          thumb.appendChild(badge);
+        }
+        const tools = document.createElement('div');
+        tools.className = 'aw-photo__tools';
+        if (!image.is_cover){
+          const cover = document.createElement('button');
+          cover.type = 'button'; cover.className = 'aw-photo__btn'; cover.textContent = 'Обложка';
+          cover.title = 'Сделать обложкой';
+          cover.addEventListener('click', () => saveImages({ cover_image_id: image.id }));
+          tools.appendChild(cover);
+        }
+        const remove = document.createElement('button');
+        remove.type = 'button'; remove.className = 'aw-photo__btn aw-photo__btn--danger'; remove.textContent = '✕';
+        remove.title = 'Убрать из аукциона';
+        remove.disabled = m.images.length <= 1;
+        remove.addEventListener('click', () => {
+          if (m.images.length <= 1) return;
+          saveImages({ excluded_image_ids: [image.id] });
+        });
+        tools.appendChild(remove);
+        thumb.appendChild(tools);
+
+        thumb.addEventListener('dragstart', () => { dragIndex = index; thumb.classList.add('is-dragging'); });
+        thumb.addEventListener('dragend', () => { dragIndex = null; thumb.classList.remove('is-dragging'); });
+        thumb.addEventListener('dragover', (e) => { e.preventDefault(); });
+        thumb.addEventListener('drop', (e) => {
+          e.preventDefault();
+          if (dragIndex === null || dragIndex === index) return;
+          const moved = m.images.splice(dragIndex, 1)[0];
+          m.images.splice(index, 0, moved);
+          renderPhotos();
+          saveImages({ image_order: m.images.map((i) => i.id) });
+        });
+        photoHost.appendChild(thumb);
+      });
+      if (!m.images.length){
+        const empty = document.createElement('p');
+        empty.className = 'aw-photos__empty';
+        empty.textContent = 'Нет фотографий. Добавьте фото в карточку архива.';
+        photoHost.appendChild(empty);
+      }
+    }
+
+    // --- Steps ---------------------------------------------------------------
+    function register(key, control, stepIndex){ control.awStep = stepIndex; controls[key] = { control: control, step: stepIndex }; return control; }
+
+    function buildStepLot(){
+      const frag = document.createElement('div');
+      frag.className = 'aw-grid';
+      renderPhotos();
+      const photosField = awField('Фотографии', photoHost, { full: true });
+      const titleInput = awText(m.title);
+      titleInput.addEventListener('input', () => { m.title = titleInput.value; markDirty(); });
+      const descInput = awTextarea(m.description);
+      descInput.addEventListener('input', () => { m.description = descInput.value; markDirty(); });
+      const categorySelect = lotSelect([{ value: '', label: 'Выберите категорию' }].concat(options.category || []), m.category);
+      categorySelect.addEventListener('change', () => { m.category = categorySelect.value; markDirty(); });
+      const conditionSelect = lotSelect([{ value: '', label: 'Не указано' }].concat(options.condition || []), m.condition);
+      conditionSelect.addEventListener('change', () => { m.condition = conditionSelect.value; markDirty(); });
+
+      register('title', titleInput, 0);
+      register('category', categorySelect, 0);
+      register('condition', conditionSelect, 0);
+      register('images', titleInput, 0); // image errors surface near the top
+      register('cover_image_id', titleInput, 0);
+
+      frag.append(
+        photosField,
+        awField('Название лота', titleInput, { full: true }),
+        awField('Описание', descInput, { full: true }),
+        awField('Категория', categorySelect),
+        awField('Состояние предмета', conditionSelect),
+      );
+      return frag;
+    }
+
+    function buildStepPrice(){
+      const frag = document.createElement('div');
+      frag.className = 'aw-grid';
+
+      // Start
+      const startGroup = document.createElement('div');
+      startGroup.className = 'aw-toggle';
+      ['now', 'scheduled'].forEach((mode) => {
+        const opt = labelOf(options.start_mode || [{ value: 'now', label: 'Начать сразу' }, { value: 'scheduled', label: 'Запланировать' }], mode);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'aw-toggle__btn' + (m.start_mode === mode ? ' is-active' : '');
+        btn.textContent = mode === 'now' ? 'Начать сразу' : 'Запланировать';
+        btn.addEventListener('click', () => {
+          m.start_mode = mode;
+          startGroup.querySelectorAll('.aw-toggle__btn').forEach((b) => b.classList.remove('is-active'));
+          btn.classList.add('is-active');
+          startAtField.style.display = mode === 'scheduled' ? '' : 'none';
+          markDirty(); updateEndText();
+        });
+        startGroup.appendChild(btn);
+      });
+      const startAtInput = document.createElement('input');
+      startAtInput.type = 'datetime-local'; startAtInput.value = m.start_at;
+      startAtInput.addEventListener('input', () => { m.start_at = startAtInput.value; markDirty(); updateEndText(); });
+      const startAtField = awField('Дата и время начала', startAtInput);
+      startAtField.style.display = m.start_mode === 'scheduled' ? '' : 'none';
+      register('auction_start', startAtInput, 1);
+
+      // Duration
+      const durationGroup = document.createElement('div');
+      durationGroup.className = 'aw-chips';
+      AW_DURATION_OPTIONS.forEach((opt) => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'aw-chip' + (m.duration === opt.value ? ' is-active' : '');
+        chip.textContent = opt.label;
+        chip.addEventListener('click', () => {
+          m.duration = opt.value;
+          durationGroup.querySelectorAll('.aw-chip').forEach((c) => c.classList.remove('is-active'));
+          chip.classList.add('is-active');
+          endAtField.style.display = opt.value === 'custom' ? '' : 'none';
+          markDirty(); updateEndText();
+        });
+        durationGroup.appendChild(chip);
+      });
+      const endAtInput = document.createElement('input');
+      endAtInput.type = 'datetime-local'; endAtInput.value = m.end_at;
+      endAtInput.addEventListener('input', () => { m.end_at = endAtInput.value; markDirty(); updateEndText(); });
+      const endAtField = awField('Дата и время завершения', endAtInput);
+      endAtField.style.display = m.duration === 'custom' ? '' : 'none';
+      register('auction_end', endAtInput, 1);
+
+      const endText = document.createElement('p');
+      endText.className = 'aw-endtext';
+      function updateEndText(){
+        const start = m.start_mode === 'scheduled' && m.start_at ? new Date(m.start_at) : new Date();
+        let end = null;
+        if (m.duration === 'custom'){ end = m.end_at ? new Date(m.end_at) : null; }
+        else { end = new Date(start.getTime() + (AW_DURATION_MINUTES[m.duration] || 10080) * 60000); }
+        endText.textContent = end && !Number.isNaN(end.getTime()) ? ('Аукцион завершится ' + awFormatDateTime(end)) : '';
+      }
+      updateEndText();
+
+      // Price
+      const priceInput = awNumber(m.start_price);
+      let stepTouched = m.step !== '';
+      priceInput.addEventListener('input', () => {
+        m.start_price = priceInput.value;
+        if (!stepTouched){
+          const suggested = awSuggestStep(priceInput.value);
+          if (suggested != null){ m.step = String(suggested); stepInput.value = m.step; }
+        }
+        markDirty();
+      });
+      const stepInput = awNumber(m.step);
+      stepInput.addEventListener('input', () => { stepTouched = true; m.step = stepInput.value; markDirty(); });
+      const quickSteps = document.createElement('div');
+      quickSteps.className = 'aw-chips';
+      [['50', '50 ₽'], ['100', '100 ₽'], ['500', '500 ₽'], ['', 'Другое']].forEach(([val, label]) => {
+        const chip = document.createElement('button');
+        chip.type = 'button'; chip.className = 'aw-chip'; chip.textContent = label;
+        chip.addEventListener('click', () => {
+          if (val){ stepTouched = true; m.step = val; stepInput.value = val; markDirty(); }
+          else { stepInput.focus(); }
+        });
+        quickSteps.appendChild(chip);
+      });
+      register('auction_start_price', priceInput, 1);
+      register('auction_step', stepInput, 1);
+
+      // Advanced (collapsible): reserve + auto-extend
+      const advanced = document.createElement('details');
+      advanced.className = 'aw-advanced';
+      const summary = document.createElement('summary');
+      summary.textContent = 'Дополнительные настройки';
+      advanced.appendChild(summary);
+      const reserveInput = awNumber(m.reserve);
+      reserveInput.placeholder = 'необязательно';
+      reserveInput.addEventListener('input', () => { m.reserve = reserveInput.value; markDirty(); });
+      register('auction_reserve_price', reserveInput, 1);
+      const extendInput = document.createElement('input');
+      extendInput.type = 'checkbox'; extendInput.checked = m.auto_extend;
+      extendInput.addEventListener('change', () => { m.auto_extend = extendInput.checked; markDirty(); });
+      const extendLabel = document.createElement('label');
+      extendLabel.className = 'aw-check';
+      extendLabel.append(extendInput, document.createTextNode(' Продлевать аукцион на 2 минуты, если ставка сделана перед завершением'));
+      advanced.append(
+        awField('Резервная цена, ₽', reserveInput, { hint: 'Если итоговая ставка будет ниже этой суммы, вы не обязаны продавать предмет. Участники не увидят точную сумму.' }),
+        extendLabel,
+      );
+
+      frag.append(
+        awField('Начало', startGroup, { full: true }),
+        startAtField,
+        awField('Продолжительность', durationGroup, { full: true }),
+        endAtField,
+        awField('', endText, { full: true }),
+        awField('Стартовая цена, ₽', priceInput),
+        awField('Шаг ставки, ₽', stepInput),
+        awField('Быстрый шаг', quickSteps, { full: true }),
+        awField('', advanced, { full: true }),
+      );
+      return frag;
+    }
+
+    function buildStepDelivery(){
+      const frag = document.createElement('div');
+      frag.className = 'aw-grid';
+      const locationInput = awText(m.location);
+      locationInput.addEventListener('input', () => { m.location = locationInput.value; markDirty(); });
+      register('location', locationInput, 2);
+
+      const methodsWrap = document.createElement('div');
+      methodsWrap.className = 'aw-methods';
+      (options.delivery_methods || []).forEach((opt) => {
+        const label = document.createElement('label');
+        label.className = 'aw-check';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = m.delivery_methods.indexOf(opt.value) !== -1;
+        cb.addEventListener('change', () => {
+          const i = m.delivery_methods.indexOf(opt.value);
+          if (cb.checked && i === -1) m.delivery_methods.push(opt.value);
+          else if (!cb.checked && i !== -1) m.delivery_methods.splice(i, 1);
+          deliveryField.style.display = m.delivery_methods.indexOf('delivery') !== -1 ? '' : 'none';
+          markDirty();
+        });
+        label.append(cb, document.createTextNode(' ' + opt.label));
+        methodsWrap.appendChild(label);
+      });
+      const methodsField = awField('Способы получения', methodsWrap, { full: true });
+      register('delivery_methods', methodsWrap, 2);
+
+      const costInput = awNumber(m.delivery_cost);
+      costInput.placeholder = 'можно оставить пустым';
+      costInput.addEventListener('input', () => { m.delivery_cost = costInput.value; markDirty(); });
+      const deliveryField = awField('Стоимость доставки, ₽', costInput, { hint: 'Можно оставить пустым, если условия обсуждаются отдельно.' });
+      deliveryField.style.display = m.delivery_methods.indexOf('delivery') !== -1 ? '' : 'none';
+      register('delivery_cost', costInput, 2);
+
+      const noteInput = awTextarea(m.delivery_note);
+      noteInput.addEventListener('input', () => { m.delivery_note = noteInput.value; markDirty(); });
+      register('delivery_note', noteInput, 2);
+
+      frag.append(
+        awField('Город или местоположение', locationInput, { full: true }),
+        methodsField,
+        deliveryField,
+        awField('Комментарий по передаче', noteInput, { full: true }),
+      );
+      return frag;
+    }
+
+    function buildStepReview(){
+      const frag = document.createElement('div');
+      const warnings = document.createElement('div');
+      warnings.className = 'aw-warnings';
+      const issues = collectWarnings();
+      if (issues.length){
+        const head = document.createElement('p');
+        head.className = 'aw-warnings__head';
+        head.textContent = 'Заполните обязательные поля:';
+        warnings.appendChild(head);
+        issues.forEach((issue) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'aw-warning';
+          btn.textContent = issue.message;
+          btn.addEventListener('click', () => {
+            goToStep(issue.step);
+            const entry = controls[issue.key];
+            if (entry && entry.control && typeof entry.control.focus === 'function'){
+              setTimeout(() => { try { entry.control.focus(); } catch (e) {} }, 30);
+            }
+          });
+          warnings.appendChild(btn);
+        });
+      }
+
+      const summary = document.createElement('div');
+      summary.className = 'aw-summary';
+      const cover = (m.images.find((i) => i.is_cover) || m.images[0]);
+      const coverWrap = document.createElement('div');
+      coverWrap.className = 'aw-summary__cover';
+      if (cover){ const img = document.createElement('img'); img.src = cover.url; img.alt = ''; coverWrap.appendChild(img); }
+      else { coverWrap.textContent = 'Без фото'; coverWrap.classList.add('aw-summary__cover--empty'); }
+      const rows = document.createElement('dl');
+      rows.className = 'aw-summary__rows';
+      const startDate = m.start_mode === 'scheduled' && m.start_at ? new Date(m.start_at) : new Date();
+      let endDate = null;
+      if (m.duration === 'custom'){ endDate = m.end_at ? new Date(m.end_at) : null; }
+      else { endDate = new Date(startDate.getTime() + (AW_DURATION_MINUTES[m.duration] || 10080) * 60000); }
+      const add = (label, value) => {
+        const row = document.createElement('div');
+        const dt = document.createElement('dt'); dt.textContent = label;
+        const dd = document.createElement('dd'); dd.textContent = value || '—';
+        row.append(dt, dd); rows.appendChild(row);
+      };
+      add('Название', m.title);
+      add('Категория', labelOf(options.category, m.category));
+      add('Состояние', labelOf(options.condition, m.condition));
+      add('Стартовая цена', m.start_price ? m.start_price + ' ₽' : '');
+      add('Шаг ставки', m.step ? m.step + ' ₽' : '');
+      add('Начало', m.start_mode === 'scheduled' ? awFormatDateTime(startDate) : 'Сразу после публикации');
+      add('Завершение', endDate ? awFormatDateTime(endDate) : '');
+      add('Резервная цена', m.reserve ? 'Указана' : 'Нет');
+      add('Способы получения', m.delivery_methods.map((v) => labelOf(options.delivery_methods, v)).join(', '));
+      add('Местоположение', m.location);
+      summary.append(coverWrap, rows);
+
+      frag.append(warnings, summary);
+      return frag;
+    }
+
+    function collectWarnings(){
+      const issues = [];
+      const push = (key, step, message) => issues.push({ key: key, step: step, message: message });
+      if (!m.images.length) push('images', 0, 'Добавьте хотя бы одну фотографию');
+      else if (!m.images.some((i) => i.is_cover)) push('cover_image_id', 0, 'Выберите обложку');
+      if (!m.title.trim()) push('title', 0, 'Укажите название');
+      if (!m.category) push('category', 0, 'Выберите категорию');
+      if (!m.condition) push('condition', 0, 'Укажите состояние предмета');
+      if (!(parseFloat(m.start_price) > 0)) push('auction_start_price', 1, 'Укажите стартовую цену');
+      if (!(parseFloat(m.step) > 0)) push('auction_step', 1, 'Укажите шаг ставки');
+      if (!m.delivery_methods.length) push('delivery_methods', 2, 'Выберите способ получения');
+      if (m.start_mode === 'scheduled' && !m.start_at) push('auction_start', 1, 'Укажите дату начала');
+      if (m.duration === 'custom' && !m.end_at) push('auction_end', 1, 'Укажите дату завершения');
+      return issues;
+    }
+
+    // --- Step navigation -----------------------------------------------------
+    function renderStep(){
+      stepHost.innerHTML = '';
+      const builders = [buildStepLot, buildStepPrice, buildStepDelivery, buildStepReview];
+      stepHost.appendChild(builders[currentStep]());
+      if (window.ThemeSelect) window.ThemeSelect.enhanceAll(stepHost);
+      stepDots.forEach((dot, i) => {
+        dot.classList.toggle('is-active', i === currentStep);
+        dot.classList.toggle('is-done', i < currentStep);
+      });
+      backBtn.style.visibility = currentStep === 0 ? 'hidden' : '';
+      nextBtn.textContent = currentStep === STEPS.length - 1 ? 'Опубликовать аукцион' : 'Продолжить';
+      updatePreview();
+      modal.body.scrollTop = 0;
+    }
+
+    function goToStep(index){
+      if (index < 0 || index >= STEPS.length) return;
+      currentStep = index;
+      m.stepEdited = true;
+      renderStep();
+    }
+
+    function onNext(){
+      if (currentStep < STEPS.length - 1){
+        saveScalars();
+        goToStep(currentStep + 1);
+      } else {
+        publish();
+      }
+    }
+
+    // --- Live preview --------------------------------------------------------
+    function updatePreview(){
+      preview.innerHTML = '';
+      const cover = (m.images.find((i) => i.is_cover) || m.images[0]);
+      const media = document.createElement('div');
+      media.className = 'aw-preview__media';
+      if (cover){ const img = document.createElement('img'); img.src = cover.url; img.alt = ''; media.appendChild(img); }
+      else { media.classList.add('aw-preview__media--empty'); media.textContent = 'Без фото'; }
+      const title = document.createElement('div');
+      title.className = 'aw-preview__title';
+      title.textContent = m.title || 'Название лота';
+      const price = document.createElement('div');
+      price.className = 'aw-preview__price';
+      price.textContent = (m.start_price ? m.start_price + ' ₽' : '— ₽') + (m.step ? ' · шаг ' + m.step + ' ₽' : '');
+      const meta = document.createElement('div');
+      meta.className = 'aw-preview__meta';
+      meta.textContent = [labelOf(options.category, m.category), labelOf(options.condition, m.condition)].filter(Boolean).join(' · ');
+      preview.append(media, title, price, meta);
+    }
+
+    // --- Publish -------------------------------------------------------------
+    function publish(){
+      if (publishing) return; // guard against a double-click / repeat publish
+      const issues = collectWarnings();
+      if (issues.length){
+        goToStep(STEPS.length - 1);
+        generalError.textContent = 'Заполните обязательные поля, отмеченные ниже.';
+        return;
+      }
+      if (!m.listing_id){
+        generalError.textContent = 'Черновик лота не найден. Закройте окно и попробуйте снова.';
+        return;
+      }
+      generalError.textContent = '';
+      publishing = true;
+      nextBtn.disabled = true;
+      nextBtn.classList.add('is-loading');
+      const restore = nextBtn.textContent;
+      nextBtn.textContent = 'Публикуем…';
+      setSaveStatus('saving');
+      // Persist latest scalars, then publish.
+      saveScalars().then(() => marketRequest(draftPublishUrl(m.listing_id), 'POST', {}))
+        .then(({ ok, data }) => {
+          publishing = false;
+          nextBtn.disabled = false;
+          nextBtn.classList.remove('is-loading');
+          nextBtn.textContent = restore;
+          if (!ok){
+            const general = distributeErrors(data && data.errors);
+            const firstKey = Object.keys((data && data.errors) || {})[0];
+            const entry = firstKey && controls[firstKey];
+            if (entry) goToStep(entry.step);
+            generalError.textContent = general || 'Не удалось опубликовать аукцион. Проверьте поля.';
+            setSaveStatus('');
+            return;
+          }
+          dirty = false;
+          modal.close();
+          refreshOpenCardAuctionStatus(file);
+          openPublishSuccessModal(data.redirect);
+        }).catch(() => {
+          publishing = false;
+          nextBtn.disabled = false;
+          nextBtn.classList.remove('is-loading');
+          nextBtn.textContent = restore;
+          generalError.textContent = 'Сетевая ошибка при публикации.';
+        });
+    }
+
+    const generalError = document.createElement('p');
+    generalError.className = 'aw-general-error';
+    generalError.setAttribute('role', 'alert');
+    main.appendChild(generalError);
+
+    function requestClose(){
+      if (dirty){
+        openConfirmModal('Закрыть без сохранения изменений?', () => { refreshOpenCardAuctionStatus(file); modal.close(); });
+      } else {
+        refreshOpenCardAuctionStatus(file);
+        modal.close();
+      }
+    }
+
+    renderStep();
+  }
+
+  // Deprecated inline modal (replaced by openAuctionWizard); no longer invoked.
+  function openLotConfigModal(rubric, file, opts){
+    opts = opts || {};
+    const isEdit = opts.mode === 'edit';
+    const draft = opts.draft || {};
+    const attrs = (draft.attributes && typeof draft.attributes === 'object') ? draft.attributes : {};
+
+    const modal = openModal({
+      title: isEdit ? 'Редактирование лота' : 'Настройка аукционного лота',
+      overlayClass: 'lot-config-overlay',
+    });
+    modal.overlay.classList.add('archive-modal-overlay--lot-config');
+
+    // --- Card header: thumbnail, title, source rubric, photo count -----------
+    const imageField = rubric && rubric.mode !== 'text' && Array.isArray(rubric.fields)
+      ? rubric.fields.find((f) => f.type === 'image') : null;
+    const photoValue = imageField ? getFieldValue(rubric, file, imageField) : null;
+    const photoCount = (photoValue && Array.isArray(photoValue.items)) ? photoValue.items.length : 0;
+
+    const header = document.createElement('div');
+    header.className = 'lot-config__card';
+    const media = document.createElement('div');
+    media.className = 'lot-config__media';
+    if (photoCount){
+      const primary = getPrimaryImage(photoValue);
+      const img = document.createElement('img');
+      img.src = primary ? primary.src : '';
+      img.alt = '';
+      media.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.className = 'lot-config__placeholder';
+      ph.textContent = 'Без фото';
+      media.appendChild(ph);
+    }
+    const meta = document.createElement('div');
+    meta.className = 'lot-config__meta';
+    const titleHead = document.createElement('div');
+    titleHead.className = 'lot-config__title';
+    titleHead.textContent = getDisplayName(rubric, file) || 'Без названия';
+    const rubricEl = document.createElement('div');
+    rubricEl.className = 'lot-config__rubric';
+    rubricEl.textContent = rubric ? (rubric.name || '') : '';
+    const countEl = document.createElement('div');
+    countEl.className = 'lot-config__count';
+    countEl.textContent = 'Фотографий: ' + photoCount;
+    meta.append(titleHead, rubricEl, countEl);
+    header.append(media, meta);
+
+    // --- Form ----------------------------------------------------------------
+    const form = document.createElement('form');
+    form.className = 'lot-config__form';
+    form.noValidate = true;
+
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.value = isEdit ? (draft.title || getDisplayName(rubric, file) || '') : (getDisplayName(rubric, file) || '');
+
+    const descriptionInput = document.createElement('textarea');
+    descriptionInput.rows = 3;
+    descriptionInput.value = isEdit ? (draft.description || '') : cardValue(file, 'description');
+
+    const categorySelect = lotSelect(
+      [{ value: '', label: 'Выберите категорию' }].concat(MARKET_CATEGORIES),
+      isEdit ? (draft.category || '') : cardValue(file, 'category'));
+    const conditionSelect = lotSelect(AUCTION_CONDITION_OPTIONS, isEdit ? (attrs.condition || '') : cardValue(file, 'condition'));
+
+    const locationInput = document.createElement('input');
+    locationInput.type = 'text';
+    locationInput.value = isEdit ? (attrs.location || '') : cardValue(file, 'location');
+
+    const handoverSelect = lotSelect(AUCTION_HANDOVER_OPTIONS, isEdit ? (attrs.handover || '') : cardValue(file, 'handover'));
+    const shippingInput = numberInput(isEdit ? (attrs.shipping_cost || '') : '');
+
+    const startModeSelect = lotSelect(AUCTION_START_OPTIONS, (isEdit && draft.start_at) ? 'scheduled' : 'now');
+    const startAtInput = document.createElement('input');
+    startAtInput.type = 'datetime-local';
+    startAtInput.value = isEdit ? isoToDatetimeLocal(draft.start_at) : '';
+
+    const durationSelect = lotSelect(AUCTION_DURATION_OPTIONS, isEdit ? 'custom' : '7');
+    const endAtInput = document.createElement('input');
+    endAtInput.type = 'datetime-local';
+    endAtInput.value = isEdit ? isoToDatetimeLocal(draft.end_at) : '';
+
+    const startPriceInput = numberInput(isEdit ? (draft.start_price || '') : '');
+    startPriceInput.step = '0.01';
+    const stepInput = numberInput(isEdit ? (draft.min_bid_step || '1') : '1');
+    const reserveInput = numberInput(isEdit ? (draft.reserve_price || '') : '');
+    reserveInput.placeholder = 'необязательно';
+
+    const extendInput = document.createElement('input');
+    extendInput.type = 'checkbox';
+    extendInput.checked = isEdit ? Boolean(draft.auto_extend) : true;
+    const extendLabel = document.createElement('label');
+    extendLabel.className = 'lot-config__check';
+    extendLabel.append(extendInput, document.createTextNode(' Продлевать аукцион при ставке в последние 2 минуты'));
+
+    // Field wrappers (kept for conditional show/hide).
+    const shippingField = lotConfigField('Стоимость доставки, ₽', shippingInput);
+    const startAtField = lotConfigField('Дата и время начала', startAtInput);
+    const endAtField = lotConfigField('Дата и время окончания', endAtInput);
+
+    const grid = document.createElement('div');
+    grid.className = 'lot-config__grid';
+    grid.append(
+      lotConfigField('Категория маркета', categorySelect),
+      lotConfigField('Состояние предмета', conditionSelect),
+      lotConfigField('Местоположение', locationInput),
+      lotConfigField('Способ передачи', handoverSelect),
+      shippingField,
+      lotConfigField('Начало', startModeSelect),
+      startAtField,
+      lotConfigField('Продолжительность', durationSelect),
+      endAtField,
+      lotConfigField('Стартовая цена, ₽', startPriceInput),
+      lotConfigField('Шаг ставки, ₽', stepInput),
+      lotConfigField('Резервная цена, ₽', reserveInput, { hint: 'Не показывается участникам' }),
+    );
+
+    const extendRow = document.createElement('div');
+    extendRow.className = 'lot-config__extend';
+    extendRow.appendChild(extendLabel);
+
+    const generalError = document.createElement('p');
+    generalError.className = 'lot-config__feedback';
+    generalError.setAttribute('role', 'alert');
+
+    form.append(
+      lotConfigField('Название лота', titleInput, { full: true }),
+      lotConfigField('Описание лота', descriptionInput, { full: true }),
+      grid,
+      extendRow,
+    );
+
+    modal.body.append(header, form, generalError);
+    // Selects are now in the DOM — enhance them into themed dropdowns.
+    if (window.ThemeSelect) window.ThemeSelect.enhanceAll(modal.body);
+
+    // --- Conditional visibility ----------------------------------------------
+    function syncConditional(){
+      shippingField.style.display = handoverSelect.value === 'Доставка' ? '' : 'none';
+      startAtField.style.display = startModeSelect.value === 'scheduled' ? '' : 'none';
+      endAtField.style.display = durationSelect.value === 'custom' ? '' : 'none';
+    }
+    handoverSelect.addEventListener('change', syncConditional);
+    startModeSelect.addEventListener('change', syncConditional);
+    durationSelect.addEventListener('change', syncConditional);
+    syncConditional();
+
+    // --- Validation (errors shown under each field) --------------------------
+    function setError(control, msg){ if (control.lotErrorEl) control.lotErrorEl.textContent = msg; }
+    function clearErrors(){
+      form.querySelectorAll('.lot-config__error').forEach((el) => { el.textContent = ''; });
+      generalError.textContent = '';
+    }
+
+    function computeTimes(){
+      const startAt = startModeSelect.value === 'scheduled' ? startAtInput.value : toDatetimeLocal(new Date());
+      let endAt;
+      if (durationSelect.value === 'custom'){
+        endAt = endAtInput.value;
+      } else {
+        const days = parseInt(durationSelect.value, 10) || 7;
+        const base = startAt ? new Date(startAt) : new Date();
+        endAt = toDatetimeLocal(new Date(base.getTime() + days * AUCTION_DAY_MS));
+      }
+      return { startAt: startAt, endAt: endAt };
+    }
+
+    function validate(){
+      clearErrors();
+      let ok = true; let firstBad = null;
+      const fail = (control, msg) => { setError(control, msg); ok = false; if (!firstBad) firstBad = control; };
+
+      if (!titleInput.value.trim()) fail(titleInput, 'Укажите название лота.');
+      if (!categorySelect.value) fail(categorySelect, 'Выберите категорию маркета.');
+      const sp = parseFloat(startPriceInput.value);
+      if (!(sp > 0)) fail(startPriceInput, 'Введите стартовую цену больше нуля.');
+      const step = parseFloat(stepInput.value);
+      if (!(step > 0)) fail(stepInput, 'Введите шаг ставки больше нуля.');
+      if (reserveInput.value && parseFloat(reserveInput.value) < sp) fail(reserveInput, 'Резервная цена не может быть ниже стартовой.');
+      if (handoverSelect.value === 'Доставка' && shippingInput.value && parseFloat(shippingInput.value) < 0) fail(shippingInput, 'Некорректная стоимость доставки.');
+
+      const times = computeTimes();
+      if (startModeSelect.value === 'scheduled'){
+        if (!startAtInput.value) fail(startAtInput, 'Укажите дату начала.');
+        else if (new Date(startAtInput.value) <= new Date()) fail(startAtInput, 'Начало должно быть в будущем.');
+      }
+      if (durationSelect.value === 'custom' && !endAtInput.value) fail(endAtInput, 'Укажите дату окончания.');
+      if (times.startAt && times.endAt && new Date(times.endAt) <= new Date(times.startAt)) fail(endAtInput, 'Окончание должно быть позже начала.');
+
+      return { ok: ok, firstBad: firstBad, times: times };
+    }
+
+    function applyServerErrors(data){
+      clearErrors();
+      const errors = (data && data.errors) || {};
+      const map = {
+        category: categorySelect, start_price: startPriceInput, min_bid_step: stepInput,
+        reserve_price: reserveInput, start_at: startAtInput, end_at: endAtInput,
+        title: titleInput, file_id: titleInput,
+      };
+      let handled = false;
+      Object.keys(errors).forEach((key) => {
+        const msg = Array.isArray(errors[key]) ? errors[key].join(' ') : String(errors[key]);
+        if (map[key]){ setError(map[key], msg); handled = true; }
+        else { generalError.textContent = (generalError.textContent ? generalError.textContent + '\n' : '') + msg; handled = true; }
+      });
+      if (!handled) generalError.textContent = 'Не удалось разместить лот.';
+    }
+
+    // --- Footer: Отмена / Разместить лот -------------------------------------
+    let busy = false;
+    const cancelBtn = createActionButton('Отмена');
+    cancelBtn.addEventListener('click', () => modal.close());
+    const submitBtn = createActionButton('Разместить лот');
+    submitBtn.classList.add('lot-config__publish');
+
+    function submit(){
+      if (busy) return;
+      const result = validate();
+      if (!result.ok){
+        if (result.firstBad && typeof result.firstBad.focus === 'function') result.firstBad.focus();
+        return;
+      }
+      const mode = startModeSelect.value === 'scheduled' ? 'schedule' : 'publish';
+      const payload = {
+        mode: mode,
+        title: titleInput.value.trim(),
+        description: descriptionInput.value.trim(),
+        category: categorySelect.value,
+        condition: conditionSelect.value,
+        location: locationInput.value.trim(),
+        handover: handoverSelect.value,
+        start_at: result.times.startAt,
+        end_at: result.times.endAt,
+        start_price: startPriceInput.value,
+        min_bid_step: stepInput.value,
+        auto_extend: extendInput.checked,
+        extend_seconds: extendInput.checked ? 120 : 0,
+      };
+      if (handoverSelect.value === 'Доставка' && shippingInput.value) payload.shipping_cost = shippingInput.value;
+      if (reserveInput.value) payload.reserve_price = reserveInput.value;
+      if (!isEdit) payload.file_id = file.id;
+
+      busy = true;
+      submitBtn.disabled = true;
+      submitBtn.classList.add('is-loading');
+      const restoreText = submitBtn.textContent;
+      submitBtn.textContent = 'Размещаем…';
+
+      const url = isEdit
+        ? '/auction/api/lots/' + encodeURIComponent(opts.lotId) + '/edit/'
+        : '/auction/api/lots/create-from-card/';
+      postLotRequest(url, payload).then(({ ok, data }) => {
+        busy = false;
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('is-loading');
+        submitBtn.textContent = restoreText;
+        if (!ok){ applyServerErrors(data); return; } // keep modal open on error
+        modal.close();
+        refreshOpenCardAuctionStatus(file);
+        const lotUrl = data.lot_url || (data.lot && data.lot.lot_url);
+        if (lotUrl) window.location.href = lotUrl;
+      }).catch(() => {
+        busy = false;
+        submitBtn.disabled = false;
+        submitBtn.classList.remove('is-loading');
+        submitBtn.textContent = restoreText;
+        generalError.textContent = 'Сетевая ошибка. Попробуйте ещё раз.';
+      });
+    }
+
+    submitBtn.addEventListener('click', submit);
+    modal.footer.append(cancelBtn, submitBtn);
   }
 
   function openMarketFlow(type, rubric, file){

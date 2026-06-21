@@ -1,0 +1,213 @@
+{% extends 'market/base_market.html' %}
+{% load static %}
+
+{% block extra_filters %}{% endblock %}
+
+{% block content %}
+<article class="auction-detail" data-auction-detail
+         data-status="{{ listing.status }}"
+         data-start="{{ listing.auction_start|date:'c' }}"
+         data-end="{{ listing.auction_end|date:'c' }}">
+
+  <div class="auction-detail__top">
+    <!-- Gallery -->
+    <section class="auction-detail__gallery" aria-label="Фотографии лота">
+      {% if gallery %}
+        <div class="auction-gallery" data-gallery>
+          <div class="auction-gallery__stage">
+            {% if gallery|length > 1 %}
+              <button type="button" class="auction-gallery__arrow auction-gallery__arrow--prev" data-gallery-prev aria-label="Предыдущее фото">‹</button>
+            {% endif %}
+            <img class="auction-gallery__main" data-gallery-main src="{{ gallery.0.url }}" alt="{{ listing.title|default:listing.item.title }}" />
+            {% if gallery|length > 1 %}
+              <button type="button" class="auction-gallery__arrow auction-gallery__arrow--next" data-gallery-next aria-label="Следующее фото">›</button>
+            {% endif %}
+            <button type="button" class="auction-gallery__zoom" data-gallery-zoom aria-label="Открыть на весь экран">⤢</button>
+          </div>
+          {% if gallery|length > 1 %}
+            <div class="auction-gallery__thumbs" role="listbox" aria-label="Миниатюры">
+              {% for image in gallery %}
+                <button type="button" class="auction-gallery__thumb{% if forloop.first %} is-active{% endif %}" role="option" aria-label="Фото {{ forloop.counter }}" data-gallery-thumb data-index="{{ forloop.counter0 }}" data-src="{{ image.url }}">
+                  <img src="{{ image.url }}" alt="" loading="lazy" />
+                </button>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      {% else %}
+        <div class="market-card__placeholder auction-detail__placeholder" aria-hidden="true">
+          <span class="market-card__placeholder-icon">🖼️</span>
+          <span class="market-card__placeholder-text">Без фото</span>
+        </div>
+      {% endif %}
+    </section>
+
+    <!-- Auction main block -->
+    <section class="auction-detail__main" aria-label="Аукцион">
+      <header class="auction-detail__header">
+        <h1 class="auction-detail__title">{{ listing.title|default:listing.item.title }}</h1>
+        <div class="auction-detail__badges">
+          <span class="auction-detail__status auction-status--{{ listing.status }}" data-status-text>{{ status_text }}</span>
+          <span class="auction-detail__category">{{ listing.get_category_display }}</span>
+          {% if condition_text %}<span class="auction-detail__chip">{{ condition_text }}</span>{% endif %}
+        </div>
+        <p class="auction-detail__seller">Продавец: {{ seller_name }}{% if listing.location %} · {{ listing.location }}{% endif %}</p>
+      </header>
+
+      <!-- Timer -->
+      {% if listing.status == 'scheduled' or listing.status == 'active' %}
+        <div class="auction-detail__timer" data-timer-wrap data-timer-mode="{% if listing.status == 'scheduled' %}start{% else %}end{% endif %}">
+          <span class="auction-detail__timer-label" data-timer-label>{% if listing.status == 'scheduled' %}До начала{% else %}До завершения{% endif %}</span>
+          <span class="auction-detail__timer-value" data-timer-value>—</span>
+        </div>
+      {% else %}
+        <div class="auction-detail__timer auction-detail__timer--done">
+          <span class="auction-detail__timer-value">{{ completed_outcome|default:status_text }}</span>
+        </div>
+      {% endif %}
+
+      <!-- Price box -->
+      <div class="auction-detail__pricebox" data-pricebox>
+        <div class="auction-detail__price">
+          <span class="auction-detail__price-label" data-price-label>{% if state.has_bids %}Текущая цена{% else %}Стартовая цена{% endif %}</span>
+          <b class="auction-detail__price-value" data-current-price>{% if state.has_bids %}{{ state.current_price }}{% else %}{{ state.start_price }}{% endif %} ₽</b>
+        </div>
+        <p class="auction-detail__substat">
+          <span data-bidcount-wrap{% if not state.has_bids %} hidden{% endif %}>Ставок: <b data-bid-count>{{ state.bid_count }}</b> · </span>
+          Шаг: {{ listing.auction_step }} ₽ · Мин. следующая: <b data-min-next>{{ state.minimum_bid }}</b> ₽
+        </p>
+        <p class="auction-detail__reserve" data-reserve data-reserve-status="{{ state.reserve_status }}">
+          {% if state.reserve_status == 'not_set' %}Резервная цена не установлена
+          {% elif state.reserve_status == 'reached' %}Резерв достигнут
+          {% else %}Резерв пока не достигнут{% endif %}
+        </p>
+      </div>
+
+      <!-- Bid area -->
+      <div class="auction-detail__bidarea" data-bidarea>
+        {% if is_finished %}
+          <div class="auction-detail__result">
+            <p class="auction-detail__outcome">{{ result_text|default:status_text }}</p>
+            {% if is_sold %}
+              <p class="auction-detail__result-price">Итоговая цена: {{ final_price }} ₽</p>
+              {% if is_winner %}
+                <p class="auction-detail__win">Вы выиграли этот аукцион</p>
+                <button type="button" class="ios-button" disabled aria-disabled="true">Оформить покупку</button>
+                <p class="auction-detail__muted">Оформление сделки будет добавлено позднее.</p>
+              {% elif is_owner %}
+                <p class="auction-detail__winner">Победитель: {{ winner_full }}</p>
+                <button type="button" class="ios-button" disabled aria-disabled="true">Перейти к оформлению сделки</button>
+                <p class="auction-detail__muted">Оформление сделки будет добавлено позднее.</p>
+              {% else %}
+                <p class="auction-detail__winner">Победитель: {{ winner_public }}</p>
+              {% endif %}
+            {% endif %}
+            {% if listing.status == 'cancelled' and cancellation_reason and is_owner %}
+              <p class="auction-detail__muted">Причина: {{ cancellation_reason }}</p>
+            {% endif %}
+          </div>
+        {% elif is_owner %}
+          <section class="auction-detail__manage" aria-label="Управление аукционом">
+            <h2>Управление аукционом</h2>
+            <ul class="auction-detail__manage-facts">
+              <li><span>Статус</span><b data-status-text>{{ status_text }}</b></li>
+              <li><span>Ставок</span><b data-bid-count>{{ bid_count }}</b></li>
+              <li><span>Текущая цена</span><b>{% if has_bids %}{{ state.current_price }}{% else %}{{ state.start_price }}{% endif %} ₽</b></li>
+              <li><span>Завершение</span><b>{{ listing.auction_end|date:'d.m.Y H:i' }}</b></li>
+              <li><span>Резерв</span><b>{% if state.reserve_status == 'not_set' %}не установлен{% elif state.reserve_status == 'reached' %}достигнут{% else %}не достигнут{% endif %}</b></li>
+            </ul>
+            <div class="auction-detail__manage-actions">
+              {% if can_edit %}<button type="button" class="ios-button" data-manage-edit>Редактировать</button>{% endif %}
+              {% if can_cancel %}<button type="button" class="ios-button" data-manage-cancel>Снять с аукциона</button>{% endif %}
+            </div>
+            {% if has_bids %}<p class="auction-detail__muted">После первой ставки основные параметры изменить нельзя.</p>{% endif %}
+          </section>
+        {% elif listing.status == 'active' %}
+          {% if user.is_authenticated %}
+            <form class="auction-detail__bidform" data-bid-form>
+              <div class="auction-detail__leading" data-leading{% if not state.is_leading %} hidden{% endif %}>Ваша ставка лидирует</div>
+              <label class="auction-detail__bidlabel" for="bidAmount">Ваша ставка, ₽</label>
+              <div class="auction-detail__bidrow">
+                <input id="bidAmount" name="amount" type="number" step="0.01" min="0" inputmode="decimal" data-bid-input autocomplete="off" />
+                <button type="submit" class="ios-button ios-button--primary" data-bid-submit>Сделать ставку</button>
+              </div>
+              <div class="auction-detail__quick" role="group" aria-label="Быстрые ставки">
+                <button type="button" class="aw-chip" data-quick="min">Минимальная</button>
+                <button type="button" class="aw-chip" data-quick="3">+3 шага</button>
+                <button type="button" class="aw-chip" data-quick="5">+5 шагов</button>
+              </div>
+              <p class="auction-detail__biderror" data-bid-error role="alert"></p>
+            </form>
+          {% else %}
+            <a class="ios-button ios-button--primary auction-detail__login" href="{{ login_url }}">Войти, чтобы сделать ставку</a>
+          {% endif %}
+        {% elif listing.status == 'scheduled' %}
+          <p class="auction-detail__note" data-scheduled-note>Аукцион начнётся {{ listing.auction_start|date:'d.m.Y H:i' }}</p>
+        {% endif %}
+
+        {% if can_admin_cancel %}
+          <button type="button" class="ios-button auction-detail__admin-cancel" data-manage-cancel data-admin>Отменить аукцион (модерация)</button>
+        {% endif %}
+        {% if can_relist %}
+          <button type="button" class="ios-button ios-button--primary" data-manage-relist>Выставить повторно</button>
+        {% endif %}
+      </div>
+    </section>
+  </div>
+
+  <!-- Description & characteristics -->
+  <div class="auction-detail__columns">
+    {% if listing.description %}
+      <section class="auction-detail__section">
+        <h2>Описание</h2>
+        <p class="auction-detail__desc">{{ listing.description }}</p>
+      </section>
+    {% endif %}
+
+    <section class="auction-detail__section">
+      <h2>Характеристики</h2>
+      <dl class="auction-detail__specs">
+        {% for row in characteristics %}
+          <div class="auction-detail__spec"><dt>{{ row.label }}</dt><dd>{{ row.value }}</dd></div>
+        {% endfor %}
+        {% if show_delivery and listing.delivery_cost is not None %}
+          <div class="auction-detail__spec"><dt>Стоимость доставки</dt><dd>{{ listing.delivery_cost }} ₽</dd></div>
+        {% endif %}
+        {% if show_delivery and listing.delivery_note %}
+          <div class="auction-detail__spec"><dt>Доставка</dt><dd>{{ listing.delivery_note }}</dd></div>
+        {% endif %}
+        <div class="auction-detail__spec"><dt>Начало</dt><dd>{{ listing.auction_start|date:'d.m.Y H:i' }}</dd></div>
+        <div class="auction-detail__spec"><dt>Завершение</dt><dd>{{ listing.auction_end|date:'d.m.Y H:i' }}</dd></div>
+        <div class="auction-detail__spec"><dt>Номер лота</dt><dd>#{{ listing.id }}</dd></div>
+      </dl>
+    </section>
+  </div>
+
+  <!-- Bid history -->
+  <section class="auction-detail__history" aria-label="История ставок">
+    <h2>История ставок</h2>
+    <ul class="auction-detail__bidlist" data-bid-history>
+      {% for bid in initial_bids %}
+        <li class="auction-detail__bid{% if bid.is_winning %} is-winning{% endif %}">
+          <span class="auction-detail__bidder">{{ bid.bidder }}</span>
+          <span class="auction-detail__bidamount">{{ bid.amount }} ₽</span>
+          <span class="auction-detail__bidtime">{{ bid.created_at }}</span>
+          {% if bid.is_winning %}<span class="auction-detail__bidlead">Лидирует</span>{% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+    <p class="auction-detail__bidempty" data-bid-empty{% if initial_bids %} hidden{% endif %}>Ставок пока нет.</p>
+    <button type="button" class="ios-button auction-detail__history-toggle" data-history-toggle{% if not has_more_bids %} hidden{% endif %}>Показать всю историю</button>
+  </section>
+
+  <div class="auction-detail__footer">
+    <a class="ios-button" href="{{ back_url }}">К списку аукционов</a>
+  </div>
+
+  <script type="application/json" data-auction-config>{{ auction_config_json|safe }}</script>
+</article>
+{% endblock %}
+
+{% block extra_scripts %}
+  <script src="{% static 'market/auction.js' %}"></script>
+{% endblock %}

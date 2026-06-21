@@ -3,16 +3,20 @@
 {% block extra_filters %}{% endblock %}
 
 {% block content %}
-  <article class="market-detail" data-listing-id="{{ listing.id }}" data-listing-type="{{ listing.type }}"{% if listing.type == 'auction' %} data-auction-start="{{ listing.auction_start|date:'c' }}" data-auction-end="{{ listing.auction_end|date:'c' }}"{% endif %}>
+  <article class="market-detail" data-listing-id="{{ listing.id }}" data-listing-type="{{ listing.type }}"
+           {% if listing.type == 'auction' %}data-auction-start="{{ listing.auction_start|date:'c' }}" data-auction-end="{{ listing.auction_end|date:'c' }}"{% if lot %} data-lot-id="{{ lot.id }}"{% endif %}{% endif %}>
     <header class="market-detail__header">
       <h1 class="market-detail__title">{{ listing.title|default:listing.item.title }}</h1>
       <span class="market-detail__category">{{ listing.get_category_display }}</span>
       <div class="market-detail__meta">
         <span>Продавец: {{ listing.seller.get_username }}</span>
+        <span class="market-detail__meta-muted">Личные контакты скрыты</span>
         <span>Размещено: {{ listing.created_at|date:'d.m.Y H:i' }}</span>
+        {% if lot %}<span class="market-detail__status market-detail__status--{{ lot.status }}">{{ lot.get_status_display }}</span>{% endif %}
       </div>
       <div class="market-detail__actions">
-        <a class="ios-button" href="/messages/start/?to={{ listing.seller_id }}&amp;item={{ listing.id }}">Написать</a>
+        <a class="ios-button" href="/messages/start/?to={{ listing.seller_id }}&amp;item={{ listing.id }}">Написать продавцу</a>
+        <button type="button" class="ios-button" data-share-button data-share-title="{{ listing.title|default:listing.item.title|escapejs }}">Поделиться</button>
         <a class="ios-button" href="{{ back_url }}">К списку</a>
       </div>
     </header>
@@ -21,11 +25,25 @@
       <div class="market-detail__media">
         {% with images=listing.item.images.all %}
           {% if images %}
-            {% for image in images %}
-              <img src="{{ image.image.url }}" alt="{{ listing.title|default:listing.item.title }}" loading="lazy" />
-            {% endfor %}
+            <div class="market-gallery" data-gallery>
+              <div class="market-gallery__main">
+                <img src="{{ images.0.image.url }}" alt="{{ listing.title|default:listing.item.title }}" data-gallery-main />
+              </div>
+              {% if images|length > 1 %}
+                <div class="market-gallery__thumbs">
+                  {% for image in images %}
+                    <button type="button" class="market-gallery__thumb{% if forloop.first %} is-active{% endif %}" data-gallery-thumb data-src="{{ image.image.url }}">
+                      <img src="{{ image.image.url }}" alt="" loading="lazy" />
+                    </button>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            </div>
           {% else %}
-            <div class="market-card__placeholder market-detail__placeholder">⧉</div>
+            <div class="market-card__placeholder market-detail__placeholder" aria-hidden="true">
+              <span class="market-card__placeholder-icon">🖼️</span>
+              <span class="market-card__placeholder-text">Без фото</span>
+            </div>
           {% endif %}
         {% endwith %}
         {% if listing.type == 'auction' %}
@@ -35,8 +53,58 @@
           </div>
         {% endif %}
       </div>
+
       <div class="market-detail__info">
-        {% if listing.type == 'shop' %}
+        {% if listing.type == 'auction' %}
+          <div class="market-detail__pricebox">
+            <p class="market-detail__price">{{ listing.current_price|default:lot.start_price }} ₽<span class="market-detail__price-label">текущая цена</span></p>
+            <p class="market-detail__substat">Стартовая: {{ lot.start_price }} ₽ · Шаг: {{ lot.min_bid_step }} ₽ · Ставок: {{ bid_count }}</p>
+          </div>
+
+          {% if can_bid %}
+            <form class="market-detail__bidform" data-bid-form data-bid-url="{% url 'auction:lot-bid' lot.id %}">
+              <label class="market-detail__bidlabel" for="bidAmount">Ваша ставка, ₽ (не меньше {{ min_bid }})</label>
+              <div class="market-detail__bidrow">
+                <input id="bidAmount" type="number" step="0.01" min="{{ min_bid }}" value="{{ min_bid }}" name="amount" required />
+                <button type="submit" class="ios-button ios-button--primary">Сделать ставку</button>
+              </div>
+              <p class="market-detail__formfeedback" data-bid-feedback role="alert"></p>
+            </form>
+          {% elif lot.status == 'active' and is_owner %}
+            <p class="market-detail__note">Это ваш лот — ставки на собственный лот недоступны.</p>
+          {% endif %}
+
+          {% if can_buy_now %}
+            <button type="button" class="ios-button market-detail__buynow" data-buynow-button data-buynow-url="{% url 'auction:lot-buy-now' lot.id %}">
+              Купить сейчас за {{ lot.buy_now_price }} ₽
+            </button>
+          {% endif %}
+
+          {% if can_edit %}
+            <details class="market-detail__edit" data-edit-panel>
+              <summary class="ios-button">Редактировать условия (до первой ставки)</summary>
+              <form class="market-detail__editform" data-edit-form data-edit-url="{% url 'auction:lot-edit' lot.id %}">
+                <label>Описание<textarea name="description" rows="3">{{ listing.description }}</textarea></label>
+                <label>Стартовая цена, ₽<input type="number" step="0.01" name="start_price" value="{{ lot.start_price }}" /></label>
+                <label>Шаг ставки, ₽<input type="number" step="0.01" name="min_bid_step" value="{{ lot.min_bid_step }}" /></label>
+                <label>Цена «Купить сейчас», ₽<input type="number" step="0.01" name="buy_now_price" value="{{ lot.buy_now_price|default:'' }}" /></label>
+                <button type="submit" class="ios-button ios-button--primary">Сохранить изменения</button>
+                <p class="market-detail__formfeedback" data-edit-feedback role="alert"></p>
+              </form>
+            </details>
+          {% endif %}
+
+          {% if characteristics %}
+            <div class="market-detail__section">
+              <h2>Характеристики</h2>
+              <dl class="market-detail__specs">
+                {% for row in characteristics %}
+                  <div class="market-detail__spec"><dt>{{ row.label }}</dt><dd>{{ row.value }}</dd></div>
+                {% endfor %}
+              </dl>
+            </div>
+          {% endif %}
+        {% elif listing.type == 'shop' %}
           <p class="market-detail__price">Цена: {{ listing.price }} ₽</p>
         {% elif listing.type == 'wanted' %}
           <p class="market-detail__price">Готов купить за: {{ listing.price }} ₽</p>
@@ -46,14 +114,6 @@
           <div class="market-detail__section">
             <h2>Пожелания по обмену</h2>
             <p>{{ listing.swap_wishlist|default:'—' }}</p>
-          </div>
-        {% elif listing.type == 'auction' %}
-          <div class="market-detail__section market-detail__section--auction">
-            <p>Старт: {{ listing.auction_start|date:'d.m.Y H:i' }}</p>
-            <p>Окончание: {{ listing.auction_end|date:'d.m.Y H:i' }}</p>
-            <p>Текущая цена: {{ listing.current_price|default:listing.auction_start_price }} ₽</p>
-            <p>Шаг: {{ listing.auction_step }} ₽</p>
-            <p>Минимальная цена: {{ listing.auction_min_price }} ₽</p>
           </div>
         {% endif %}
 
@@ -69,13 +129,13 @@
     {% if listing.type == 'auction' %}
       <section class="market-detail__bids">
         <h2>История ставок</h2>
-        {% if listing.bids.exists %}
-          <ul>
-            {% for bid in listing.bids.all %}
+        {% if bid_history %}
+          <ul class="market-detail__bidlist">
+            {% for bid in bid_history %}
               <li>
-                <span>{{ bid.created_at|date:'d.m.Y H:i' }}</span>
-                <span>{{ bid.bidder.get_username }}</span>
-                <span>{{ bid.amount }} ₽</span>
+                <span class="market-detail__bidder">{{ bid.bidder }}</span>
+                <span class="market-detail__bidamount">{{ bid.amount }} ₽</span>
+                <span class="market-detail__bidtime">{{ bid.when|date:'d.m.Y H:i' }}</span>
               </li>
             {% endfor %}
           </ul>
@@ -85,4 +145,9 @@
       </section>
     {% endif %}
   </article>
+{% endblock %}
+
+{% block extra_scripts %}
+  {% load static %}
+  <script src="{% static 'market/auction.js' %}"></script>
 {% endblock %}

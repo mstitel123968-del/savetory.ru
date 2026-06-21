@@ -7,3 +7,4 @@ whitenoise>=6.6
 # Only activated when YANDEX_STORAGE_ENABLED=1; see trezo_site/settings.py.
 django-storages>=1.14,<2.0
 boto3>=1.34
+yookassa>=3.0,<4.0

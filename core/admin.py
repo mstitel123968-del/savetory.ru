@@ -1,7 +1,16 @@
 """Admin registrations for core models."""
 from django.contrib import admin
 
-from .models import DirectMessage, DirectMessageReaction, Friendship, UserProfile
+from .models import (
+    DirectMessage,
+    DirectMessageReaction,
+    Friendship,
+    SubscriptionHistory,
+    SubscriptionPayment,
+    SubscriptionPlan,
+    UserProfile,
+    UserSubscription,
+)
 
 
 @admin.register(UserProfile)
@@ -36,3 +45,86 @@ class DirectMessageReactionAdmin(admin.ModelAdmin):
     search_fields = ('message__text', 'user__username')
     autocomplete_fields = ('message', 'user')
     readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(SubscriptionPlan)
+class SubscriptionPlanAdmin(admin.ModelAdmin):
+    list_display = (
+        'name',
+        'code',
+        'archive_limit',
+        'active_auction_limit',
+        'is_paid',
+        'is_active',
+        'sort_order',
+    )
+    list_filter = ('is_paid', 'is_active')
+    search_fields = ('name', 'code')
+
+
+@admin.register(UserSubscription)
+class UserSubscriptionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'tariff', 'status', 'billing_period', 'starts_at', 'expires_at', 'last_successful_payment', 'auto_renew')
+    list_filter = (
+        'status',
+        'billing_period',
+        'auto_renew',
+        'tariff',
+        'user',
+        ('starts_at', admin.DateFieldListFilter),
+        ('expires_at', admin.DateFieldListFilter),
+        ('created_at', admin.DateFieldListFilter),
+    )
+    search_fields = ('user__username', 'user__email', 'provider_payment_id')
+    autocomplete_fields = ('user', 'tariff')
+    readonly_fields = ('created_at', 'updated_at')
+    date_hierarchy = 'created_at'
+
+
+@admin.register(SubscriptionPayment)
+class SubscriptionPaymentAdmin(admin.ModelAdmin):
+    list_display = ('internal_uuid', 'user', 'tariff', 'period', 'amount', 'currency', 'status', 'paid_at', 'subscription_activated')
+    list_filter = (
+        'status',
+        'period',
+        'currency',
+        'subscription_activated',
+        'tariff',
+        'user',
+        ('created_at', admin.DateFieldListFilter),
+        ('paid_at', admin.DateFieldListFilter),
+        ('updated_at', admin.DateFieldListFilter),
+    )
+    search_fields = ('internal_uuid', 'user__username', 'user__email', 'yookassa_payment_id', 'idempotence_key')
+    autocomplete_fields = ('user', 'tariff')
+    date_hierarchy = 'created_at'
+    readonly_fields = (
+        'internal_uuid',
+        'user',
+        'tariff',
+        'period',
+        'amount',
+        'currency',
+        'status',
+        'yookassa_payment_id',
+        'idempotence_key',
+        'confirmation_url',
+        'metadata',
+        'error_message',
+        'paid_at',
+        'subscription_activated',
+        'created_at',
+        'updated_at',
+    )
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(SubscriptionHistory)
+class SubscriptionHistoryAdmin(admin.ModelAdmin):
+    list_display = ('user', 'from_plan', 'to_plan', 'from_status', 'to_status', 'reason', 'changed_at')
+    list_filter = ('reason', 'from_status', 'to_status', 'to_plan')
+    search_fields = ('user__username', 'reason')
+    autocomplete_fields = ('user', 'subscription', 'from_plan', 'to_plan')
+    readonly_fields = ('changed_at',)

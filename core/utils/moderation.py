@@ -105,16 +105,24 @@ def validate_uploaded_file(upload) -> None:
 
 
 def serialise_content_for_hash(title: str, data) -> str:
-    """Create a canonical string representation used for hashing."""
+    """Create a canonical string representation used for the DB uniqueness hash."""
     title_part = normalise_text(title)
+    data_part = serialise_payload_for_hash(data)
+    return f"{title_part}\n{data_part}".strip()
+
+
+def serialise_payload_for_hash(data) -> str:
+    """Create a canonical representation of the card payload only."""
     if isinstance(data, (dict, list)):
+        if not data:
+            return ""
         try:
             data_part = json.dumps(data, ensure_ascii=False, sort_keys=True)
         except (TypeError, ValueError):
             data_part = normalise_text(str(data))
     else:
         data_part = normalise_text(str(data))
-    return f"{title_part}\n{data_part}".strip()
+    return data_part.strip()
 
 
 def compute_content_hash(title: str, data) -> str:
@@ -124,3 +132,11 @@ def compute_content_hash(title: str, data) -> str:
         return ""
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()
     return digest
+
+
+def compute_payload_hash(data) -> str:
+    """Return SHA-256 hash for duplicate payload checks, ignoring title."""
+    payload = serialise_payload_for_hash(data)
+    if not payload:
+        return ""
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()

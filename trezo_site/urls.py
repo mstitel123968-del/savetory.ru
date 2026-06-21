@@ -19,7 +19,10 @@ urlpatterns = [
     path('robots.txt', core_views.robots_txt, name='robots-txt'),
     path('sitemap.xml', sitemap, {'sitemaps': sitemaps}, name='sitemap'),
     path('', include(('core.urls', 'core'), namespace='core')),
+    path('market/', core_views.market_closed, name='market-closed'),
+    path('market/<path:path>', core_views.market_closed, name='market-closed-path'),
     path('market/', include('market.urls')),
+    path('auction/', include('auction.urls')),
     path('messages/', market_views.market_messages, name='messages'),
 ]
 

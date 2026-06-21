@@ -39,6 +39,22 @@
         {% for message in messages %}
           <article class="messages-bubble{% if message.is_outgoing %} messages-bubble--out{% else %} messages-bubble--in{% endif %}{% if message.is_deleted %} messages-bubble--deleted{% endif %}" data-message-id="{{ message.id }}" data-outgoing="{{ message.is_outgoing|yesno:'true,false' }}" data-read="{{ message.is_read|yesno:'true,false' }}">
             <div class="messages-bubble__text">{{ message.text }}</div>
+            {% if message.attachment %}
+              {% if message.attachment.is_image %}
+                <a class="messages-attachment messages-attachment--image" href="{{ message.attachment.url }}" target="_blank" rel="noopener" title="{{ message.attachment.name }}">
+                  <img src="{{ message.attachment.url }}" alt="{{ message.attachment.name }}" loading="lazy" />
+                </a>
+              {% else %}
+                <a class="messages-attachment messages-attachment--file" href="{{ message.attachment.url }}" download="{{ message.attachment.name }}" target="_blank" rel="noopener">
+                  <span class="messages-attachment__icon" aria-hidden="true">📄</span>
+                  <span class="messages-attachment__info">
+                    <span class="messages-attachment__name">{{ message.attachment.name }}</span>
+                    <span class="messages-attachment__size">{{ message.attachment.size_display }}</span>
+                  </span>
+                  <span class="messages-attachment__dl" aria-hidden="true">↓</span>
+                </a>
+              {% endif %}
+            {% endif %}
             <div class="messages-bubble__meta">
               <time class="messages-bubble__time" datetime="{{ message.sent_at }}">{{ message.sent_at_display }}</time>
               {% if message.is_edited %}<span class="messages-bubble__edited">изменено</span>{% endif %}
@@ -78,9 +94,16 @@
           <div class="messages-empty">Сообщений пока нет</div>
         {% endfor %}
       </div>
-      <form id="messageComposeForm" class="messages-compose" data-recipient-id="{{ dialog_user.id }}" novalidate>
-        <textarea id="messageComposeText" rows="2" maxlength="4000" placeholder="Напишите сообщение" aria-label="Текст сообщения" required></textarea>
-        <button class="messages-compose__submit" type="submit">Отправить</button>
+      <form id="messageComposeForm" class="messages-compose" data-recipient-id="{{ dialog_user.id }}" enctype="multipart/form-data" novalidate>
+        <div id="messageComposeAttachment" class="messages-compose__attachment" hidden></div>
+        <div class="messages-compose__row">
+          <button type="button" id="messageAttachBtn" class="messages-compose__attach" aria-label="Прикрепить файл" title="Прикрепить файл">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          </button>
+          <input type="file" id="messageAttachInput" class="messages-compose__file-input" hidden />
+          <textarea id="messageComposeText" rows="2" maxlength="4000" placeholder="Напишите сообщение" aria-label="Текст сообщения"></textarea>
+          <button class="messages-compose__submit" type="submit">Отправить</button>
+        </div>
         <div id="messageComposeError" class="messages-compose__error" role="alert" aria-live="polite"></div>
       </form>
     </section>

@@ -31,8 +31,8 @@ class MarketViewsTests(TestCase):
 
     def test_market_root_ok(self):
         response = self.client.get(reverse('market_root'))
-        self.assertEqual(response.status_code, 302)
-        self.assertTrue(response['Location'].endswith(reverse('market_auction')))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('market_auction'))
 
     def test_market_auction_category_filter(self):
         now = timezone.now()

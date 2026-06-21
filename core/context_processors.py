@@ -13,4 +13,5 @@ def terms(request):
         "terms_version": settings.TERMS_VERSION,
         "terms_accept_url": reverse("core:accept_terms"),
         "terms_page_url": reverse("core:terms"),
+        "requisites_page_url": reverse("core:requisites"),
     }
