@@ -219,3 +219,6 @@ TERMS_VERSION = os.environ.get('TERMS_VERSION', '2024-01')
 YOOKASSA_SHOP_ID = os.environ.get('YOOKASSA_SHOP_ID', '')
 YOOKASSA_SECRET_KEY = os.environ.get('YOOKASSA_SECRET_KEY', '')
 YOOKASSA_RETURN_URL = os.environ.get('YOOKASSA_RETURN_URL', '')
+# Receipt (54-ФЗ) settings for YooKassa. VAT code 1 = "без НДС".
+YOOKASSA_VAT_CODE = int(os.environ.get('YOOKASSA_VAT_CODE', '1'))
+YOOKASSA_PAYMENT_MODE = os.environ.get('YOOKASSA_PAYMENT_MODE', 'full_prepayment')

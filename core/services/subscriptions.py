@@ -58,6 +58,8 @@ ARCHIVE_LIMIT_ERROR = (
     'Перейдите на другой тариф или удалите ненужные объекты'
 )
 PAYMENT_UNAVAILABLE_MESSAGE = 'Оплата временно недоступна'
+PAYMENT_EMAIL_REQUIRED_MESSAGE = 'Для получения чека укажите электронную почту в настройках аккаунта.'
+PAYMENT_GENERIC_ERROR_MESSAGE = 'Не удалось создать платеж. Попробуйте позже.'
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,11 @@ class PaymentUnavailable(ValidationError):
 
 
 class PaymentGatewayError(ValidationError):
+    pass
+
+
+class PaymentReceiptError(ValidationError):
+    """Raised when a receipt cannot be built (e.g. the user has no email)."""
     pass
 
 
@@ -331,6 +338,41 @@ def _format_decimal(value: Decimal) -> str:
     return f'{Decimal(value):.2f}'
 
 
+def customer_email(user) -> str:
+    """Return the user's email for the receipt, or raise a user-facing error.
+
+    A receipt (54-ФЗ) is mandatory for YooKassa, and the receipt requires a
+    customer contact. Without an email we must not contact YooKassa at all.
+    """
+    email = (getattr(user, 'email', '') or '').strip()
+    if not email:
+        raise PaymentReceiptError({'email': [PAYMENT_EMAIL_REQUIRED_MESSAGE]})
+    return email
+
+
+def _build_receipt(user, payment: SubscriptionPayment) -> dict:
+    amount_value = _format_decimal(payment.amount)
+    return {
+        'customer': {
+            'email': customer_email(user),
+        },
+        'items': [
+            {
+                'description': payment_description(payment.tariff, payment.period),
+                'quantity': '1.00',
+                'amount': {
+                    # Must match payment.amount exactly (single item, quantity 1).
+                    'value': amount_value,
+                    'currency': 'RUB',
+                },
+                'vat_code': settings.YOOKASSA_VAT_CODE,
+                'payment_subject': 'service',
+                'payment_mode': settings.YOOKASSA_PAYMENT_MODE,
+            }
+        ],
+    }
+
+
 def _build_yookassa_payload(user, payment: SubscriptionPayment) -> dict:
     description = payment_description(payment.tariff, payment.period)
     payload = {
@@ -344,6 +386,7 @@ def _build_yookassa_payload(user, payment: SubscriptionPayment) -> dict:
             'return_url': _payment_return_url(payment),
         },
         'description': description,
+        'receipt': _build_receipt(user, payment),
         'metadata': {
             'internal_payment_id': str(payment.internal_uuid),
             'user_id': str(user.pk),
@@ -367,6 +410,23 @@ def _confirmation_url(response) -> str:
     return str(getattr(confirmation, 'confirmation_url', '') or '')
 
 
+def _safe_yookassa_error_fields(exc) -> dict:
+    """Extract only the safe, non-sensitive fields from a YooKassa API error.
+
+    Never returns secrets, credentials or customer data — only the error
+    ``code``, ``parameter`` and ``description`` provided by YooKassa.
+    """
+    content = getattr(exc, 'content', None)
+    if not isinstance(content, dict):
+        args = getattr(exc, 'args', None)
+        content = args[0] if args and isinstance(args[0], dict) else {}
+    return {
+        'code': content.get('code', ''),
+        'parameter': content.get('parameter', ''),
+        'description': content.get('description', ''),
+    }
+
+
 def _create_yookassa_payment(payload: dict, idempotence_key: str):
     try:
         from yookassa import Configuration, Payment
@@ -378,7 +438,14 @@ def _create_yookassa_payment(payload: dict, idempotence_key: str):
     try:
         return Payment.create(payload, idempotence_key)
     except Exception as exc:
-        logger.warning('YooKassa API create error: %s', exc.__class__.__name__)
+        fields = _safe_yookassa_error_fields(exc)
+        logger.warning(
+            'YooKassa API create error: type=%s code=%s parameter=%s description=%s',
+            exc.__class__.__name__,
+            fields['code'],
+            fields['parameter'],
+            fields['description'],
+        )
         raise
 
 
@@ -927,6 +994,10 @@ class YooKassaGateway(BillingGateway):
         if not yookassa_is_configured():
             raise payment_unavailable_error()
 
+        # A receipt is mandatory, so an email is required before we touch the DB
+        # or contact YooKassa. Raises PaymentReceiptError when it is missing.
+        customer_email(user)
+
         with transaction.atomic():
             payment = _find_reusable_payment(user, plan, billing_period)
             if payment is None:
@@ -974,7 +1045,7 @@ class YooKassaGateway(BillingGateway):
             payment.status = SubscriptionPayment.Status.FAILED
             payment.error_message = 'YooKassa payment creation failed.'
             payment.save(update_fields=['status', 'error_message', 'updated_at'])
-            raise PaymentGatewayError({'payment': ['Не удалось создать платеж. Попробуйте позже.']}) from exc
+            raise PaymentGatewayError({'payment': [PAYMENT_GENERIC_ERROR_MESSAGE]}) from exc
 
         confirmation_url = _confirmation_url(response)
         yookassa_payment_id = str(_response_value(response, 'id', '') or '')
@@ -984,7 +1055,7 @@ class YooKassaGateway(BillingGateway):
             payment.status = SubscriptionPayment.Status.FAILED
             payment.error_message = 'YooKassa response did not contain confirmation URL.'
             payment.save(update_fields=['status', 'error_message', 'updated_at'])
-            raise PaymentGatewayError({'payment': ['Не удалось создать платеж. Попробуйте позже.']})
+            raise PaymentGatewayError({'payment': [PAYMENT_GENERIC_ERROR_MESSAGE]})
 
         payment.yookassa_payment_id = yookassa_payment_id
         payment.status = status

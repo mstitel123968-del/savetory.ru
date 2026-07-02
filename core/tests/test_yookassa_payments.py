@@ -148,6 +148,124 @@ class YooKassaPaymentTests(TestCase):
         self.assertEqual(response['Location'], 'https://yookassa.example/confirm')
 
     @override_settings(**YOOKASSA_SETTINGS)
+    def test_payload_includes_valid_receipt(self):
+        self.client.force_login(self.user)
+        captured = {}
+
+        def fake_create(payload, idempotence_key):
+            captured['payload'] = payload
+            return self._sdk_response()
+
+        with patch('core.services.subscriptions._create_yookassa_payment', side_effect=fake_create):
+            response = self._post_checkout(data={'plan': 'plus', 'period': 'month'})
+
+        self.assertEqual(response.status_code, 200)
+        payload = captured['payload']
+        self.assertIn('receipt', payload)
+        receipt = payload['receipt']
+        # Email is forwarded to the receipt customer.
+        self.assertEqual(receipt['customer']['email'], 'payer@example.com')
+        self.assertEqual(len(receipt['items']), 1)
+        item = receipt['items'][0]
+        self.assertEqual(item['vat_code'], 1)
+        self.assertEqual(item['payment_subject'], 'service')
+        self.assertEqual(item['payment_mode'], 'full_prepayment')
+        self.assertEqual(item['quantity'], '1.00')
+        self.assertEqual(item['amount']['currency'], 'RUB')
+        # Receipt item amount must match the total payment amount exactly.
+        self.assertEqual(item['amount']['value'], payload['amount']['value'])
+        self.assertEqual(item['amount']['value'], '99.00')
+
+    @override_settings(**YOOKASSA_SETTINGS)
+    def test_receipt_amount_matches_payment_for_each_tariff(self):
+        self.client.force_login(self.user)
+        cases = [('plus', 'month', '99.00'), ('pro', 'year', '1990.00')]
+        for plan, period, expected in cases:
+            SubscriptionPayment.objects.all().delete()
+            captured = {}
+
+            def fake_create(payload, idempotence_key):
+                captured['payload'] = payload
+                return self._sdk_response()
+
+            with self.subTest(plan=plan, period=period):
+                with patch('core.services.subscriptions._create_yookassa_payment', side_effect=fake_create):
+                    response = self._post_checkout(data={'plan': plan, 'period': period})
+
+                self.assertEqual(response.status_code, 200)
+                payload = captured['payload']
+                self.assertEqual(payload['amount']['value'], expected)
+                self.assertEqual(payload['receipt']['items'][0]['amount']['value'], expected)
+
+    @override_settings(**YOOKASSA_SETTINGS)
+    def test_user_without_email_gets_clear_error_and_no_remote_call(self):
+        user = get_user_model().objects.create_user(
+            username='noemail',
+            email='',
+            password='pass1234',
+        )
+        Profile.objects.create(user=user, terms_version_accepted=settings.TERMS_VERSION)
+        self.client.force_login(user)
+
+        with patch('core.services.subscriptions._create_yookassa_payment') as sdk:
+            response = self._post_checkout(data={'plan': 'plus', 'period': 'month'})
+
+        self.assertEqual(response.status_code, 400)
+        errors = response.json()['errors']
+        self.assertIn('email', errors)
+        self.assertIn('электронную почту', errors['email'][0])
+        # No remote request and no local payment when the receipt cannot be built.
+        sdk.assert_not_called()
+        self.assertEqual(SubscriptionPayment.objects.count(), 0)
+
+    @override_settings(**YOOKASSA_SETTINGS)
+    def test_secret_key_is_not_written_to_logs(self):
+        self.client.force_login(self.user)
+
+        class FakeApiError(Exception):
+            def __init__(self):
+                content = {
+                    'code': 'invalid_request',
+                    'parameter': 'receipt',
+                    'description': 'Receipt is missing or illegal',
+                }
+                super().__init__(content)
+                self.content = content
+
+        # Drive the real _create_yookassa_payment so credentials are configured
+        # on the SDK, then fail at Payment.create like YooKassa would.
+        with patch('yookassa.Payment.create', side_effect=FakeApiError()):
+            with self.assertLogs('core.services.subscriptions', level='WARNING') as logs:
+                response = self._post_checkout(data={'plan': 'plus', 'period': 'month'})
+
+        self.assertEqual(response.status_code, 400)
+        joined = '\n'.join(logs.output)
+        # Secrets and credentials must never reach the logs.
+        self.assertNotIn(YOOKASSA_SETTINGS['YOOKASSA_SECRET_KEY'], joined)
+        self.assertNotIn(YOOKASSA_SETTINGS['YOOKASSA_SHOP_ID'], joined)
+        self.assertNotIn('payer@example.com', joined)
+        # But the safe YooKassa error fields are logged for diagnostics.
+        self.assertIn('invalid_request', joined)
+        self.assertIn('receipt', joined)
+
+    @override_settings(**YOOKASSA_SETTINGS)
+    def test_double_request_reuses_confirmation_without_second_remote_call(self):
+        self.client.force_login(self.user)
+
+        with patch('core.services.subscriptions._create_yookassa_payment', return_value=self._sdk_response()) as sdk:
+            first = self._post_checkout(data={'plan': 'pro', 'period': 'month'})
+            second = self._post_checkout(data={'plan': 'pro', 'period': 'month'})
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(SubscriptionPayment.objects.count(), 1)
+        payment = SubscriptionPayment.objects.get()
+        # Same permanent idempotence key, single remote payment.
+        self.assertEqual(payment.idempotence_key, f'savetory-subscription-{payment.internal_uuid}')
+        self.assertEqual(sdk.call_count, 1)
+        self.assertEqual(first.json()['confirmation_url'], second.json()['confirmation_url'])
+
+    @override_settings(**YOOKASSA_SETTINGS)
     def test_server_prices_match_tariff_table(self):
         self.client.force_login(self.user)
         cases = [
