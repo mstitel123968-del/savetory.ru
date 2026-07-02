@@ -43,7 +43,6 @@
             <span class="settings-note">Текущий тариф</span>
             <h3 class="settings-subtitle">{{ subscription_plan.name }}</h3>
           </div>
-          <div class="subscription-status">{{ subscription.get_status_display }}</div>
         </div>
 
         <div class="subscription-usage-grid">
@@ -68,17 +67,18 @@
         <div class="subscription-plan-grid">
           {% for plan in available_plans %}
           <article class="subscription-plan{% if plan.code == subscription_plan.code %} subscription-plan--current{% endif %}">
-            <div>
-              <h3>{{ plan.name }}</h3>
-              {% if plan.description %}<p class="settings-note">{{ plan.description }}</p>{% endif %}
+            <div class="subscription-plan__head">
+              <div>
+                <h3>{{ plan.name }}</h3>
+                {% if plan.description %}<p class="settings-note">{{ plan.description }}</p>{% endif %}
+              </div>
+              {% if plan.code == subscription_plan.code %}
+              <span class="subscription-status">{{ subscription.get_status_display }}</span>
+              {% endif %}
             </div>
             <div class="subscription-plan__limits">
               <span>Архив: {{ plan.archive_limit_label }}</span>
               <span>Аукционы: {{ plan.active_auction_limit }}</span>
-              {% if plan.is_paid %}
-              <span>Месяц: {{ plan.monthly_price_label }}</span>
-              <span>Год: {{ plan.yearly_price_label }}</span>
-              {% endif %}
             </div>
             {% if plan.is_paid %}
             <div class="subscription-plan__actions">

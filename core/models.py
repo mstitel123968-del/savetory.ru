@@ -496,7 +496,7 @@ class SubscriptionPayment(models.Model):
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     currency = models.CharField(max_length=3, default='RUB')
     status = models.CharField(max_length=16, choices=Status.choices, default=Status.CREATED, db_index=True)
-    yookassa_payment_id = models.CharField(max_length=128, blank=True, default='', db_index=True)
+    yookassa_payment_id = models.CharField(max_length=128, blank=True, null=True, unique=True)
     idempotence_key = models.CharField(max_length=128, unique=True)
     confirmation_url = models.URLField(blank=True, default='')
     metadata = models.JSONField(default=dict, blank=True)

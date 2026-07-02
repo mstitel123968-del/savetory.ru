@@ -751,9 +751,13 @@ def login_user(request: HttpRequest) -> JsonResponse:
 
 @login_required
 @require_POST
-def subscription_checkout(request: HttpRequest) -> JsonResponse:
+def subscription_checkout(request: HttpRequest) -> HttpResponse:
     plan_code = str(request.POST.get('plan') or '').strip().lower()
     billing_period = str(request.POST.get('period') or '').strip().lower()
+    wants_json = (
+        request.headers.get('x-requested-with') == 'XMLHttpRequest'
+        or 'application/json' in request.headers.get('accept', '')
+    )
     try:
         intent = subscriptions.create_checkout_intent(
             request.user,
@@ -765,13 +769,15 @@ def subscription_checkout(request: HttpRequest) -> JsonResponse:
         return JsonResponse({'success': False, 'errors': errors}, status=400)
     except subscriptions.SubscriptionPlan.DoesNotExist:
         return JsonResponse({'success': False, 'errors': {'plan': ['Unknown subscription plan.']}}, status=404)
+    if not wants_json:
+        return redirect(intent.confirmation_url)
     return JsonResponse({
         'success': True,
         'provider': intent.provider,
         'payment_uuid': intent.payment_uuid,
         'subscription_id': intent.subscription_id,
         'confirmation_url': intent.confirmation_url,
-        'message': 'Payment integration is prepared but not connected yet.',
+        'redirect_url': intent.confirmation_url,
     })
 
 
@@ -825,7 +831,7 @@ def subscription_payment_result(request: HttpRequest) -> HttpResponse:
     result_message = ''
     if payment.yookassa_payment_id:
         try:
-            result = subscriptions.process_yookassa_payment(payment.yookassa_payment_id)
+            result = subscriptions.refresh_yookassa_payment_status(payment)
             if result.payment and result.payment.user_id == request.user.id:
                 payment = result.payment
                 result_status = result.status

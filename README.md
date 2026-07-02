@@ -64,20 +64,15 @@ docker compose build --build-arg PIP_INDEX_URL=http://your-proxy/simple --build-
 коммитить, выводить в HTML, JavaScript или логи.
 
 ```env
-YOOKASSA_ENABLED=0
 YOOKASSA_SHOP_ID=
 YOOKASSA_SECRET_KEY=
-SITE_URL=https://example.com
 YOOKASSA_RETURN_URL=https://example.com/subscriptions/payment/result/
-YOOKASSA_SEND_RECEIPT=0
-YOOKASSA_VAT_CODE=
 ```
 
 Для production `docker-compose.prod.yml` читает эти значения через `.env.prod`.
 Для локального `docker-compose.yml` переменные пробрасываются из окружения с
-безопасными пустыми значениями по умолчанию. Если `YOOKASSA_ENABLED=0` или
-отсутствуют `YOOKASSA_SHOP_ID`/`YOOKASSA_SECRET_KEY`, страница тарифов остается
-доступной, а кнопки оплаты показывают временную недоступность.
+безопасными пустыми значениями по умолчанию. Создание платежа доступно только
+если заполнены `YOOKASSA_SHOP_ID`, `YOOKASSA_SECRET_KEY` и `YOOKASSA_RETURN_URL`.
 
 Webhook URL для ЮKassa: `/subscriptions/yookassa/webhook/`.
 Return URL для пользователя: `/subscriptions/payment/result/`.

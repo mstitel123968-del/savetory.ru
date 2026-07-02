@@ -5,22 +5,20 @@ from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.conf import settings
-from django.test import TestCase, override_settings
+from django.http import Http404, HttpResponse
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
 from core.models import Profile, SubscriptionPayment, SubscriptionPlan, UserSubscription
 from core.services import subscriptions
+from core import views
 
 
 YOOKASSA_SETTINGS = {
-    'YOOKASSA_ENABLED': True,
     'YOOKASSA_SHOP_ID': 'test-shop',
     'YOOKASSA_SECRET_KEY': 'test-secret',
-    'SITE_URL': 'https://www.savetory.ru',
     'YOOKASSA_RETURN_URL': 'https://www.savetory.ru/subscriptions/payment/result/',
-    'YOOKASSA_SEND_RECEIPT': False,
-    'YOOKASSA_VAT_CODE': '',
 }
 
 
@@ -34,6 +32,13 @@ class YooKassaWebhookTests(TestCase):
         Profile.objects.create(user=self.other, terms_version_accepted=settings.TERMS_VERSION)
         self.plus = SubscriptionPlan.objects.get(code=SubscriptionPlan.Code.PLUS)
         self.pro = SubscriptionPlan.objects.get(code=SubscriptionPlan.Code.PRO)
+        self.factory = RequestFactory()
+
+    def _payment_result_response(self, payment, user):
+        request = self.factory.get(reverse('core:payment-result'), data={'payment': str(payment.internal_uuid)})
+        request.user = user
+        with patch('core.views.render', return_value=HttpResponse('payment result')):
+            return views.subscription_payment_result(request)
 
     def _payment(self, tariff=None, period=SubscriptionPayment.Period.MONTH, amount=None):
         tariff = tariff or self.plus
@@ -187,21 +192,30 @@ class YooKassaWebhookTests(TestCase):
 
     def test_user_cannot_view_other_users_payment(self):
         payment = self._payment()
-        self.client.force_login(self.other)
 
-        response = self.client.get(reverse('core:payment-result'), data={'payment': str(payment.internal_uuid)})
-
-        self.assertEqual(response.status_code, 404)
+        with self.assertRaises(Http404):
+            self._payment_result_response(payment, self.other)
 
     def test_return_url_does_not_activate_unconfirmed_payment(self):
         payment = self._payment()
-        self.client.force_login(self.user)
 
         with patch('core.services.subscriptions._fetch_yookassa_payment', return_value=self._remote(payment, status=SubscriptionPayment.Status.PENDING)):
-            response = self.client.get(reverse('core:payment-result'), data={'payment': str(payment.internal_uuid)})
+            response = self._payment_result_response(payment, self.user)
 
         self.assertEqual(response.status_code, 200)
         payment.refresh_from_db()
         self.assertEqual(payment.status, SubscriptionPayment.Status.PENDING)
+        self.assertFalse(payment.subscription_activated)
+        self.assertFalse(UserSubscription.objects.filter(user=self.user, tariff__is_paid=True).exists())
+
+    def test_return_url_does_not_activate_succeeded_payment(self):
+        payment = self._payment()
+
+        with patch('core.services.subscriptions._fetch_yookassa_payment', return_value=self._remote(payment, status=SubscriptionPayment.Status.SUCCEEDED)):
+            response = self._payment_result_response(payment, self.user)
+
+        self.assertEqual(response.status_code, 200)
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, SubscriptionPayment.Status.SUCCEEDED)
         self.assertFalse(payment.subscription_activated)
         self.assertFalse(UserSubscription.objects.filter(user=self.user, tariff__is_paid=True).exists())

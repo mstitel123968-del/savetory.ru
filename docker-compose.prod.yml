@@ -23,12 +23,10 @@ services:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-    # SECURITY: do NOT publish the database port to the host. The web service
-    # reaches Postgres over the internal Docker network as "db:5432". Publishing
-    # 5432 exposes the database to the public internet. For trusted local
-    # debugging only, bind to loopback instead, e.g.:
-    #   ports:
-    #     - "127.0.0.1:5432:5432"
+    # Direct access for database clients such as DBeaver.
+    # Restrict TCP/5432 to trusted source IPs in the server firewall.
+    ports:
+      - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
 

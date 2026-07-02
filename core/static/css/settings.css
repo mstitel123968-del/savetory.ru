@@ -76,6 +76,8 @@ body.theme-sepia .pref-dropdown__menu{box-shadow:0 20px 40px rgba(60,32,18,0.36)
 .subscription-plan-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
 .subscription-plan{display:flex;flex-direction:column;gap:12px;padding:14px;border:1px solid color-mix(in srgb,var(--btn-border) 82%,transparent);border-radius:14px;background:color-mix(in srgb,var(--card) 90%,transparent)}
 .subscription-plan--current{border-color:color-mix(in srgb,var(--accent) 54%,var(--btn-border));box-shadow:0 0 0 1px color-mix(in srgb,var(--accent) 18%,transparent)}
+.subscription-plan__head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.subscription-plan__head .subscription-status{flex:none}
 .subscription-plan h3{margin:0;font-size:17px}
 .subscription-plan__limits{display:flex;flex-direction:column;gap:4px;color:var(--muted);font-size:13px}
 .subscription-plan__actions{display:flex;gap:8px;flex-wrap:wrap}
