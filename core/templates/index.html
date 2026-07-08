@@ -22,6 +22,15 @@
 </head>
 <body class="landing-page">
   <script src="{% static 'js/prefs.js' %}"></script>
+
+  <button class="landing-theme-toggle" id="landingThemeToggle" type="button" role="switch" aria-checked="false" aria-label="Переключить светлую и тёмную тему">
+    <span class="landing-theme-toggle__track" aria-hidden="true">
+      <span class="landing-theme-toggle__icon landing-theme-toggle__icon--sun">☀</span>
+      <span class="landing-theme-toggle__icon landing-theme-toggle__icon--moon">☾</span>
+      <span class="landing-theme-toggle__knob"></span>
+    </span>
+  </button>
+
   <div class="landing-shell">
     <header class="landing-top">
       {% include 'includes/site_logo.html' with brand_class='landing-brand' brand_label='СКлад' %}
@@ -29,12 +38,13 @@
 
     <main class="landing-main">
       <section class="landing-hero" aria-label="Приветственный слоган">
-        <p class="landing-hero-line" data-landing-slogan aria-live="polite">Твоя коллекция в одном месте.</p>
+        <p class="landing-hero-line" data-landing-slogan aria-live="polite">Память создаётся здесь.</p>
       </section>
-      <button class="ios-button landing-start" type="button" data-open-auth>Начать</button>
     </main>
+
     <footer class="landing-footer">
       <a class="landing-top-link" href="/news/">Инструкции по пользованию</a>
+      <button class="ios-button landing-start" type="button" data-open-auth>Начать</button>
     </footer>
   </div>
 
@@ -68,10 +78,28 @@
 
   {% include 'includes/registration_terms_modal.html' %}
 
-  {% include 'includes/support_floating_widget.html' %}
 
   <script src="{% static 'js/landing.js' %}"></script>
-  <script src="{% static 'js/support-widget.js' %}"></script>
+  <script>
+    (function(){
+      var btn = document.getElementById('landingThemeToggle');
+      if(!btn || !window.TrezoUIPrefs) return;
+      function isLight(){ return document.body.classList.contains('theme-light'); }
+      function sync(){
+        var light = isLight();
+        btn.classList.toggle('is-light', light);
+        btn.setAttribute('aria-checked', light ? 'true' : 'false');
+      }
+      sync();
+      btn.addEventListener('click', function(){
+        var prefs = window.TrezoUIPrefs.load();
+        prefs.theme = isLight() ? 'dark' : 'light';
+        window.TrezoUIPrefs.save(prefs);
+        window.TrezoUIPrefs.apply(prefs);
+        sync();
+      });
+    })();
+  </script>
   <script src="{% static 'js/modal.js' %}"></script>
 </body>
 </html>

@@ -159,6 +159,12 @@
   }
 
   function getCsrfToken(){
+    // Prefer the token embedded in the page: on prod the csrftoken cookie can be
+    // marked Secure / unreadable behind a proxy, which would otherwise send an
+    // empty token and trigger a spurious CSRF 403 ("session expired").
+    if (typeof window !== 'undefined' && window.__csrfToken){
+      return window.__csrfToken;
+    }
     if (typeof document === 'undefined' || !document.cookie){
       return '';
     }
@@ -1156,6 +1162,26 @@
     topbarActions.insertBefore(createExportMenu(rubric, 'export-menu--topbar'), archiveSelectionToggle || null);
   }
 
+  function renderTopbarMeta(text){
+    const host = document.querySelector('.topbar .logo-wrap');
+    if (!host){
+      return;
+    }
+    let el = host.querySelector('.topbar-file-meta');
+    if (!text){
+      if (el){
+        el.remove();
+      }
+      return;
+    }
+    if (!el){
+      el = document.createElement('span');
+      el.className = 'topbar-file-meta';
+      host.appendChild(el);
+    }
+    el.textContent = text;
+  }
+
   function flattenErrors(errors){
     if (!errors || typeof errors !== 'object'){
       return '';
@@ -1187,6 +1213,22 @@
     });
     const data = await readJsonResponse(response);
     return { response, data };
+  }
+
+  // Verify the real auth state before blaming the session for a failed request.
+  // Returns true on any error so a transient network hiccup never shows a
+  // spurious "session expired" prompt.
+  async function isStillAuthenticated(){
+    try {
+      const resp = await fetch('/api/auth/status/', { credentials: 'include', cache: 'no-store' });
+      if (!resp.ok){
+        return true;
+      }
+      const data = await resp.json();
+      return Boolean(data && data.authenticated);
+    } catch (err) {
+      return true;
+    }
   }
 
   async function moveArchiveFileRequest(fileId, sourceRubricId, targetRubricId){
@@ -1714,12 +1756,20 @@
       });
       success = Boolean(response.ok && data && data.success);
       if (!success){
-        setArchiveStatus(
-          flattenErrors(data && data.errors)
-          || (response.status === 401 || response.status === 403 || (response.redirected && !data)
-            ? 'Сохранение не выполнено: сессия истекла. Войдите снова.'
-            : `Сохранение не выполнено (HTTP ${response.status}).`)
-        );
+        const serverError = flattenErrors(data && data.errors);
+        if (serverError){
+          // Real, actionable server message (e.g. terms acceptance, limits).
+          setArchiveStatus(`Сохранение не выполнено: ${serverError}`);
+        } else if (response.status === 401 || response.status === 403 || (response.redirected && !data)){
+          // 401/403/redirect can also come from a CSRF hiccup while the user is
+          // still logged in — don't cry "session expired" unless they really are.
+          const authed = await isStillAuthenticated();
+          setArchiveStatus(authed
+            ? 'Изменения сохранены в браузере, но не синхронизированы с сервером. Повторите попытку позже.'
+            : 'Сохранение не выполнено: сессия истекла. Войдите снова.');
+        } else {
+          setArchiveStatus(`Сохранение не выполнено (HTTP ${response.status}).`);
+        }
       } else {
         setArchiveStatus('');
       }
@@ -1954,6 +2004,7 @@
       rubricButtons.classList.add('hidden');
       activeRubricId = null;
       renderTopbarExport(null);
+      renderTopbarMeta(null);
       requestSearchHide();
       scheduleSidebarMeasure();
       return;
@@ -1968,7 +2019,9 @@
     if (allRubricsBtn){
       allRubricsBtn.classList.toggle('active', viewingAll);
     }
-    renderTopbarExport(viewingAll ? null : state.rubrics.find((item) => item.id === activeRubricId));
+    const activeRubric = viewingAll ? null : state.rubrics.find((item) => item.id === activeRubricId);
+    renderTopbarExport(activeRubric);
+    renderTopbarMeta(activeRubric ? (activeRubric.files.length ? `Файлов: ${activeRubric.files.length}` : 'Файлов пока нет') : null);
 
     emptySection.classList.add('hidden');
     rubricsContainer.classList.remove('hidden');
@@ -2016,8 +2069,10 @@
     );
     targetRubrics.forEach((rubric) => {
       const card = document.createElement('section');
-      card.className = 'rubric-card';
+      card.className = 'rubric-card rubric-card--all';
       card.dataset.rubricId = rubric.id;
+
+      const metaText = rubric.files.length ? `Файлов: ${rubric.files.length}` : 'Файлов пока нет';
 
       if (viewingAll){
         const header = document.createElement('div');
@@ -2025,23 +2080,23 @@
         const heading = document.createElement('h3');
         heading.className = 'rubric-card__title';
         heading.textContent = rubric.name;
-        header.append(heading, createExportMenu(rubric, 'export-menu--rubric'));
+        const meta = document.createElement('span');
+        meta.className = 'rubric-card__meta';
+        meta.textContent = metaText;
+        header.append(heading, meta, createExportMenu(rubric, 'export-menu--rubric'));
         card.appendChild(header);
       }
 
       const frame = document.createElement('div');
       frame.className = 'rubric-card__frame';
 
-      const meta = document.createElement('div');
-      meta.className = 'rubric-card__meta';
-      meta.textContent = rubric.files.length ? `Файлов: ${rubric.files.length}` : 'Файлов пока нет';
-      frame.appendChild(meta);
-
-      if (!rubric.fields.length){
+      const body = document.createElement('div');
+      body.className = 'rubric-card__body';
+      if (selectionMode && !rubric.fields.length){
         const hint = document.createElement('div');
         hint.className = 'rubric-empty-hint';
         hint.textContent = 'Настройте поля рубрики, чтобы начать добавлять файлы.';
-        frame.appendChild(hint);
+        body.appendChild(hint);
       } else {
         const grid = document.createElement('div');
         grid.className = 'rubric-files-grid';
@@ -2051,8 +2106,9 @@
         if (!selectionMode){
           grid.appendChild(createAddTile(() => openFileFormModal(rubric.id)));
         }
-        frame.appendChild(grid);
+        body.appendChild(grid);
       }
+      frame.appendChild(body);
 
       card.appendChild(frame);
       fragment.appendChild(card);
@@ -2163,29 +2219,6 @@
     title.className = 'file-card__title';
     title.textContent = getDisplayName(rubric, file);
     btn.appendChild(title);
-
-    const visibleFields = rubric.fields.filter((field) => (
-      field &&
-      field.type !== 'image' &&
-      field.id !== 'title'
-    )).slice(0, 3);
-    if (visibleFields.length){
-      const list = document.createElement('ul');
-      list.className = 'file-card__list';
-      visibleFields.forEach((field) => {
-        const rawValue = getFieldValue(rubric, file, field);
-        const value = typeof rawValue === 'string' ? rawValue.trim() : '';
-        if (!value && archivePrefs.archiveEmptyFields === 'hide'){
-          return;
-        }
-        const item = document.createElement('li');
-        item.textContent = `${field.label}: ${value || '—'}`;
-        list.appendChild(item);
-      });
-      if (list.childNodes.length){
-        btn.appendChild(list);
-      }
-    }
 
     if (selectionMode){
       const selector = document.createElement('span');
@@ -3577,7 +3610,7 @@
 
     function focusFirst(){
       const firstField = form.querySelector('input:not([type="file"]), textarea');
-      if (firstField) firstField.focus();
+      if (firstField) firstField.focus({ preventScroll: true });
     }
 
     function setError(message){
@@ -3661,6 +3694,7 @@
 
     modal.footer.appendChild(saveBtn);
     focusFirst();
+    modal.body.scrollTop = 0;
   }
 
   function openMoveFileModal(options){

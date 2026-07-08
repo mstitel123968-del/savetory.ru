@@ -62,15 +62,14 @@
   </main>
 
   <div id="archiveModalHost"></div>
-  {% include 'includes/support_floating_widget.html' %}
 
   {% include 'includes/terms_modal.html' %}
 
   <script src="{% static 'js/nav.js' %}"></script>
   <script>window.TrezoUser = { username: "{{ request.user.username|escapejs }}" };</script>
+  <script>window.__csrfToken = "{{ csrf_token|escapejs }}";</script>
   <script src="{% static 'js/search.js' %}"></script>
   <script src="{% static 'js/theme-select.js' %}"></script>
   <script src="{% static 'js/archive.js' %}"></script>
-  <script src="{% static 'js/support-widget.js' %}"></script>
 </body>
 </html>
