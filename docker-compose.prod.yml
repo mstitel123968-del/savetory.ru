@@ -8,6 +8,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env.prod
+    environment:
+      YOOKASSA_RETURN_URL: ${YOOKASSA_RETURN_URL:-https://savetory.ru/subscriptions/payment/result/}
     depends_on:
       - db
     volumes:
