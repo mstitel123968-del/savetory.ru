@@ -86,6 +86,7 @@
     if (tab === 'users') return renderUsers([]);
     if (tab === 'listings') return loadListings(currentListingStatus);
     if (tab === 'reviews') return loadReviews();
+    if (tab === 'diagnostics') return loadDiagnostics();
   }
 
   // ---- generic reason prompt --------------------------------------------
@@ -306,6 +307,83 @@
     });
   }
 
+  // ---- DIAGNOSTICS -------------------------------------------------------
+  function yesNo(value) { return value ? 'Да' : 'Нет'; }
+  function renderKv(items) {
+    return items.map(function (item) {
+      return '<div class="studio-kv__item"><div class="studio-kv__label">' + esc(item.label) + '</div>'
+        + '<div class="studio-kv__value">' + esc(item.value) + '</div></div>';
+    }).join('');
+  }
+  function renderPaymentList(items) {
+    var host = $('paymentList');
+    if (!items.length) { host.innerHTML = '<div class="studio-empty">Оплат пока нет.</div>'; return; }
+    host.innerHTML = items.map(function (p) {
+      var badgeClass = p.subscription_activated ? 'on' : (p.status === 'failed' || p.status === 'canceled' ? 'off' : '');
+      return '<div class="studio-row" data-payment-id="' + esc(p.yookassa_payment_id || p.internal_uuid) + '">'
+        + '<div class="studio-row__head"><span class="studio-row__title">' + esc(p.tariff) + ' / ' + esc(p.period)
+        + ' <span class="studio-row__meta">#' + esc(p.id) + '</span></span>'
+        + '<span class="studio-badge ' + badgeClass + '">' + esc(p.status) + (p.subscription_activated ? ' · активирована' : '') + '</span></div>'
+        + '<div class="studio-row__meta">' + esc(p.username) + ' · ' + esc(p.amount) + ' ' + esc(p.currency) + ' · ' + fmtDate(p.created_at) + '</div>'
+        + '<div class="studio-row__body">' + esc(p.yookassa_payment_id || p.internal_uuid) + (p.error_message ? '\n' + esc(p.error_message) : '') + '</div>'
+        + '<div class="studio-row__actions"><button class="studio-btn small" data-act="inspect">Проверить</button></div>'
+        + '</div>';
+    }).join('');
+    host.querySelectorAll('[data-act=inspect]').forEach(function (btn) {
+      btn.onclick = function () {
+        var id = btn.closest('.studio-row').dataset.paymentId;
+        $('paymentLookupId').value = id;
+        lookupPayment();
+      };
+    });
+  }
+  async function loadDiagnostics() {
+    $('diagnosticsSummary').innerHTML = '<div class="studio-empty">Загрузка…</div>';
+    var r = await api('/api/studio/diagnostics/');
+    if (!r.data || !r.data.success) {
+      $('diagnosticsSummary').innerHTML = '<div class="studio-empty">Не удалось загрузить диагностику.</div>';
+      return;
+    }
+    var y = r.data.yookassa || {};
+    var sys = r.data.system || {};
+    var db = sys.database || {};
+    var active = db.active_subscriptions || {};
+    $('diagnosticsSummary').innerHTML = renderKv([
+      { label: 'YooKassa', value: y.configured ? 'Настроена' : 'Не настроена' },
+      { label: 'Shop ID', value: yesNo(y.shop_id_configured) },
+      { label: 'Secret key', value: yesNo(y.secret_key_configured) },
+      { label: 'Return URL', value: y.return_url || 'Не задан' },
+      { label: 'Webhook URL', value: y.expected_webhook_url || '' },
+      { label: 'Webhook в env', value: y.configured_webhook_url || 'Не задан' },
+      { label: 'Git', value: sys.git_revision || 'Не определен' },
+      { label: 'Compose project', value: sys.compose_project_name || 'Не задан' },
+      { label: 'Пользователи', value: db.users || 0 },
+      { label: 'Оплаты', value: db.payments || 0 },
+      { label: 'Активные подписки', value: (active.total || 0) + ' всего, ' + (active.paid || 0) + ' платных' },
+    ]);
+    renderPaymentList(r.data.recent_payments || []);
+  }
+  async function lookupPayment() {
+    var id = $('paymentLookupId').value.trim();
+    if (!id) { setStatus('Укажите ID платежа.'); return; }
+    setStatus('Проверяю платеж…');
+    var r = await api('/api/studio/payments/lookup/?payment_id=' + encodeURIComponent(id));
+    $('paymentLookupResult').hidden = false;
+    $('paymentLookupResult').textContent = JSON.stringify(r.data || { error: 'empty response' }, null, 2);
+    setStatus(r.resp.ok ? 'Проверка завершена.' : 'Не удалось проверить платеж.');
+  }
+  async function syncPayment() {
+    var id = $('paymentLookupId').value.trim();
+    if (!id) { setStatus('Укажите ID платежа.'); return; }
+    if (!confirm('Синхронизировать подписку по этому платежу?')) return;
+    setStatus('Синхронизирую платеж…');
+    var r = await api('/api/studio/payments/sync/', jsonBody({ payment_id: id }));
+    $('paymentLookupResult').hidden = false;
+    $('paymentLookupResult').textContent = JSON.stringify(r.data || { error: 'empty response' }, null, 2);
+    setStatus(r.resp.ok ? 'Синхронизация завершена.' : 'Синхронизация не выполнена.');
+    loadDiagnostics();
+  }
+
   // ---- wire up -----------------------------------------------------------
   document.addEventListener('DOMContentLoaded', function () {
     $('studioLoginBtn').onclick = doLogin;
@@ -319,6 +397,11 @@
 
     $('userSearchBtn').onclick = searchUsers;
     $('userSearch').addEventListener('keydown', function (e) { if (e.key === 'Enter') searchUsers(); });
+
+    $('paymentLookupBtn').onclick = lookupPayment;
+    $('paymentSyncBtn').onclick = syncPayment;
+    $('diagnosticsRefreshBtn').onclick = loadDiagnostics;
+    $('paymentLookupId').addEventListener('keydown', function (e) { if (e.key === 'Enter') lookupPayment(); });
 
     document.querySelectorAll('#listingFilters [data-status]').forEach(function (b) {
       b.onclick = function () {

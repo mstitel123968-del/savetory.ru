@@ -9,12 +9,17 @@ validated against the stored Django password hash.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from functools import wraps
 
 from django.contrib.auth import get_user_model
+from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.utils.text import slugify
@@ -30,7 +35,8 @@ from core.admin_access import (
     is_reserved_admin_username,
     start_admin_session,
 )
-from core.models import NewsArticle, Profile, Review
+from core.models import NewsArticle, Profile, Review, SubscriptionPayment, UserSubscription
+from core.services import subscriptions
 from market.models import Listing
 
 User = get_user_model()
@@ -146,6 +152,97 @@ def _review_payload(review: Review) -> dict:
     }
 
 
+def _payment_payload(payment: SubscriptionPayment) -> dict:
+    return {
+        "id": payment.id,
+        "internal_uuid": str(payment.internal_uuid),
+        "user_id": payment.user_id,
+        "username": payment.user.get_username() if payment.user_id else "",
+        "tariff": payment.tariff.code,
+        "period": payment.period,
+        "amount": f"{payment.amount:.2f}",
+        "currency": payment.currency,
+        "status": payment.status,
+        "yookassa_payment_id": payment.yookassa_payment_id or "",
+        "subscription_activated": payment.subscription_activated,
+        "paid_at": payment.paid_at.isoformat() if payment.paid_at else "",
+        "created_at": payment.created_at.isoformat() if payment.created_at else "",
+        "updated_at": payment.updated_at.isoformat() if payment.updated_at else "",
+        "error_message": payment.error_message or "",
+    }
+
+
+def _remote_payment_payload(remote) -> dict:
+    return {
+        "id": str(subscriptions._response_value(remote, "id", "") or ""),
+        "status": str(subscriptions._response_value(remote, "status", "") or ""),
+        "paid": bool(subscriptions._response_value(remote, "paid", False)),
+        "amount": {
+            "value": str(subscriptions._nested_value(remote, "amount", "value", default="") or ""),
+            "currency": str(subscriptions._nested_value(remote, "amount", "currency", default="") or ""),
+        },
+        "description": str(subscriptions._response_value(remote, "description", "") or ""),
+        "metadata": subscriptions._remote_metadata(remote),
+        "created_at": str(subscriptions._response_value(remote, "created_at", "") or ""),
+        "captured_at": str(subscriptions._response_value(remote, "captured_at", "") or ""),
+    }
+
+
+def _find_local_payment(payment_id: str) -> SubscriptionPayment | None:
+    if not payment_id:
+        return None
+    qs = SubscriptionPayment.objects.select_related("user", "tariff")
+    payment = qs.filter(yookassa_payment_id=payment_id).first()
+    if payment:
+        return payment
+    try:
+        return qs.filter(internal_uuid=payment_id).first()
+    except (ValueError, ValidationError):
+        return None
+
+
+def _find_local_payment_for_remote_view(remote) -> SubscriptionPayment | None:
+    metadata = subscriptions._remote_metadata(remote)
+    payment_uuid = str(metadata.get("internal_payment_id") or metadata.get("payment_uuid") or "")
+    remote_id = str(subscriptions._response_value(remote, "id", "") or "")
+    qs = SubscriptionPayment.objects.select_related("user", "tariff")
+    if payment_uuid:
+        try:
+            payment = qs.filter(internal_uuid=payment_uuid).first()
+            if payment:
+                return payment
+        except (ValueError, ValidationError):
+            pass
+    if remote_id:
+        return qs.filter(yookassa_payment_id=remote_id).first()
+    return None
+
+
+def _git_revision() -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=settings.BASE_DIR,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except Exception:
+        return ""
+    return completed.stdout.strip()
+
+
+def _active_subscription_counts() -> dict:
+    active = UserSubscription.objects.filter(status=UserSubscription.Status.ACTIVE)
+    return {
+        "total": active.count(),
+        "paid": active.filter(tariff__is_paid=True).count(),
+        "plus": active.filter(tariff__code="plus").count(),
+        "pro": active.filter(tariff__code="pro").count(),
+    }
+
+
 # --------------------------------------------------------------------------- #
 # Page + auth
 # --------------------------------------------------------------------------- #
@@ -184,6 +281,100 @@ def studio_status(request: HttpRequest) -> JsonResponse:
             "authenticated": _is_admin(request),
             "username": configured_admin_login() if _is_admin(request) else "",
         }
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Diagnostics
+# --------------------------------------------------------------------------- #
+@superuser_required
+@require_GET
+def studio_diagnostics(request: HttpRequest) -> JsonResponse:
+    webhook_url = request.build_absolute_uri(reverse("core:yookassa-webhook"))
+    configured_webhook = getattr(settings, "YOOKASSA_WEBHOOK_URL", "") or os.environ.get("YOOKASSA_WEBHOOK_URL", "")
+    recent_payments = (
+        SubscriptionPayment.objects.select_related("user", "tariff")
+        .order_by("-created_at", "-id")[:20]
+    )
+    return JsonResponse(
+        {
+            "success": True,
+            "system": {
+                "debug": settings.DEBUG,
+                "git_revision": _git_revision(),
+                "compose_project_name": os.environ.get("COMPOSE_PROJECT_NAME", ""),
+                "database": {
+                    "users": User.objects.count(),
+                    "payments": SubscriptionPayment.objects.count(),
+                    "active_subscriptions": _active_subscription_counts(),
+                },
+            },
+            "yookassa": {
+                "configured": subscriptions.yookassa_is_configured(),
+                "shop_id_configured": bool(settings.YOOKASSA_SHOP_ID),
+                "secret_key_configured": bool(settings.YOOKASSA_SECRET_KEY),
+                "return_url": settings.YOOKASSA_RETURN_URL,
+                "expected_webhook_url": webhook_url,
+                "configured_webhook_url": configured_webhook,
+            },
+            "recent_payments": [_payment_payload(payment) for payment in recent_payments],
+        }
+    )
+
+
+@superuser_required
+@require_GET
+def studio_payment_lookup(request: HttpRequest) -> JsonResponse:
+    payment_id = str(request.GET.get("payment_id") or "").strip()
+    if not payment_id:
+        return JsonResponse({"success": False, "error": "Укажите ID платежа."}, status=400)
+
+    local_payment = _find_local_payment(payment_id)
+    remote_payload = None
+    remote_error = ""
+    try:
+        remote = subscriptions._fetch_yookassa_payment(payment_id)
+        remote_payload = _remote_payment_payload(remote)
+        if local_payment is None:
+            local_payment = _find_local_payment_for_remote_view(remote)
+    except (subscriptions.PaymentUnavailable, subscriptions.PaymentGatewayError) as exc:
+        remote_error = str(exc)
+    except Exception as exc:
+        remote_error = exc.__class__.__name__
+
+    return JsonResponse(
+        {
+            "success": True,
+            "local_payment": _payment_payload(local_payment) if local_payment else None,
+            "remote_payment": remote_payload,
+            "remote_error": remote_error,
+        }
+    )
+
+
+@superuser_required
+@require_POST
+def studio_payment_sync(request: HttpRequest) -> JsonResponse:
+    payment_id = str(_json_body(request).get("payment_id") or "").strip()
+    if not payment_id:
+        return JsonResponse({"success": False, "error": "Укажите ID платежа."}, status=400)
+
+    try:
+        result = subscriptions.process_yookassa_payment(payment_id)
+    except (subscriptions.PaymentUnavailable, subscriptions.PaymentGatewayError) as exc:
+        return JsonResponse({"success": False, "error": str(exc)}, status=503)
+    except Exception as exc:
+        return JsonResponse({"success": False, "error": exc.__class__.__name__}, status=502)
+
+    return JsonResponse(
+        {
+            "success": result.status != "error",
+            "status": result.status,
+            "activated": result.activated,
+            "message": result.message,
+            "payment": _payment_payload(result.payment) if result.payment else None,
+        },
+        status=200 if result.status != "error" else 404,
     )
 
 

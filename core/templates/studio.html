@@ -52,6 +52,13 @@
       border:1px solid var(--card-border)}
     .studio-badge.on{background:color-mix(in srgb,#2ec27e 22%,transparent);border-color:#2ec27e}
     .studio-badge.off{background:color-mix(in srgb,#e5484d 18%,transparent);border-color:#e5484d}
+    .studio-kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px;margin-bottom:14px}
+    .studio-kv__item{border:1px solid var(--card-border);border-radius:14px;padding:12px 14px;
+      background:color-mix(in srgb,var(--card) 55%,transparent);min-width:0}
+    .studio-kv__label{color:var(--muted);font-size:12px;margin-bottom:4px}
+    .studio-kv__value{font-size:14px;overflow-wrap:anywhere}
+    .studio-pre{white-space:pre-wrap;overflow:auto;max-height:320px;border:1px solid var(--card-border);
+      border-radius:14px;padding:12px 14px;background:rgba(0,0,0,.18);font-size:12px;line-height:1.45}
     .studio-empty{color:var(--muted);padding:22px;text-align:center}
     .studio-status{min-height:20px;color:var(--muted);font-size:13px;margin-bottom:8px}
     .studio-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;
@@ -100,6 +107,7 @@
         <button class="studio-tab" data-tab="users" type="button">Пользователи</button>
         <button class="studio-tab" data-tab="listings" type="button">Маркет / Аукцион</button>
         <button class="studio-tab" data-tab="reviews" type="button">Отзывы</button>
+        <button class="studio-tab" data-tab="diagnostics" type="button">Диагностика</button>
       </div>
 
       <div id="studioStatus" class="studio-status"></div>
@@ -137,6 +145,21 @@
       <!-- Reviews -->
       <div class="studio-panel" data-panel="reviews">
         <div id="reviewList" class="studio-list"></div>
+      </div>
+
+      <!-- Diagnostics -->
+      <div class="studio-panel" data-panel="diagnostics">
+        <div id="diagnosticsSummary" class="studio-kv"></div>
+        <div class="studio-toolbar">
+          <input id="paymentLookupId" class="studio-input" style="max-width:520px" type="search"
+                 placeholder="ID платежа YooKassa или внутренний UUID" />
+          <button id="paymentLookupBtn" class="studio-btn" type="button">Проверить</button>
+          <button id="paymentSyncBtn" class="studio-btn" type="button">Синхронизировать</button>
+          <button id="diagnosticsRefreshBtn" class="studio-btn ghost" type="button">Обновить</button>
+        </div>
+        <div id="paymentLookupResult" class="studio-pre" hidden></div>
+        <h2 style="font-size:18px;margin:18px 0 10px">Последние оплаты</h2>
+        <div id="paymentList" class="studio-list"></div>
       </div>
     </section>
   </div>

@@ -6,11 +6,23 @@ from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core.management import call_command
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 
-from core.models import ArchiveFile, DirectMessage, Friendship, NewsArticle, Profile, Review, Rubric
+from core.models import (
+    ArchiveFile,
+    DirectMessage,
+    Friendship,
+    NewsArticle,
+    Profile,
+    Review,
+    Rubric,
+    SubscriptionPayment,
+    SubscriptionPlan,
+    UserSubscription,
+)
+from core.services import subscriptions
 from core.services.profile_page import build_extended_profile_context
 from market.models import Listing
 
@@ -179,6 +191,77 @@ class StudioAdminAccessTests(TestCase):
         )
         self.assertEqual(delete_response.status_code, 200)
         self.assertFalse(Review.objects.filter(pk=review.pk).exists())
+
+    def test_studio_diagnostics_requires_admin_session(self):
+        response = self.client.get(reverse("core:studio-diagnostics"))
+
+        self.assertEqual(response.status_code, 403)
+
+    @override_settings(
+        YOOKASSA_SHOP_ID="shop-1",
+        YOOKASSA_SECRET_KEY="secret-token-that-must-not-leak",
+        YOOKASSA_RETURN_URL="https://savetory.ru/subscriptions/payment/result/",
+    )
+    def test_studio_diagnostics_hides_yookassa_secret(self):
+        subscriptions.seed_default_plans()
+        self.admin_login()
+
+        response = self.client.get(reverse("core:studio-diagnostics"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["yookassa"]["configured"])
+        self.assertTrue(payload["yookassa"]["secret_key_configured"])
+        self.assertNotIn("secret-token-that-must-not-leak", json.dumps(payload))
+
+    @override_settings(
+        YOOKASSA_SHOP_ID="shop-1",
+        YOOKASSA_SECRET_KEY="secret-token-that-must-not-leak",
+        YOOKASSA_RETURN_URL="https://savetory.ru/subscriptions/payment/result/",
+    )
+    def test_studio_payment_sync_activates_paid_yookassa_payment(self):
+        subscriptions.seed_default_plans()
+        plus = SubscriptionPlan.objects.get(code=SubscriptionPlan.Code.PLUS)
+        payment = SubscriptionPayment.objects.create(
+            user=self.user,
+            tariff=plus,
+            period=SubscriptionPayment.Period.MONTH,
+            amount=Decimal("99.00"),
+            currency="RUB",
+            status=SubscriptionPayment.Status.PENDING,
+            yookassa_payment_id="yk-diagnostic-sync",
+            idempotence_key="idem-diagnostic-sync",
+            metadata={
+                "internal_payment_id": "",
+                "user_id": str(self.user.pk),
+                "plan": SubscriptionPlan.Code.PLUS,
+                "period": SubscriptionPayment.Period.MONTH,
+            },
+        )
+        payment.metadata["internal_payment_id"] = str(payment.internal_uuid)
+        payment.save(update_fields=["metadata"])
+        remote = {
+            "id": payment.yookassa_payment_id,
+            "status": SubscriptionPayment.Status.SUCCEEDED,
+            "paid": True,
+            "amount": {"value": "99.00", "currency": "RUB"},
+            "metadata": payment.metadata,
+        }
+        self.admin_login()
+
+        with mock.patch("core.services.subscriptions._fetch_yookassa_payment", return_value=remote):
+            response = self.client.post(
+                reverse("core:studio-payment-sync"),
+                data=json.dumps({"payment_id": payment.yookassa_payment_id}),
+                content_type="application/json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["activated"])
+        payment.refresh_from_db()
+        self.assertTrue(payment.subscription_activated)
+        active = UserSubscription.objects.get(user=self.user, status=UserSubscription.Status.ACTIVE)
+        self.assertEqual(active.tariff.code, SubscriptionPlan.Code.PLUS)
 
 
 class ReservedSuperUserVisibilityTests(TestCase):
