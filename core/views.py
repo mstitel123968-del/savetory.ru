@@ -31,6 +31,7 @@ from django.views.decorators.http import require_GET, require_http_methods, requ
 
 from core import messages
 from core import exporters
+from core.admin_access import configured_admin_login, is_reserved_admin_username
 from core.utils import moderation
 from core.services.friendships import (
     FriendshipError,
@@ -62,7 +63,7 @@ from core.services.profile_page import (
 )
 from core.services import subscriptions
 from .forms import ArchiveFileForm, LoginForm, RegistrationForm, RubricForm
-from .models import ArchiveFile, ArchiveState, DirectMessage, Friendship, Profile, Review, Rubric, SubscriptionPayment
+from .models import ArchiveFile, ArchiveState, DirectMessage, Friendship, NewsArticle, Profile, Review, Rubric, SubscriptionPayment
 
 logger = logging.getLogger("core.moderation")
 payment_logger = logging.getLogger("core.payments")
@@ -351,6 +352,8 @@ def archive(request: HttpRequest) -> HttpResponse:
 @ensure_csrf_cookie
 @never_cache
 def public_collection(request: HttpRequest, username: str, rubric_slug: str) -> HttpResponse:
+    if is_reserved_admin_username(username):
+        return render(request, 'public_collection_unavailable.html', status=404)
     user = User.objects.filter(username__iexact=username).first()
     if not user:
         return render(request, 'public_collection_unavailable.html', status=404)
@@ -536,7 +539,7 @@ def messages_page(request: HttpRequest) -> HttpResponse:
 @ensure_csrf_cookie
 def message_dialog_page(request: HttpRequest, user_id: int) -> HttpResponse:
     other_user = User.objects.filter(pk=user_id).select_related('profile').first()
-    if not other_user:
+    if not other_user or is_reserved_admin_username(other_user.get_username()):
         raise Http404("Пользователь не найден")
     if other_user.pk == request.user.pk:
         return redirect('core:messages')
@@ -566,6 +569,8 @@ def message_dialog_page(request: HttpRequest, user_id: int) -> HttpResponse:
 @login_required
 @ensure_csrf_cookie
 def community_user_profile(request: HttpRequest, username: str) -> HttpResponse:
+    if is_reserved_admin_username(username):
+        raise Http404("РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ РЅРµ РЅР°Р№РґРµРЅ")
     viewed_user = User.objects.filter(username__iexact=username).only('id', 'username').first()
     if viewed_user and viewed_user.pk == request.user.pk:
         return redirect('core:profile')
@@ -624,19 +629,36 @@ def requisites(request: HttpRequest) -> HttpResponse:
     )
 
 
+def _public_news_payload(article: NewsArticle, request: HttpRequest) -> dict:
+    cover_url = ''
+    if article.cover:
+        try:
+            cover_url = request.build_absolute_uri(article.cover.url)
+        except Exception:  # pragma: no cover - storage without a URL
+            cover_url = ''
+    return {
+        'slug': article.slug,
+        'title': article.title,
+        'preview': article.preview,
+        'full': article.body,
+        'cover': cover_url,
+        'published_at': article.publish_at.isoformat(),
+    }
+
+
 @ensure_csrf_cookie
 def news(request: HttpRequest) -> HttpResponse:
-    return render(
+    now = timezone.now()
+    published = NewsArticle.objects.filter(is_published=True, publish_at__lte=now)
+    context = _seo_context(
         request,
-        'news.html',
-        _seo_context(
-            request,
-            title='Инструкции и новости проекта - СКлад',
-            description='Инструкции по использованию СКлада, новости проекта, обновления функциональности и полезная информация о сервисе.',
-            indexable=True,
-            canonical_path=reverse('core:news'),
-        ),
+        title='Инструкции и новости проекта - СКлад',
+        description='Инструкции по использованию СКлада, новости проекта, обновления функциональности и полезная информация о сервисе.',
+        indexable=True,
+        canonical_path=reverse('core:news'),
     )
+    context['news_articles'] = [_public_news_payload(article, request) for article in published]
+    return render(request, 'news.html', context)
 
 
 @ensure_csrf_cookie
@@ -661,6 +683,7 @@ def robots_txt(request: HttpRequest) -> HttpResponse:
         'User-agent: *',
         'Allow: /',
         'Disallow: /admin/',
+        'Disallow: /studio/',
         'Disallow: /api/',
         'Disallow: /archive/',
         'Disallow: /profile/',
@@ -691,7 +714,10 @@ def check_auth_availability(request: HttpRequest) -> JsonResponse:
     email_available = True
 
     if username:
-        username_available = not User.objects.filter(username__iexact=username).exists()
+        username_available = (
+            not is_reserved_admin_username(username)
+            and not User.objects.filter(username__iexact=username).exists()
+        )
 
     if email:
         email_norm = User.objects.normalize_email(email)
@@ -743,6 +769,17 @@ def login_user(request: HttpRequest) -> JsonResponse:
     form = LoginForm(request, data=request.POST)
     if form.is_valid():
         user = form.get_user()
+        if is_reserved_admin_username(user.get_username()):
+            return JsonResponse(
+                {'success': False, 'errors': {'__all__': ['Пользователь не найден.']}},
+                status=403,
+            )
+        profile = getattr(user, 'profile', None)
+        if profile and profile.is_blocked:
+            return JsonResponse(
+                {'success': False, 'blocked': True, 'errors': {'__all__': [messages.blocked_message(profile)]}},
+                status=403,
+            )
         login(request, user)
         _touch_user_last_seen(user)
         return JsonResponse({'success': True})
@@ -790,7 +827,7 @@ def yookassa_webhook(request: HttpRequest) -> JsonResponse:
         return JsonResponse({'ok': True, 'status': 'ignored'})
 
     event = str(payload.get('event') or '')
-    if event not in {'payment.succeeded', 'payment.canceled'}:
+    if event not in {'payment.succeeded', 'payment.canceled', 'payment.waiting_for_capture'}:
         return JsonResponse({'ok': True, 'status': 'ignored'})
 
     payment_id = str((payload.get('object') or {}).get('id') or '').strip()
@@ -1045,11 +1082,21 @@ def _community_is_private_profile(user: User, profile: Profile | None = None) ->
 
 def _community_is_hidden_profile(user: User, profile: Profile | None = None) -> bool:
     profile = profile if profile is not None else getattr(user, 'profile', None)
-    return bool(profile and profile.is_hidden)
+    # Administratively blocked profiles are treated like hidden ones so they
+    # never surface in the public people search or community listings.
+    return bool(profile and (profile.is_hidden or profile.is_blocked))
 
 
 def _community_visible_users(queryset):
-    return queryset.exclude(profile__is_hidden=True).filter(Q(profile__isnull=True) | ~Q(profile__privacy_level='private'))
+    admin_login = configured_admin_login()
+    if admin_login:
+        queryset = queryset.exclude(username__iexact=admin_login)
+    return (
+        queryset
+        .exclude(profile__is_hidden=True)
+        .exclude(profile__is_blocked=True)
+        .filter(Q(profile__isnull=True) | ~Q(profile__privacy_level='private'))
+    )
 
 
 def _community_user_payload(user: User, viewer: User, relation_cache: dict[int, dict] | None = None) -> dict:
@@ -1234,6 +1281,8 @@ def community_friendship_action_api(request: HttpRequest) -> JsonResponse:
     action = str(payload.get('action') or '').strip()
     target_id = payload.get('target_id')
     target = User.objects.filter(pk=target_id).first()
+    if target and is_reserved_admin_username(target.get_username()):
+        target = None
     if not target:
         return JsonResponse({'success': False, 'error': 'Пользователь не найден.'}, status=404)
     if _community_is_private_profile(target) or _community_is_hidden_profile(target):
@@ -1402,7 +1451,7 @@ def message_unread_api(request: HttpRequest) -> JsonResponse:
 @require_GET
 def message_history_api(request: HttpRequest, user_id: int) -> JsonResponse:
     other_user = User.objects.filter(pk=user_id).select_related('profile').first()
-    if not other_user:
+    if not other_user or is_reserved_admin_username(other_user.get_username()):
         return JsonResponse({'success': False, 'error': 'Пользователь не найден.'}, status=404)
     try:
         # Polling/refreshes must not mark messages read; that is an explicit,
@@ -1421,7 +1470,7 @@ def message_history_api(request: HttpRequest, user_id: int) -> JsonResponse:
 @require_POST
 def message_mark_read_api(request: HttpRequest, user_id: int) -> JsonResponse:
     other_user = User.objects.filter(pk=user_id).first()
-    if not other_user:
+    if not other_user or is_reserved_admin_username(other_user.get_username()):
         return JsonResponse({'success': False, 'error': 'Пользователь не найден.'}, status=404)
     try:
         payload = json.loads(request.body.decode('utf-8') or '{}')
@@ -1453,7 +1502,7 @@ def message_send_api(request: HttpRequest) -> JsonResponse:
         recipient_id = payload.get('recipient_id')
         text = payload.get('text', '')
     recipient = User.objects.filter(pk=recipient_id).select_related('profile').first()
-    if not recipient:
+    if not recipient or is_reserved_admin_username(recipient.get_username()):
         return JsonResponse({'success': False, 'error': 'Получатель не найден.'}, status=404)
     try:
         message = send_message(request.user, recipient, text, attachment=attachment)
@@ -2026,7 +2075,12 @@ def bulk_move_archive_files(request: HttpRequest) -> JsonResponse:
 @require_GET
 def reviews_api(request: HttpRequest) -> JsonResponse:
     items = []
-    for review in Review.objects.select_related('user').all()[:200]:
+    review_qs = Review.objects.select_related('user')
+    # Hidden reviews are visible only to a superuser (moderation); regular
+    # visitors never see them.
+    if not request.user.is_superuser:
+        review_qs = review_qs.filter(is_hidden=False)
+    for review in review_qs.all()[:200]:
         items.append({
             'id': review.id,
             'rating': review.rating,
@@ -2035,6 +2089,7 @@ def reviews_api(request: HttpRequest) -> JsonResponse:
             'created_at': review.created_at.isoformat(),
             'updated_at': review.updated_at.isoformat(),
             'is_owner': bool(request.user.is_authenticated and review.user_id == request.user.id),
+            'is_hidden': review.is_hidden,
         })
     return JsonResponse({'success': True, 'reviews': items})
 

@@ -115,6 +115,15 @@ class Listing(models.Model):
     cancelled_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="cancelled_auctions")
     is_admin_cancelled = models.BooleanField(default=False)
 
+    # --- Administrative moderation (set from the hidden editor page) ---------
+    # "Недействителен": excluded from public/active listings and from bidding.
+    is_invalidated = models.BooleanField(default=False, db_index=True)
+    # "Снят с публикации": kept but not shown publicly.
+    is_unpublished = models.BooleanField(default=False, db_index=True)
+    moderation_reason = models.TextField(blank=True, default="")
+    moderated_at = models.DateTimeField(null=True, blank=True)
+    moderated_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="moderated_listings")
+
     class Meta:
         ordering = ["-created_at"]
 

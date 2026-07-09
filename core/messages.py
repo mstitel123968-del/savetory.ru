@@ -10,3 +10,13 @@ TERMS_REQUIRED_ERROR = "Для продолжения примите польз�
 TERMS_DECLINED_ERROR = "Действие недоступно без принятия пользовательского соглашения."
 TERMS_ACCEPTED_LOG = "Пользователь %s принял условия версии %s."
 TERMS_ACCEPTED_TOAST = "Пользовательское соглашение принято."
+
+BLOCKED_GENERIC = "Профиль заблокирован администратором."
+
+
+def blocked_message(profile) -> str:
+    """Build the block notice shown to a blocked user."""
+    reason = (getattr(profile, 'block_reason', '') or '').strip()
+    if reason:
+        return f"Профиль заблокирован. Причина: {reason}"
+    return BLOCKED_GENERIC

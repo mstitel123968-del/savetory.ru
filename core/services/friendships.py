@@ -6,6 +6,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from core.admin_access import configured_admin_login, is_reserved_admin_username
 from core.models import Friendship
 
 
@@ -27,6 +28,10 @@ def _user_id(user) -> int:
 def _assert_distinct(user_a, user_b) -> None:
     if _user_id(user_a) == _user_id(user_b):
         raise FriendshipError('self_friendship', 'A user cannot add themselves as a friend.')
+    for user in (user_a, user_b):
+        username = getattr(user, 'get_username', lambda: '')()
+        if is_reserved_admin_username(username):
+            raise FriendshipError('not_found', 'Friendship relation does not exist.')
 
 
 def _normalize_pair(user_a, user_b):
@@ -162,7 +167,11 @@ def get_friends(user):
     friend_ids = []
     for relation in relations:
         friend_ids.append(relation.user_high_id if relation.user_low_id == user_id else relation.user_low_id)
-    return get_user_model().objects.filter(id__in=friend_ids).order_by('username', 'id')
+    qs = get_user_model().objects.filter(id__in=friend_ids).order_by('username', 'id')
+    admin_login = configured_admin_login()
+    if admin_login:
+        qs = qs.exclude(username__iexact=admin_login)
+    return qs
 
 
 def get_incoming_requests(user):

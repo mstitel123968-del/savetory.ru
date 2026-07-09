@@ -50,6 +50,17 @@ class Profile(models.Model):
     terms_version_accepted = models.CharField(max_length=20, blank=True, default='')
     terms_accepted_at = models.DateTimeField(blank=True, null=True)
     terms_accepted_ip = models.GenericIPAddressField(blank=True, null=True)
+    # --- Administrative block (set from the hidden editor page) --------------
+    is_blocked = models.BooleanField(default=False, db_index=True)
+    block_reason = models.TextField(blank=True, default='')
+    blocked_at = models.DateTimeField(blank=True, null=True)
+    blocked_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='blocked_profiles',
+    )
 
     def __str__(self) -> str:  # pragma: no cover
         return self.display_name or self.user.get_username()
@@ -548,9 +559,49 @@ class Review(models.Model):
     text = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # --- Administrative moderation (set from the hidden editor page) ---------
+    is_hidden = models.BooleanField(default=False, db_index=True)
+    hidden_reason = models.TextField(blank=True, default='')
+    hidden_at = models.DateTimeField(blank=True, null=True)
+    hidden_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='hidden_reviews',
+    )
 
     class Meta:
         ordering = ['-created_at']
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Review<{self.user_id}:{self.rating}>"
+
+
+class NewsArticle(models.Model):
+    """A news / technical-information article managed from the editor page.
+
+    Replaces the previously hardcoded ``newsData`` array in ``script.js`` so
+    articles can be created, edited, published and removed from the DB.
+    """
+
+    title = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255, unique=True, allow_unicode=True, blank=True)
+    preview = models.TextField(blank=True, default='')
+    body = models.TextField(blank=True, default='')
+    cover = models.ImageField(upload_to='news/', blank=True, null=True)
+    is_published = models.BooleanField(default=False, db_index=True)
+    publish_at = models.DateTimeField(default=timezone.now, db_index=True)
+    sort_order = models.IntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['sort_order', '-publish_at', '-id']
+
+    def __str__(self) -> str:  # pragma: no cover
+        return self.title
+
+    @property
+    def is_live(self) -> bool:
+        return self.is_published and self.publish_at <= timezone.now()

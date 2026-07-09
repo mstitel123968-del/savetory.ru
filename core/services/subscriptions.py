@@ -503,6 +503,10 @@ def _remote_status(remote) -> str:
     return str(_response_value(remote, 'status', '') or '')
 
 
+def _remote_paid(remote) -> bool:
+    return bool(_response_value(remote, 'paid', False))
+
+
 def _validate_remote_payment(payment: SubscriptionPayment, remote) -> list[str]:
     errors: list[str] = []
     metadata = _remote_metadata(remote)
@@ -517,16 +521,92 @@ def _validate_remote_payment(payment: SubscriptionPayment, remote) -> list[str]:
     except Exception:
         errors.append('amount')
     internal_payment_id = metadata.get('internal_payment_id') or metadata.get('payment_uuid') or ''
-    if str(internal_payment_id) != str(payment.internal_uuid):
+    if internal_payment_id and str(internal_payment_id) != str(payment.internal_uuid):
         errors.append('internal_payment_id')
-    if str(metadata.get('user_id') or '') != str(payment.user_id):
+    if metadata.get('user_id') and str(metadata.get('user_id')) != str(payment.user_id):
         errors.append('user')
     plan_code = metadata.get('plan') or metadata.get('tariff_code') or ''
-    if str(plan_code) != payment.tariff.code:
+    if plan_code and str(plan_code) != payment.tariff.code:
         errors.append('plan')
-    if str(metadata.get('period') or '') != payment.period:
+    if metadata.get('period') and str(metadata.get('period')) != payment.period:
         errors.append('period')
     return errors
+
+
+def _find_payment_for_remote(remote) -> SubscriptionPayment | None:
+    metadata = _remote_metadata(remote)
+    payment_uuid = str(metadata.get('internal_payment_id') or metadata.get('payment_uuid') or '')
+    qs = SubscriptionPayment.objects.select_for_update().select_related('user', 'tariff')
+    if payment_uuid:
+        try:
+            return qs.get(internal_uuid=payment_uuid)
+        except (SubscriptionPayment.DoesNotExist, ValueError, ValidationError):
+            return None
+    remote_id = str(_response_value(remote, 'id', '') or '')
+    if not remote_id:
+        return None
+    return qs.filter(yookassa_payment_id=remote_id).first()
+
+
+def _apply_verified_remote_payment(payment: SubscriptionPayment, remote, *, now=None) -> PaymentProcessingResult:
+    remote_status = _remote_status(remote)
+    local_status = _local_payment_status(remote_status)
+
+    if payment.subscription_activated:
+        logger.info(
+            'Repeated YooKassa payment processing skipped: payment_uuid=%s payment_id=%s status=%s',
+            payment.internal_uuid,
+            payment.yookassa_payment_id,
+            payment.status,
+        )
+        return PaymentProcessingResult(payment=payment, status=payment.status, activated=False, message='Already processed.')
+
+    validation_errors = _validate_remote_payment(payment, remote)
+    if validation_errors:
+        logger.warning(
+            'YooKassa payment validation mismatch: payment_uuid=%s payment_id=%s fields=%s',
+            payment.internal_uuid,
+            payment.yookassa_payment_id,
+            ','.join(validation_errors),
+        )
+        payment.status = SubscriptionPayment.Status.FAILED
+        payment.error_message = 'Payment validation failed: ' + ','.join(validation_errors)
+        payment.save(update_fields=['status', 'error_message', 'updated_at'])
+        return PaymentProcessingResult(payment=payment, status='error', message='Payment validation failed.')
+
+    if remote_status == SubscriptionPayment.Status.CANCELED:
+        logger.info(
+            'YooKassa payment canceled: payment_uuid=%s payment_id=%s user_id=%s',
+            payment.internal_uuid,
+            payment.yookassa_payment_id,
+            payment.user_id,
+        )
+        payment.status = SubscriptionPayment.Status.CANCELED
+        payment.save(update_fields=['status', 'updated_at'])
+        return PaymentProcessingResult(payment=payment, status=SubscriptionPayment.Status.CANCELED)
+
+    if remote_status != SubscriptionPayment.Status.SUCCEEDED:
+        payment.status = local_status
+        payment.save(update_fields=['status', 'updated_at'])
+        return PaymentProcessingResult(payment=payment, status=local_status)
+
+    if not _remote_paid(remote):
+        payment.status = SubscriptionPayment.Status.PENDING
+        payment.save(update_fields=['status', 'updated_at'])
+        return PaymentProcessingResult(payment=payment, status=SubscriptionPayment.Status.PENDING, message='Payment is not marked as paid.')
+
+    payment.status = SubscriptionPayment.Status.SUCCEEDED
+    payment.paid_at = now or timezone.now()
+    subscription = _activate_paid_subscription_from_payment(payment, now=payment.paid_at)
+    if subscription is None:
+        payment.error_message = 'Active Pro subscription cannot be downgraded to Plus before expiration.'
+        payment.save(update_fields=['status', 'paid_at', 'error_message', 'updated_at'])
+        return PaymentProcessingResult(payment=payment, status='blocked', activated=False, message=payment.error_message)
+
+    payment.subscription_activated = True
+    payment.error_message = ''
+    payment.save(update_fields=['status', 'paid_at', 'subscription_activated', 'error_message', 'updated_at'])
+    return PaymentProcessingResult(payment=payment, status=SubscriptionPayment.Status.SUCCEEDED, activated=True)
 
 
 def _activate_paid_subscription_from_payment(payment: SubscriptionPayment, *, now=None) -> UserSubscription | None:
@@ -644,73 +724,10 @@ def _activate_paid_subscription_from_payment(payment: SubscriptionPayment, *, no
 @transaction.atomic
 def process_yookassa_payment(payment_id: str, *, now=None) -> PaymentProcessingResult:
     remote = _fetch_yookassa_payment(payment_id)
-    metadata = _remote_metadata(remote)
-    payment_uuid = str(metadata.get('internal_payment_id') or metadata.get('payment_uuid') or '')
-    if not payment_uuid:
-        return PaymentProcessingResult(payment=None, status='error', message='Missing local payment UUID.')
-
-    try:
-        payment = (
-            SubscriptionPayment.objects.select_for_update()
-            .select_related('user', 'tariff')
-            .get(internal_uuid=payment_uuid)
-        )
-    except (SubscriptionPayment.DoesNotExist, ValueError, ValidationError):
+    payment = _find_payment_for_remote(remote)
+    if payment is None:
         return PaymentProcessingResult(payment=None, status='error', message='Local payment was not found.')
-
-    remote_status = _remote_status(remote)
-    local_status = _local_payment_status(remote_status)
-
-    if payment.subscription_activated:
-        logger.info(
-            'Repeated YooKassa payment processing skipped: payment_uuid=%s payment_id=%s status=%s',
-            payment.internal_uuid,
-            payment.yookassa_payment_id,
-            payment.status,
-        )
-        return PaymentProcessingResult(payment=payment, status=payment.status, activated=False, message='Already processed.')
-
-    validation_errors = _validate_remote_payment(payment, remote)
-    if validation_errors:
-        logger.warning(
-            'YooKassa payment validation mismatch: payment_uuid=%s payment_id=%s fields=%s',
-            payment.internal_uuid,
-            payment.yookassa_payment_id,
-            ','.join(validation_errors),
-        )
-        payment.status = SubscriptionPayment.Status.FAILED
-        payment.error_message = 'Payment validation failed: ' + ','.join(validation_errors)
-        payment.save(update_fields=['status', 'error_message', 'updated_at'])
-        return PaymentProcessingResult(payment=payment, status='error', message='Payment validation failed.')
-
-    if remote_status == SubscriptionPayment.Status.CANCELED:
-        logger.info(
-            'YooKassa payment canceled: payment_uuid=%s payment_id=%s user_id=%s',
-            payment.internal_uuid,
-            payment.yookassa_payment_id,
-            payment.user_id,
-        )
-        payment.status = SubscriptionPayment.Status.CANCELED
-        payment.save(update_fields=['status', 'updated_at'])
-        return PaymentProcessingResult(payment=payment, status=SubscriptionPayment.Status.CANCELED)
-
-    if remote_status != SubscriptionPayment.Status.SUCCEEDED:
-        payment.status = local_status
-        payment.save(update_fields=['status', 'updated_at'])
-        return PaymentProcessingResult(payment=payment, status=local_status)
-
-    payment.status = SubscriptionPayment.Status.SUCCEEDED
-    payment.paid_at = now or timezone.now()
-    subscription = _activate_paid_subscription_from_payment(payment, now=payment.paid_at)
-    if subscription is None:
-        payment.error_message = 'Active Pro subscription cannot be downgraded to Plus before expiration.'
-        payment.save(update_fields=['status', 'paid_at', 'error_message', 'updated_at'])
-        return PaymentProcessingResult(payment=payment, status='blocked', activated=False, message=payment.error_message)
-
-    payment.subscription_activated = True
-    payment.error_message = ''
-    payment.save(update_fields=['status', 'paid_at', 'subscription_activated', 'error_message', 'updated_at'])
-    return PaymentProcessingResult(payment=payment, status=SubscriptionPayment.Status.SUCCEEDED, activated=True)
+    return _apply_verified_remote_payment(payment, remote, now=now)
 
 
 @transaction.atomic
@@ -724,25 +741,7 @@ def refresh_yookassa_payment_status(payment: SubscriptionPayment, *, now=None) -
         .select_related('user', 'tariff')
         .get(pk=payment.pk)
     )
-    remote_status = _remote_status(remote)
-    validation_errors = _validate_remote_payment(payment, remote)
-    if validation_errors:
-        logger.warning(
-            'YooKassa return validation mismatch: payment_uuid=%s payment_id=%s fields=%s',
-            payment.internal_uuid,
-            payment.yookassa_payment_id,
-            ','.join(validation_errors),
-        )
-        return PaymentProcessingResult(payment=payment, status='error', message='Payment validation failed.')
-
-    local_status = _local_payment_status(remote_status)
-    payment.status = local_status
-    update_fields = ['status', 'updated_at']
-    if remote_status == SubscriptionPayment.Status.SUCCEEDED and payment.paid_at is None:
-        payment.paid_at = now or timezone.now()
-        update_fields.append('paid_at')
-    payment.save(update_fields=update_fields)
-    return PaymentProcessingResult(payment=payment, status=local_status)
+    return _apply_verified_remote_payment(payment, remote, now=now)
 
 
 def _find_reusable_payment(user, plan: SubscriptionPlan, period: str) -> SubscriptionPayment | None:

@@ -9,6 +9,7 @@ from django.db.models import Count, Max, Prefetch
 from django.urls import reverse
 from django.utils import timezone
 
+from core.admin_access import is_reserved_admin_username
 from core.models import ArchiveFile, ArchiveFileImage, ArchiveState, Friendship, Profile, Rubric
 from core.services.friendships import get_friends, get_relationship_status
 
@@ -382,6 +383,8 @@ def build_extended_profile_context(viewer, username: str) -> dict:
     """Build privacy-filtered data for an extended profile page."""
 
     User = get_user_model()
+    if is_reserved_admin_username(username):
+        return {'found': False}
     user = User.objects.select_related('profile').filter(username__iexact=username).first()
     if not user or (not user.is_active and not (viewer.is_authenticated and viewer.is_superuser)):
         return {'found': False}

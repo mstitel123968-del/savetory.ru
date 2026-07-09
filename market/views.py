@@ -252,7 +252,9 @@ def _build_list_context(
     category_override: str | None = None,
     use_path_category: bool = False,
 ):
-    qs = Listing.objects.filter(type=listing_type, is_active=True).select_related(
+    qs = Listing.objects.filter(
+        type=listing_type, is_active=True, is_invalidated=False, is_unpublished=False,
+    ).select_related(
         "item", "item__rubric", "item__rubric__profile", "seller"
     ).prefetch_related("item__images")
 
@@ -698,6 +700,8 @@ def market_auction_detail(request: HttpRequest, listing_id: int) -> HttpResponse
     if listing is None:
         raise Http404("Лот не найден")
     is_owner = request.user.is_authenticated and request.user.id == listing.seller_id
+    if (listing.is_invalidated or listing.is_unpublished) and not is_owner:
+        raise Http404("Listing not found")
     if listing.status == Listing.Status.DRAFT and not is_owner:
         raise Http404("Лот не найден")
 
@@ -846,6 +850,8 @@ def market_listing_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
     lot = getattr(listing, "auction_lot", None)
     is_owner = request.user.is_authenticated and request.user.id == listing.seller_id
+    if (listing.is_invalidated or listing.is_unpublished) and not is_owner:
+        raise Http404("Listing not found")
     auction_extra: dict = {}
     if listing.type == Listing.Type.AUCTION and lot is not None:
         from auction import services

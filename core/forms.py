@@ -3,6 +3,7 @@ from django import forms
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.contrib.auth.models import User
 
+from core.admin_access import is_reserved_admin_username
 from core.utils import moderation
 
 from .models import ArchiveFile, Rubric
@@ -23,6 +24,14 @@ class RegistrationForm(UserCreationForm):
                 raise forms.ValidationError('Email уже используется')
             return email_norm
         return email
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if username and User.objects.filter(username__iexact=username).exists():
+            raise forms.ValidationError('Пользователь с таким именем уже существует')
+        if is_reserved_admin_username(username):
+            raise forms.ValidationError('Это имя зарезервировано')
+        return username
 
     def save(self, commit: bool = True) -> User:
         """Persist the user and copy the email field supplied by the form."""

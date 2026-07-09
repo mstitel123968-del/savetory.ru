@@ -42,6 +42,10 @@ if [ "${SKIP_MIGRATIONS}" != "1" ]; then
   python manage.py migrate --noinput
 fi
 
+# Clean up any legacy Django user that used the reserved editor login.
+echo "Cleaning reserved administrator user..."
+python manage.py ensure_superuser
+
 if [ "${SKIP_COLLECTSTATIC}" != "1" ]; then
   echo "Collecting static files..."
   python manage.py collectstatic --noinput --clear

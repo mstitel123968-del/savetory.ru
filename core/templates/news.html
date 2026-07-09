@@ -80,6 +80,7 @@
   {% include 'includes/registration_terms_modal.html' %}
 
 
+  {{ news_articles|json_script:"news-data" }}
   <script src="{% static 'js/nav.js' %}"></script>
   <script src="{% static 'js/modal.js' %}"></script>
   <script src="{% static 'js/script.js' %}"></script>

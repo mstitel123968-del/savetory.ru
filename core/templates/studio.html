@@ -1,0 +1,195 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Редактор сайта</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <style>
+    .studio-page{min-height:100vh;margin:0;background:var(--app-gradient);color:var(--text);
+      font-family:var(--ff-base);padding:clamp(12px,3vw,28px);box-sizing:border-box}
+    .studio-wrap{width:min(1080px,100%);margin:0 auto}
+    .studio-card{background:var(--card);border:1px solid var(--card-border);border-radius:18px;
+      padding:clamp(16px,3vw,28px);box-shadow:0 26px 60px rgba(5,7,18,.32)}
+    .studio-login{max-width:420px;margin:8vh auto 0}
+    .studio-login h1{font-size:22px;margin:0 0 4px}
+    .studio-login p{color:var(--muted);margin:0 0 18px;font-size:14px}
+    .studio-field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+    .studio-field label{font-size:13px;color:var(--muted)}
+    .studio-input,.studio-textarea,.studio-select{width:100%;box-sizing:border-box;padding:11px 13px;
+      border-radius:12px;border:1px solid var(--card-border);background:var(--input-bg,rgba(0,0,0,.25));
+      color:var(--text);font-size:14px;font-family:inherit}
+    .studio-textarea{min-height:120px;resize:vertical}
+    .studio-error{color:#ff8a8a;font-size:13px;min-height:18px;margin:2px 0 10px}
+    .studio-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;
+      flex-wrap:wrap;margin-bottom:16px}
+    .studio-topbar h1{font-size:20px;margin:0}
+    .studio-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+    .studio-tab{padding:9px 16px;border-radius:999px;border:1px solid var(--card-border);
+      background:transparent;color:var(--text);cursor:pointer;font-size:14px;font-family:inherit}
+    .studio-tab.active{background:color-mix(in srgb,var(--accent) 22%,transparent);border-color:var(--accent);font-weight:600}
+    .studio-panel{display:none}
+    .studio-panel.active{display:block}
+    .studio-btn{padding:9px 16px;border-radius:12px;border:1px solid var(--card-border);
+      background:color-mix(in srgb,var(--accent) 16%,transparent);color:var(--text);cursor:pointer;
+      font-size:14px;font-family:inherit}
+    .studio-btn:hover{background:color-mix(in srgb,var(--accent) 28%,transparent)}
+    .studio-btn.danger{background:color-mix(in srgb,#e5484d 20%,transparent);border-color:#e5484d}
+    .studio-btn.ghost{background:transparent}
+    .studio-btn.small{padding:6px 12px;font-size:13px;border-radius:10px}
+    .studio-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+    .studio-list{display:flex;flex-direction:column;gap:10px}
+    .studio-row{border:1px solid var(--card-border);border-radius:14px;padding:14px 16px;
+      background:color-mix(in srgb,var(--card) 60%,transparent)}
+    .studio-row__head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:baseline}
+    .studio-row__title{font-weight:600}
+    .studio-row__meta{color:var(--muted);font-size:13px}
+    .studio-row__body{color:var(--muted);font-size:13px;margin:6px 0 10px;white-space:pre-wrap}
+    .studio-row__actions{display:flex;gap:8px;flex-wrap:wrap}
+    .studio-badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;
+      border:1px solid var(--card-border)}
+    .studio-badge.on{background:color-mix(in srgb,#2ec27e 22%,transparent);border-color:#2ec27e}
+    .studio-badge.off{background:color-mix(in srgb,#e5484d 18%,transparent);border-color:#e5484d}
+    .studio-empty{color:var(--muted);padding:22px;text-align:center}
+    .studio-status{min-height:20px;color:var(--muted);font-size:13px;margin-bottom:8px}
+    .studio-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;
+      align-items:center;justify-content:center;padding:16px;z-index:50}
+    .studio-overlay.open{display:flex}
+    .studio-modal{width:min(560px,100%);max-height:90vh;overflow:auto}
+    .studio-modal h2{font-size:18px;margin:0 0 12px}
+    .studio-check{display:flex;align-items:center;gap:8px;margin:8px 0}
+    .studio-modal__actions{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+    @media (max-width:640px){.studio-row__head{flex-direction:column}}
+  </style>
+</head>
+<body class="studio-page">
+  <script src="{% static 'js/prefs.js' %}"></script>
+  <script>window.__csrfToken = "{{ csrf_token|escapejs }}";</script>
+
+  <div class="studio-wrap">
+    <!-- Login gate -->
+    <section id="studioLogin" class="studio-card studio-login" hidden>
+      <h1>Редактор сайта</h1>
+      <p>Доступ только для администратора.</p>
+      <div class="studio-field">
+        <label for="studioUser">Логин</label>
+        <input id="studioUser" class="studio-input" type="text" autocomplete="username" />
+      </div>
+      <div class="studio-field">
+        <label for="studioPass">Пароль</label>
+        <input id="studioPass" class="studio-input" type="password" autocomplete="current-password" />
+      </div>
+      <div id="studioLoginError" class="studio-error"></div>
+      <button id="studioLoginBtn" class="studio-btn" type="button">Войти</button>
+    </section>
+
+    <!-- Admin shell -->
+    <section id="studioShell" class="studio-card" hidden>
+      <div class="studio-topbar">
+        <h1>Редактор сайта</h1>
+        <div>
+          <span id="studioWho" class="studio-row__meta"></span>
+          <button id="studioLogout" class="studio-btn ghost small" type="button">Выйти</button>
+        </div>
+      </div>
+
+      <div class="studio-tabs">
+        <button class="studio-tab active" data-tab="news" type="button">Новости</button>
+        <button class="studio-tab" data-tab="users" type="button">Пользователи</button>
+        <button class="studio-tab" data-tab="listings" type="button">Маркет / Аукцион</button>
+        <button class="studio-tab" data-tab="reviews" type="button">Отзывы</button>
+      </div>
+
+      <div id="studioStatus" class="studio-status"></div>
+
+      <!-- News -->
+      <div class="studio-panel active" data-panel="news">
+        <div class="studio-toolbar">
+          <button id="newsCreate" class="studio-btn" type="button">Создать новость</button>
+        </div>
+        <div id="newsList" class="studio-list"></div>
+      </div>
+
+      <!-- Users -->
+      <div class="studio-panel" data-panel="users">
+        <div class="studio-toolbar">
+          <input id="userSearch" class="studio-input" style="max-width:340px" type="search"
+                 placeholder="Поиск: логин, имя, email или ID" />
+          <button id="userSearchBtn" class="studio-btn" type="button">Найти</button>
+        </div>
+        <div id="userList" class="studio-list"></div>
+      </div>
+
+      <!-- Listings -->
+      <div class="studio-panel" data-panel="listings">
+        <div class="studio-toolbar" id="listingFilters">
+          <button class="studio-btn small active" data-status="" type="button">Все</button>
+          <button class="studio-btn small" data-status="active" type="button">Активные</button>
+          <button class="studio-btn small" data-status="closed" type="button">Закрытые</button>
+          <button class="studio-btn small" data-status="invalid" type="button">Недействительные</button>
+          <button class="studio-btn small" data-status="unpublished" type="button">Снятые с публикации</button>
+        </div>
+        <div id="listingList" class="studio-list"></div>
+      </div>
+
+      <!-- Reviews -->
+      <div class="studio-panel" data-panel="reviews">
+        <div id="reviewList" class="studio-list"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Reason / generic prompt modal -->
+  <div id="studioPrompt" class="studio-overlay">
+    <div class="studio-card studio-modal">
+      <h2 id="promptTitle">Действие</h2>
+      <div class="studio-field">
+        <label id="promptLabel" for="promptText">Причина</label>
+        <textarea id="promptText" class="studio-textarea"></textarea>
+      </div>
+      <div class="studio-modal__actions">
+        <button id="promptCancel" class="studio-btn ghost" type="button">Отмена</button>
+        <button id="promptConfirm" class="studio-btn" type="button">Подтвердить</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- News editor modal -->
+  <div id="newsEditor" class="studio-overlay">
+    <div class="studio-card studio-modal">
+      <h2 id="newsEditorTitle">Новость</h2>
+      <input type="hidden" id="newsId" />
+      <div class="studio-field">
+        <label for="newsTitle">Заголовок</label>
+        <input id="newsTitle" class="studio-input" type="text" />
+      </div>
+      <div class="studio-field">
+        <label for="newsPreview">Краткое описание</label>
+        <textarea id="newsPreview" class="studio-textarea" style="min-height:70px"></textarea>
+      </div>
+      <div class="studio-field">
+        <label for="newsBody">Текст (абзацы разделяйте пустой строкой)</label>
+        <textarea id="newsBody" class="studio-textarea" style="min-height:180px"></textarea>
+      </div>
+      <div class="studio-field">
+        <label for="newsPublishAt">Дата публикации</label>
+        <input id="newsPublishAt" class="studio-input" type="datetime-local" />
+      </div>
+      <div class="studio-field">
+        <label for="newsCover">Обложка (необязательно)</label>
+        <input id="newsCover" class="studio-input" type="file" accept="image/*" />
+      </div>
+      <label class="studio-check"><input id="newsPublished" type="checkbox" /> Опубликовано</label>
+      <div id="newsEditorError" class="studio-error"></div>
+      <div class="studio-modal__actions">
+        <button id="newsCancel" class="studio-btn ghost" type="button">Отмена</button>
+        <button id="newsSave" class="studio-btn" type="button">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="{% static 'js/studio.js' %}"></script>
+</body>
+</html>

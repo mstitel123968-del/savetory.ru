@@ -63,13 +63,14 @@ class YooKassaWebhookTests(TestCase):
         return {
             'id': payment.yookassa_payment_id,
             'status': status,
+            'paid': status == SubscriptionPayment.Status.SUCCEEDED,
             'amount': {'value': f'{Decimal(value):.2f}', 'currency': currency},
-            'metadata': metadata or {
+            'metadata': {
                 'payment_uuid': str(payment.internal_uuid),
                 'user_id': str(payment.user_id),
                 'tariff_code': payment.tariff.code,
                 'period': payment.period,
-            },
+            } if metadata is None else metadata,
         }
 
     def _webhook(self, payment, event='payment.succeeded'):
@@ -115,6 +116,29 @@ class YooKassaWebhookTests(TestCase):
         self.assertEqual(payment.status, SubscriptionPayment.Status.CANCELED)
         self.assertFalse(payment.subscription_activated)
         self.assertFalse(UserSubscription.objects.filter(user=self.user, tariff__is_paid=True).exists())
+
+    def test_waiting_for_capture_webhook_keeps_payment_pending(self):
+        payment = self._payment()
+
+        with patch('core.services.subscriptions._fetch_yookassa_payment', return_value=self._remote(payment, status='waiting_for_capture')):
+            response = self._webhook(payment, event='payment.waiting_for_capture')
+
+        self.assertEqual(response.status_code, 200)
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, SubscriptionPayment.Status.PENDING)
+        self.assertFalse(payment.subscription_activated)
+
+    def test_webhook_can_find_payment_by_yookassa_id_without_metadata(self):
+        payment = self._payment()
+
+        with patch('core.services.subscriptions._fetch_yookassa_payment', return_value=self._remote(payment, metadata={})):
+            response = self._webhook(payment)
+
+        self.assertEqual(response.status_code, 200)
+        payment.refresh_from_db()
+        self.assertTrue(payment.subscription_activated)
+        active = UserSubscription.objects.get(user=self.user, status=UserSubscription.Status.ACTIVE)
+        self.assertEqual(active.tariff, self.plus)
 
     def test_amount_currency_or_metadata_mismatch_blocks_activation(self):
         cases = [
@@ -208,7 +232,7 @@ class YooKassaWebhookTests(TestCase):
         self.assertFalse(payment.subscription_activated)
         self.assertFalse(UserSubscription.objects.filter(user=self.user, tariff__is_paid=True).exists())
 
-    def test_return_url_does_not_activate_succeeded_payment(self):
+    def test_return_url_activates_succeeded_paid_payment(self):
         payment = self._payment()
 
         with patch('core.services.subscriptions._fetch_yookassa_payment', return_value=self._remote(payment, status=SubscriptionPayment.Status.SUCCEEDED)):
@@ -217,5 +241,19 @@ class YooKassaWebhookTests(TestCase):
         self.assertEqual(response.status_code, 200)
         payment.refresh_from_db()
         self.assertEqual(payment.status, SubscriptionPayment.Status.SUCCEEDED)
+        self.assertTrue(payment.subscription_activated)
+        active = UserSubscription.objects.get(user=self.user, status=UserSubscription.Status.ACTIVE)
+        self.assertEqual(active.tariff, self.plus)
+
+    def test_succeeded_without_paid_flag_does_not_activate_subscription(self):
+        payment = self._payment()
+        remote = self._remote(payment, status=SubscriptionPayment.Status.SUCCEEDED)
+        remote['paid'] = False
+
+        with patch('core.services.subscriptions._fetch_yookassa_payment', return_value=remote):
+            result = subscriptions.process_yookassa_payment(payment.yookassa_payment_id)
+
+        payment.refresh_from_db()
+        self.assertEqual(result.status, SubscriptionPayment.Status.PENDING)
         self.assertFalse(payment.subscription_activated)
         self.assertFalse(UserSubscription.objects.filter(user=self.user, tariff__is_paid=True).exists())

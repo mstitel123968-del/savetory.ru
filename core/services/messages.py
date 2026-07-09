@@ -6,6 +6,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
+from core.admin_access import configured_admin_login, is_reserved_admin_username
 from core.models import DirectMessage, DirectMessageReaction
 from core.utils import moderation
 
@@ -31,6 +32,10 @@ def _user_id(user) -> int:
 def _assert_distinct(sender, recipient) -> None:
     if _user_id(sender) == _user_id(recipient):
         raise MessageError('self_message', 'A user cannot send a message to themselves.')
+    for user in (sender, recipient):
+        username = getattr(user, 'get_username', lambda: '')()
+        if is_reserved_admin_username(username):
+            raise MessageError('not_found', 'User does not exist.')
 
 
 def _conversation_filter(user, other_user) -> Q:
@@ -151,7 +156,11 @@ def get_dialogs(user):
     """Return dialog summaries for the current user."""
 
     user_id = _user_id(user)
-    messages = DirectMessage.objects.filter(Q(sender_id=user_id) | Q(recipient_id=user_id)).select_related('sender', 'recipient').order_by('-sent_at', '-id')
+    messages = DirectMessage.objects.filter(Q(sender_id=user_id) | Q(recipient_id=user_id))
+    admin_login = configured_admin_login()
+    if admin_login:
+        messages = messages.exclude(sender__username__iexact=admin_login).exclude(recipient__username__iexact=admin_login)
+    messages = messages.select_related('sender', 'recipient').order_by('-sent_at', '-id')
     dialog_map: dict[int, dict] = {}
     for message in messages:
         other_id = message.recipient_id if message.sender_id == user_id else message.sender_id
@@ -183,7 +192,11 @@ def get_unread_summary(user) -> dict:
     """Return unread message counters grouped by sender for the current user."""
 
     user_id = _user_id(user)
-    unread = DirectMessage.objects.filter(recipient_id=user_id, is_read=False).select_related('sender').order_by('-sent_at', '-id')
+    unread = DirectMessage.objects.filter(recipient_id=user_id, is_read=False)
+    admin_login = configured_admin_login()
+    if admin_login:
+        unread = unread.exclude(sender__username__iexact=admin_login)
+    unread = unread.select_related('sender').order_by('-sent_at', '-id')
     senders: dict[int, dict] = {}
     latest_at = None
     total = 0

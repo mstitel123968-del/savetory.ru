@@ -2,7 +2,7 @@
 from django.urls import path
 from django.views.generic import RedirectView
 
-from . import views
+from . import studio, views
 
 app_name = 'core'
 
@@ -66,4 +66,21 @@ urlpatterns = [
     path('api/archive/rubrics/', views.create_rubric, name='create-rubric'),
     path('api/archive/files/', views.create_archive_file, name='create-file'),
     path('api/terms/accept/', views.accept_terms, name='accept_terms'),
+
+    # --- Hidden site editor / administrator page (superuser only) -----------
+    path('studio/', studio.studio_page, name='studio'),
+    path('api/studio/login/', studio.studio_login, name='studio-login'),
+    path('api/studio/logout/', studio.studio_logout, name='studio-logout'),
+    path('api/studio/status/', studio.studio_status, name='studio-status'),
+    path('api/studio/news/', studio.studio_news_list, name='studio-news-list'),
+    path('api/studio/news/save/', studio.studio_news_save, name='studio-news-save'),
+    path('api/studio/news/<int:article_id>/publish/', studio.studio_news_publish, name='studio-news-publish'),
+    path('api/studio/news/<int:article_id>/delete/', studio.studio_news_delete, name='studio-news-delete'),
+    path('api/studio/users/', studio.studio_users_search, name='studio-users'),
+    path('api/studio/users/<int:user_id>/block/', studio.studio_user_block, name='studio-user-block'),
+    path('api/studio/users/<int:user_id>/unblock/', studio.studio_user_unblock, name='studio-user-unblock'),
+    path('api/studio/listings/', studio.studio_listings, name='studio-listings'),
+    path('api/studio/listings/<int:listing_id>/action/', studio.studio_listing_action, name='studio-listing-action'),
+    path('api/studio/reviews/', studio.studio_reviews, name='studio-reviews'),
+    path('api/studio/reviews/<int:review_id>/action/', studio.studio_review_action, name='studio-review-action'),
 ]

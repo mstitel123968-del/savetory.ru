@@ -13,6 +13,8 @@ services:
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
       DJANGO_ALLOWED_HOSTS: "localhost 127.0.0.1 [::1]"
+      SUPERUSER_LOGIN: "${SUPERUSER_LOGIN:-SuperUser}"
+      SUPERUSER_PASSWORD: "${SUPERUSER_PASSWORD:-TS11181992SKlad}"
       YOOKASSA_SHOP_ID: "${YOOKASSA_SHOP_ID:-}"
       YOOKASSA_SECRET_KEY: "${YOOKASSA_SECRET_KEY:-}"
       YOOKASSA_RETURN_URL: "${YOOKASSA_RETURN_URL:-http://localhost:8000/subscriptions/payment/result/}"
