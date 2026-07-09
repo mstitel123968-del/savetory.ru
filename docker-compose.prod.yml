@@ -1,3 +1,5 @@
+name: savetory
+
 services:
   web:
     build:
