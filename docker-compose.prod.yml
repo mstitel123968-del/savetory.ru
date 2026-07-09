@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   web:
     build:
@@ -25,10 +23,6 @@ services:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-    # Direct access for database clients such as DBeaver.
-    # Restrict TCP/5432 to trusted source IPs in the server firewall.
-    ports:
-      - "5432:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
 
