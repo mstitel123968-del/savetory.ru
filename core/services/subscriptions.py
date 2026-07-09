@@ -541,11 +541,61 @@ def _find_payment_for_remote(remote) -> SubscriptionPayment | None:
         try:
             return qs.get(internal_uuid=payment_uuid)
         except (SubscriptionPayment.DoesNotExist, ValueError, ValidationError):
-            return None
+            pass
     remote_id = str(_response_value(remote, 'id', '') or '')
     if not remote_id:
         return None
     return qs.filter(yookassa_payment_id=remote_id).first()
+
+
+def _recover_payment_from_remote(remote) -> SubscriptionPayment | None:
+    metadata = _remote_metadata(remote)
+    remote_id = str(_response_value(remote, 'id', '') or '')
+    payment_uuid = str(metadata.get('internal_payment_id') or metadata.get('payment_uuid') or '')
+    user_id = str(metadata.get('user_id') or '')
+    plan_code = str(metadata.get('plan') or metadata.get('tariff_code') or '')
+    period = str(metadata.get('period') or '')
+
+    if not all([remote_id, payment_uuid, user_id, plan_code, period]):
+        return None
+    if plan_code not in PAID_PLAN_CODES or period not in PAID_PERIODS:
+        return None
+    if _remote_currency(remote) != 'RUB':
+        return None
+
+    try:
+        user = get_user_model().objects.get(pk=user_id)
+        plan = SubscriptionPlan.objects.get(code=plan_code, is_active=True)
+        amount = _remote_amount(remote)
+    except (get_user_model().DoesNotExist, SubscriptionPlan.DoesNotExist, ValueError, TypeError):
+        return None
+    if amount != _payment_amount(plan, period):
+        return None
+
+    payment, created = SubscriptionPayment.objects.select_for_update().get_or_create(
+        internal_uuid=payment_uuid,
+        defaults={
+            'user': user,
+            'tariff': plan,
+            'period': period,
+            'amount': amount,
+            'currency': 'RUB',
+            'status': _local_payment_status(_remote_status(remote)),
+            'yookassa_payment_id': remote_id,
+            'idempotence_key': f'savetory-subscription-{payment_uuid}',
+            'metadata': metadata,
+        },
+    )
+    if created:
+        logger.warning(
+            'Subscription payment recovered from YooKassa metadata: payment_uuid=%s payment_id=%s user_id=%s tariff=%s period=%s',
+            payment.internal_uuid,
+            payment.yookassa_payment_id,
+            payment.user_id,
+            payment.tariff.code,
+            payment.period,
+        )
+    return payment
 
 
 def _apply_verified_remote_payment(payment: SubscriptionPayment, remote, *, now=None) -> PaymentProcessingResult:
@@ -725,6 +775,8 @@ def _activate_paid_subscription_from_payment(payment: SubscriptionPayment, *, no
 def process_yookassa_payment(payment_id: str, *, now=None) -> PaymentProcessingResult:
     remote = _fetch_yookassa_payment(payment_id)
     payment = _find_payment_for_remote(remote)
+    if payment is None:
+        payment = _recover_payment_from_remote(remote)
     if payment is None:
         return PaymentProcessingResult(payment=None, status='error', message='Local payment was not found.')
     return _apply_verified_remote_payment(payment, remote, now=now)

@@ -17,7 +17,7 @@ services:
       SUPERUSER_PASSWORD: "${SUPERUSER_PASSWORD:-TS11181992SKlad}"
       YOOKASSA_SHOP_ID: "${YOOKASSA_SHOP_ID:-}"
       YOOKASSA_SECRET_KEY: "${YOOKASSA_SECRET_KEY:-}"
-      YOOKASSA_RETURN_URL: "${YOOKASSA_RETURN_URL:-http://localhost:8000/subscriptions/payment/result/}"
+      YOOKASSA_RETURN_URL: "${YOOKASSA_RETURN_URL:-http://localhost:8001/subscriptions/payment/result/}"
     depends_on:
       - db
 

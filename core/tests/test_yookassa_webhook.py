@@ -1,4 +1,5 @@
 import json
+import uuid
 from datetime import timedelta
 from decimal import Decimal
 from unittest.mock import patch
@@ -136,6 +137,31 @@ class YooKassaWebhookTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         payment.refresh_from_db()
+        self.assertTrue(payment.subscription_activated)
+        active = UserSubscription.objects.get(user=self.user, status=UserSubscription.Status.ACTIVE)
+        self.assertEqual(active.tariff, self.plus)
+
+    def test_paid_payment_can_be_recovered_from_yookassa_metadata(self):
+        payment_uuid = str(uuid.uuid4())
+        remote = {
+            'id': 'yk-recovered-plus',
+            'status': SubscriptionPayment.Status.SUCCEEDED,
+            'paid': True,
+            'amount': {'value': '99.00', 'currency': 'RUB'},
+            'metadata': {
+                'internal_payment_id': payment_uuid,
+                'user_id': str(self.user.pk),
+                'plan': SubscriptionPlan.Code.PLUS,
+                'period': SubscriptionPayment.Period.MONTH,
+            },
+        }
+
+        with patch('core.services.subscriptions._fetch_yookassa_payment', return_value=remote):
+            result = subscriptions.process_yookassa_payment(remote['id'])
+
+        self.assertEqual(result.status, SubscriptionPayment.Status.SUCCEEDED)
+        payment = SubscriptionPayment.objects.get(internal_uuid=payment_uuid)
+        self.assertEqual(payment.yookassa_payment_id, 'yk-recovered-plus')
         self.assertTrue(payment.subscription_activated)
         active = UserSubscription.objects.get(user=self.user, status=UserSubscription.Status.ACTIVE)
         self.assertEqual(active.tariff, self.plus)
