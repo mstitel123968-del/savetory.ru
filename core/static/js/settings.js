@@ -479,7 +479,16 @@
       showToast('Произвольные цвета доступны только на тарифе PRO');
       return;
     }
-    if (input) input.click();
+    if (!input) return;
+    try {
+      if (typeof input.showPicker === 'function') {
+        input.showPicker();
+        return;
+      }
+    } catch (error) {
+      /* Older embedded browsers can reject showPicker; click is the fallback. */
+    }
+    input.click();
   }
 
   function setCustomColor(kind, value) {
@@ -498,8 +507,16 @@
 
   if (themeColorTrigger) themeColorTrigger.addEventListener('click', () => openColorPicker(customThemeInput));
   if (accentColorTrigger) accentColorTrigger.addEventListener('click', () => openColorPicker(customAccentInput));
-  if (customThemeInput) customThemeInput.addEventListener('input', () => setCustomColor('theme', customThemeInput.value));
-  if (customAccentInput) customAccentInput.addEventListener('input', () => setCustomColor('accent', customAccentInput.value));
+  if (customThemeInput) {
+    const applyThemeColor = () => setCustomColor('theme', customThemeInput.value);
+    customThemeInput.addEventListener('input', applyThemeColor);
+    customThemeInput.addEventListener('change', applyThemeColor);
+  }
+  if (customAccentInput) {
+    const applyAccentColor = () => setCustomColor('accent', customAccentInput.value);
+    customAccentInput.addEventListener('input', applyAccentColor);
+    customAccentInput.addEventListener('change', applyAccentColor);
+  }
 
   prefControls.forEach((ctrl) => {
     const key = ctrl.dataset.pref;
