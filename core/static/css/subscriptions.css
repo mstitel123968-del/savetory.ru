@@ -41,3 +41,22 @@ body.theme-light .tariff-card{box-shadow:0 14px 32px rgba(118,136,220,.16)}
   .subscription-payments li{align-items:flex-start;flex-direction:column}
   .archive-usage-chip{font-size:12px;min-height:30px;max-width:100%;white-space:normal}
 }
+
+/* Subscription screens follow the same compact 8px spacing rhythm. */
+.subscriptions-main,
+.subscriptions-intro,
+.tariff-grid,
+.tariff-card,
+.tariff-card__head,
+.tariff-card__prices,
+.tariff-card__prices div,
+.tariff-card__actions,
+.subscription-account,
+.subscription-account__summary,
+.subscription-account__grid,
+.subscription-account__grid>div,
+.subscription-payments,
+.subscription-payments ul,
+.subscription-payments li{
+  gap:var(--ui-gap-min,8px)!important;
+}

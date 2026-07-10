@@ -6,16 +6,20 @@
     return match ? decodeURIComponent(match.pop()) : '';
   }
 
-  async function postJSON(url, body) {
+  async function requestJSON(url, method, body) {
     const response = await fetch(url, {
-      method: 'POST',
+      method: method || 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
       credentials: 'include',
       body: JSON.stringify(body || {}),
     });
     let data = null;
     try { data = await response.json(); } catch (e) {}
-    return { ok: response.ok && data && data.success, data: data || {} };
+    return { ok: response.ok && data && (data.success || data.ok), data: data || {} };
+  }
+
+  async function postJSON(url, body) {
+    return requestJSON(url, 'POST', body);
   }
 
   function firstError(data) {
@@ -128,8 +132,17 @@
 
     const state = { source: null, card: null, cardData: {}, terms: {} };
 
+    function refreshThemeSelects(scope) {
+      if (!window.ThemeSelect || !scope) return;
+      if (typeof window.ThemeSelect.enhanceAll === 'function') window.ThemeSelect.enhanceAll(scope);
+      scope.querySelectorAll('select[data-theme-select]').forEach((select) => {
+        if (typeof select.themeSelectRefresh === 'function') select.themeSelectRefresh();
+      });
+    }
+
     function showStep(name) {
       Object.keys(steps).forEach((key) => steps[key].classList.toggle('is-hidden', key !== name));
+      refreshThemeSelects(steps[name]);
       if (errorBox) errorBox.textContent = '';
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -189,13 +202,50 @@
     // Step 2b: new card
     const newcardForm = root.querySelector('[data-newcard-form]');
     const newcardNext = root.querySelector('[data-newcard-next]');
+    function readFileAsDataURL(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(reader.error || new Error('file_read_failed'));
+        reader.readAsDataURL(file);
+      });
+    }
+    async function collectNewCardData() {
+      const data = {};
+      const images = [];
+      const fields = config.fieldIds || [];
+      for (let i = 0; i < fields.length; i += 1) {
+        const id = fields[i];
+        const node = newcardForm.querySelector('[data-field="' + id + '"]');
+        if (!node) continue;
+        if (node.type === 'file') {
+          const files = Array.from(node.files || []).filter((file) => file && file.type && file.type.indexOf('image/') === 0);
+          for (let j = 0; j < files.length; j += 1) {
+            images.push({ src: await readFileAsDataURL(files[j]), name: files[j].name || ('photo-' + (j + 1)) });
+          }
+        } else if (node.value) {
+          data[id] = node.value;
+        }
+      }
+      data.images = images;
+      return data;
+    }
     if (newcardNext) {
-      newcardNext.addEventListener('click', () => {
-        const data = {};
-        (config.fieldIds || []).forEach((id) => {
-          const node = newcardForm.querySelector('[data-field="' + id + '"]');
-          if (node && node.value) data[id] = node.value;
-        });
+      newcardNext.addEventListener('click', async () => {
+        newcardNext.disabled = true;
+        const originalText = newcardNext.textContent;
+        newcardNext.textContent = 'Обработка...';
+        let data = {};
+        try {
+          data = await collectNewCardData();
+        } catch (e) {
+          newcardNext.disabled = false;
+          newcardNext.textContent = originalText;
+          showError('Не удалось прочитать фотографии. Попробуйте выбрать файлы ещё раз.');
+          return;
+        }
+        newcardNext.disabled = false;
+        newcardNext.textContent = originalText;
         if (!data.title) { showError('Укажите наименование товара.'); return; }
         state.source = 'new';
         state.cardData = data;
@@ -216,6 +266,7 @@
       };
       return {
         category: get('category'),
+        condition: get('condition'),
         start_price: get('start_price'),
         min_bid_step: get('min_bid_step'),
         start_at: get('start_at'),
@@ -227,6 +278,7 @@
 
     function validateTerms(t) {
       if (!t.category) return 'Выберите категорию товара.';
+      if (!t.condition) return 'Выберите состояние товара.';
       const sp = parseFloat(t.start_price);
       const step = parseFloat(t.min_bid_step);
       if (!(sp > 0)) return 'Стартовая цена должна быть больше нуля.';
@@ -239,10 +291,13 @@
 
     function buildPreview(t) {
       const title = state.source === 'archive' ? (state.card && state.card.title) : (state.cardData.title || '');
+      const categoryOption = termsForm.querySelector('[name="category"] option:checked');
+      const conditionOption = termsForm.querySelector('[name="condition"] option:checked');
       const rows = [
         ['Источник', state.source === 'archive' ? 'Карточка из архива' : 'Новая карточка'],
         ['Наименование', title || '—'],
-        ['Категория', termsForm.querySelector('[name="category"] option:checked').textContent],
+        ['Категория', categoryOption ? categoryOption.textContent : '—'],
+        ['Состояние', conditionOption ? conditionOption.textContent : '—'],
         ['Стартовая цена', money(t.start_price) + ' ₽'],
         ['Шаг ставки', money(t.min_bid_step) + ' ₽'],
         ['Начало', t.start_at.replace('T', ' ')],
@@ -273,11 +328,12 @@
     }
 
     // Step 4: publish
-    function buildPayload(mode) {
+    function buildLegacyPayload(mode) {
       const t = state.terms;
       const payload = {
         mode: mode,
         category: t.category,
+        condition: t.condition,
         start_price: t.start_price,
         min_bid_step: t.min_bid_step,
         start_at: t.start_at,
@@ -295,18 +351,96 @@
       return payload;
     }
 
+    function toApiDate(value) {
+      return value || null;
+    }
+
+    function buildDraftPatch(mode) {
+      const t = state.terms;
+      const start = new Date(t.start_at);
+      const startMode = mode === 'schedule' ? 'scheduled' : (start > new Date() ? 'scheduled' : 'now');
+      const patch = {
+        category: t.category,
+        condition: t.condition,
+        delivery_methods: ['pickup'],
+        auction_start_mode: startMode,
+        auction_start: toApiDate(t.start_at),
+        auction_end: toApiDate(t.end_at),
+        auction_start_price: t.start_price,
+        auction_step: t.min_bid_step,
+      };
+      if (t.buy_now_price) patch.auction_buy_now_price = t.buy_now_price;
+      if (t.reserve_price) patch.auction_reserve_price = t.reserve_price;
+      if (state.source === 'new') {
+        patch.title = state.cardData.title || '';
+        patch.description = state.cardData.description || '';
+      }
+      return patch;
+    }
+
+    async function createDraft() {
+      if (config.endpoints.draftCreate) {
+        const body = state.source === 'archive'
+          ? { file_id: state.card.id }
+          : { card: {
+              card_id: 'auction-direct-' + Date.now(),
+              title: state.cardData.title || '',
+              description: state.cardData.description || '',
+              images: state.cardData.images || [],
+              data: state.cardData,
+            } };
+        return postJSON(config.endpoints.draftCreate, body);
+      }
+      const url = state.source === 'archive' ? config.endpoints.createFromCard : config.endpoints.createNew;
+      return postJSON(url, buildLegacyPayload('draft'));
+    }
+
+    function draftManageUrl(listingId) {
+      if (!config.endpoints.draftManage) return '';
+      return config.endpoints.draftManage.replace('/0/', '/' + listingId + '/').replace('__id__', listingId);
+    }
+
+    function draftPublishUrl(listingId) {
+      if (!config.endpoints.draftPublish) return '';
+      return config.endpoints.draftPublish.replace('/0/', '/' + listingId + '/').replace('__id__', listingId);
+    }
+
+    async function saveDraftAndMaybePublish(mode) {
+      const created = await createDraft();
+      if (!created.ok) return created;
+      const listingId = created.data.listing_id;
+      const manageUrl = draftManageUrl(listingId);
+      if (!manageUrl) return created;
+      const patched = await requestJSON(manageUrl, 'PATCH', buildDraftPatch(mode));
+      if (!patched.ok) return patched;
+      if (mode === 'draft') {
+        const detailUrl = config.auctionDetailUrl
+          ? config.auctionDetailUrl.replace('/0/', '/' + listingId + '/').replace('__id__', listingId)
+          : '/market/auction/';
+        return { ok: true, data: { redirect: detailUrl, listing_id: listingId } };
+      }
+      const publishUrl = draftPublishUrl(listingId);
+      if (!publishUrl) return patched;
+      return postJSON(publishUrl, {});
+    }
+
     root.querySelectorAll('[data-publish]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const mode = btn.getAttribute('data-publish');
         if (mode === 'schedule' && new Date(state.terms.start_at) <= new Date()) {
           showStep('preview'); showError('Для планирования начало торгов должно быть в будущем.'); return;
         }
-        const url = state.source === 'archive' ? config.endpoints.createFromCard : config.endpoints.createNew;
         btn.disabled = true;
-        const { ok, data } = await postJSON(url, buildPayload(mode));
-        btn.disabled = false;
-        if (ok) { window.location.href = (data && data.lot_url) || '/market/auction/'; return; }
-        showStep('preview'); showError(firstError(data));
+        try {
+          const { ok, data } = await saveDraftAndMaybePublish(mode);
+          btn.disabled = false;
+          if (ok) { window.location.href = (data && (data.redirect || data.published_url || data.lot_url)) || '/market/auction/'; return; }
+          showStep('preview'); showError(firstError(data));
+        } catch (e) {
+          btn.disabled = false;
+          showStep('preview');
+          showError('Не удалось сохранить лот. Проверьте соединение и попробуйте ещё раз.');
+        }
       });
     });
 
@@ -527,8 +661,9 @@
         btn.addEventListener('click', () => {
           const kind = btn.getAttribute('data-quick');
           let val = parseFloat(state.minimum_bid) || 0;
-          if (kind === '3') val = 3 * step;
-          else if (kind === '5') val = 5 * step;
+          const current = parseFloat(state.current_price) || 0;
+          if (kind === '3') val = current + 3 * step;
+          else if (kind === '5') val = current + 5 * step;
           input.value = String(val);
           if (errorEl) errorEl.textContent = '';
           input.focus();
@@ -611,6 +746,22 @@
       if (errorEl) errorEl.textContent = message;
     }
 
+    root.querySelectorAll('[data-buy-now]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (!endpoints.buy_now) return;
+        if (!window.confirm('Купить лот сейчас?')) return;
+        btn.disabled = true; btn.classList.add('is-loading');
+        manageRequest(endpoints.buy_now, 'POST', {}).then(({ data }) => {
+          if (data.ok) { window.location.href = data.redirect || config.lot_url || window.location.href; return; }
+          btn.disabled = false; btn.classList.remove('is-loading');
+          window.alert(firstError(data));
+        }).catch(() => {
+          btn.disabled = false; btn.classList.remove('is-loading');
+          window.alert('Ошибка соединения. Попробуйте ещё раз.');
+        });
+      });
+    });
+
     // ---- Seller management: cancel / relist / edit ----
     function manageRequest(url, method, body) {
       const opts = { method: method, headers: { 'X-CSRFToken': getCookie('csrftoken') }, credentials: 'include' };
@@ -689,9 +840,16 @@
 
       function field(labelText, control, key, lockable) {
         const wrap = document.createElement('div'); wrap.className = 'aw-field';
-        const lab = document.createElement('label'); lab.className = 'aw-field__label';
-        const span = document.createElement('span'); span.textContent = labelText; lab.append(span, control);
-        wrap.appendChild(lab);
+        const span = document.createElement('span'); span.textContent = labelText;
+        if (control.classList && control.classList.contains('auction-edit__methods')) {
+          const lab = document.createElement('div'); lab.className = 'aw-field__label';
+          lab.appendChild(span);
+          wrap.append(lab, control);
+        } else {
+          const lab = document.createElement('label'); lab.className = 'aw-field__label';
+          lab.append(span, control);
+          wrap.appendChild(lab);
+        }
         if (hasBids && lockable && POST_BID.indexOf(key) === -1) {
           control.disabled = true;
           const note = document.createElement('small'); note.className = 'aw-field__hint';
@@ -716,8 +874,11 @@
       });
       const costI = _num(detail.delivery_cost);
       const noteI = _ta(detail.delivery_note);
+      descI.rows = 2;
+      noteI.rows = 2;
       const priceI = _num(detail.auction_start_price);
       const stepI = _num(detail.auction_step);
+      const buyNowI = _num(detail.auction_buy_now_price);
       const reserveI = _num(detail.auction_reserve_price);
       const endI = document.createElement('input'); endI.type = 'datetime-local'; endI.value = _isoLocal(detail.auction_end);
       const extendI = document.createElement('input'); extendI.type = 'checkbox'; extendI.checked = detail.auction_auto_extend !== false;
@@ -733,10 +894,11 @@
         field('Комментарий по передаче', noteI, 'delivery_note', false),
         field('Стартовая цена, ₽', priceI, 'auction_start_price', true),
         field('Шаг ставки, ₽', stepI, 'auction_step', true),
+        field('Купить сейчас, ₽', buyNowI, 'auction_buy_now_price', true),
         field('Резервная цена, ₽', reserveI, 'auction_reserve_price', true),
         field('Завершение торгов', endI, 'auction_end', true),
       );
-      const exWrap = document.createElement('label'); exWrap.className = 'aw-check';
+      const exWrap = document.createElement('label'); exWrap.className = 'aw-check auction-edit__extend';
       exWrap.append(extendI, document.createTextNode(' Продлевать на 2 минуты при ставке в финале'));
       if (hasBids) extendI.disabled = true;
       bodyEl.appendChild(exWrap);
@@ -749,15 +911,7 @@
       box.append(head, bodyEl, foot); overlay.appendChild(box); document.body.appendChild(overlay);
       if (window.ThemeSelect) window.ThemeSelect.enhanceAll(bodyEl);
 
-      const onKey = (e) => { if (e.key === 'Escape') destroy(); };
-      function destroy() { document.removeEventListener('keydown', onKey); overlay.remove(); }
-      close.addEventListener('click', destroy);
-      cancel.addEventListener('click', destroy);
-      overlay.addEventListener('click', (e) => { if (e.target === overlay) destroy(); });
-      document.addEventListener('keydown', onKey);
-
-      save.addEventListener('click', () => {
-        err.textContent = '';
+      function collectEditPayload() {
         const payload = {};
         const methods = dmBoxes.filter((c) => c.checked).map((c) => c.value);
         payload.description = descI.value;
@@ -771,16 +925,112 @@
           payload.condition = condI.value;
           payload.auction_start_price = priceI.value || null;
           payload.auction_step = stepI.value || null;
+          payload.auction_buy_now_price = buyNowI.value || null;
           payload.auction_reserve_price = reserveI.value || null;
           if (endI.value) payload.auction_end = endI.value;
           payload.auction_auto_extend = extendI.checked;
         }
+        return payload;
+      }
+
+      const initialSnapshot = JSON.stringify(collectEditPayload());
+      const isDirty = () => JSON.stringify(collectEditPayload()) !== initialSnapshot;
+
+      function saveChanges() {
+        err.textContent = '';
         save.disabled = true; save.classList.add('is-loading');
-        manageRequest(config.endpoints.manage, 'PATCH', payload).then(({ data }) => {
-          if (data.ok) { destroy(); window.location.reload(); return; }
+        return manageRequest(config.endpoints.manage, 'PATCH', collectEditPayload()).then(({ data }) => {
+          if (data.ok) { destroy(); window.location.reload(); return true; }
           save.disabled = false; save.classList.remove('is-loading');
           err.textContent = firstError(data);
+          return false;
+        }).catch(() => {
+          save.disabled = false; save.classList.remove('is-loading');
+          err.textContent = 'Не удалось сохранить изменения. Проверьте соединение и попробуйте ещё раз.';
+          return false;
         });
+      }
+
+      function openUnsavedModal() {
+        const confirmOverlay = document.createElement('div');
+        confirmOverlay.className = 'auction-edit-unsaved';
+        confirmOverlay.setAttribute('role', 'dialog');
+        confirmOverlay.setAttribute('aria-modal', 'true');
+        confirmOverlay.setAttribute('aria-labelledby', 'auctionUnsavedTitle');
+
+        const confirmBox = document.createElement('div');
+        confirmBox.className = 'auction-edit-unsaved__box';
+        const confirmTitle = document.createElement('h3');
+        confirmTitle.id = 'auctionUnsavedTitle';
+        confirmTitle.className = 'auction-edit-unsaved__title';
+        confirmTitle.textContent = 'Были внесены изменения';
+        const confirmText = document.createElement('p');
+        confirmText.className = 'auction-edit-unsaved__text';
+        confirmText.textContent = 'Сохранить изменения перед закрытием?';
+        const confirmActions = document.createElement('div');
+        confirmActions.className = 'auction-edit-unsaved__actions';
+        const discard = document.createElement('button');
+        discard.type = 'button';
+        discard.className = 'ios-button';
+        discard.textContent = 'Не сохранять';
+        const keep = document.createElement('button');
+        keep.type = 'button';
+        keep.className = 'ios-button ios-button--primary';
+        keep.textContent = 'Сохранить';
+        confirmActions.append(discard, keep);
+        confirmBox.append(confirmTitle, confirmText, confirmActions);
+        confirmOverlay.appendChild(confirmBox);
+        overlay.appendChild(confirmOverlay);
+
+        const closeUnsaved = () => confirmOverlay.remove();
+        const onUnsavedKey = (event) => {
+          if (event.key === 'Escape') {
+            document.removeEventListener('keydown', onUnsavedKey);
+            closeUnsaved();
+          }
+        };
+        document.addEventListener('keydown', onUnsavedKey);
+        confirmOverlay.addEventListener('click', (event) => {
+          if (event.target === confirmOverlay) {
+            document.removeEventListener('keydown', onUnsavedKey);
+            closeUnsaved();
+          }
+        });
+        discard.addEventListener('click', () => {
+          document.removeEventListener('keydown', onUnsavedKey);
+          closeUnsaved();
+          destroy();
+        });
+        keep.addEventListener('click', () => {
+          document.removeEventListener('keydown', onUnsavedKey);
+          keep.disabled = true;
+          keep.classList.add('is-loading');
+          saveChanges().then((saved) => {
+            if (!saved) {
+              keep.disabled = false;
+              keep.classList.remove('is-loading');
+              closeUnsaved();
+            }
+          });
+        });
+        keep.focus();
+      }
+
+      function requestClose() {
+        if (!isDirty()) { destroy(); return; }
+        if (overlay.querySelector('.auction-edit-unsaved')) return;
+        openUnsavedModal();
+      }
+
+      const onKey = (e) => { if (e.key === 'Escape') requestClose(); };
+      function destroy() { document.removeEventListener('keydown', onKey); overlay.remove(); }
+      close.addEventListener('click', requestClose);
+      cancel.addEventListener('click', requestClose);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) requestClose(); });
+      document.addEventListener('keydown', onKey);
+
+      save.addEventListener('click', () => {
+        saveChanges();
       });
       close.focus();
     }

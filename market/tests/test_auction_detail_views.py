@@ -108,7 +108,7 @@ class AuctionDetailViewTests(TestCase):
 
     def test_current_price_shown_after_bids(self):
         lot = self.make_lot()
-        bidding.place_bid(self.bidder, lot.pk, Decimal("200.00"))
+        bidding.place_bid(self.bidder, lot.pk, Decimal("1100.00"))
         resp = Client().get(self.url(lot))
         self.assertContains(resp, "Текущая цена")
         self.assertContains(resp, "1200.00")

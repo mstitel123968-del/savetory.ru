@@ -83,7 +83,7 @@ class AuctionManagementTests(TestCase):
 
     def test_critical_change_blocked_after_bid(self):
         lot = self.make_auction()
-        bidding.place_bid(self.bob, lot.pk, Decimal("1000.00"))
+        bidding.place_bid(self.bob, lot.pk, Decimal("1100.00"))
         resp = self._client(self.owner).patch(reverse("market_api_auction_manage", args=[lot.pk]),
                                                data=json.dumps({"auction_start_price": "2000"}),
                                                content_type="application/json")
@@ -94,7 +94,7 @@ class AuctionManagementTests(TestCase):
 
     def test_allowed_change_after_bid(self):
         lot = self.make_auction()
-        bidding.place_bid(self.bob, lot.pk, Decimal("1000.00"))
+        bidding.place_bid(self.bob, lot.pk, Decimal("1100.00"))
         resp = self._client(self.owner).patch(reverse("market_api_auction_manage", args=[lot.pk]),
                                                data=json.dumps({"description": "Уточнение", "location": "Тверь"}),
                                                content_type="application/json")
@@ -131,7 +131,7 @@ class AuctionManagementTests(TestCase):
 
     def test_seller_cannot_cancel_after_bid(self):
         lot = self.make_auction()
-        bidding.place_bid(self.bob, lot.pk, Decimal("1000.00"))
+        bidding.place_bid(self.bob, lot.pk, Decimal("1100.00"))
         resp = self._client(self.owner).post(reverse("market_api_auction_cancel", args=[lot.pk]),
                                              data=json.dumps({"reason": "x"}), content_type="application/json")
         self.assertEqual(resp.status_code, 400)
@@ -140,7 +140,7 @@ class AuctionManagementTests(TestCase):
 
     def test_admin_cancel_after_bid(self):
         lot = self.make_auction()
-        bidding.place_bid(self.bob, lot.pk, Decimal("1000.00"))
+        bidding.place_bid(self.bob, lot.pk, Decimal("1100.00"))
         resp = self._client(self.admin).post(reverse("market_api_auction_cancel", args=[lot.pk]),
                                              data=json.dumps({"reason": "Нарушение правил"}), content_type="application/json")
         self.assertEqual(resp.status_code, 200, resp.content)
@@ -154,7 +154,7 @@ class AuctionManagementTests(TestCase):
 
     def test_admin_cancel_requires_reason(self):
         lot = self.make_auction()
-        bidding.place_bid(self.bob, lot.pk, Decimal("1000.00"))
+        bidding.place_bid(self.bob, lot.pk, Decimal("1100.00"))
         resp = self._client(self.admin).post(reverse("market_api_auction_cancel", args=[lot.pk]),
                                              data=json.dumps({}), content_type="application/json")
         self.assertEqual(resp.status_code, 400)
@@ -173,28 +173,28 @@ class AuctionManagementTests(TestCase):
 
     def test_finalize_with_winner(self):
         lot = self.make_auction()
-        bidding.place_bid(self.alice, lot.pk, Decimal("1000.00"))
-        bidding.place_bid(self.bob, lot.pk, Decimal("1100.00"))
+        bidding.place_bid(self.alice, lot.pk, Decimal("1100.00"))
+        bidding.place_bid(self.bob, lot.pk, Decimal("1200.00"))
         self._expire(lot)
         bidding.finalize_auction(lot)
         lot.refresh_from_db()
         self.assertEqual(lot.auction_result, Listing.AuctionResult.SOLD)
         self.assertEqual(lot.winner_id, self.bob.id)
-        self.assertEqual(lot.winning_bid.amount, Decimal("1100.00"))
+        self.assertEqual(lot.winning_bid.amount, Decimal("1200.00"))
 
     def test_finalize_reserve_not_reached(self):
         lot = self.make_auction(auction_reserve_price=Decimal("2000.00"))
-        bidding.place_bid(self.alice, lot.pk, Decimal("500.00"))
+        bidding.place_bid(self.alice, lot.pk, Decimal("1100.00"))
         self._expire(lot)
         bidding.finalize_auction(lot)
         lot.refresh_from_db()
         self.assertEqual(lot.auction_result, Listing.AuctionResult.RESERVE_NOT_REACHED)
         self.assertIsNone(lot.winner_id)
-        self.assertEqual(lot.winning_bid.amount, Decimal("500.00"))
+        self.assertEqual(lot.winning_bid.amount, Decimal("1100.00"))
 
     def test_refinalize_keeps_result(self):
         lot = self.make_auction()
-        bidding.place_bid(self.bob, lot.pk, Decimal("1000.00"))
+        bidding.place_bid(self.bob, lot.pk, Decimal("1100.00"))
         self._expire(lot)
         bidding.finalize_auction(lot)
         lot.refresh_from_db()
@@ -214,7 +214,7 @@ class AuctionManagementTests(TestCase):
 
     def test_management_command_finalizes(self):
         lot = self.make_auction()
-        bidding.place_bid(self.bob, lot.pk, Decimal("1000.00"))
+        bidding.place_bid(self.bob, lot.pk, Decimal("1100.00"))
         self._expire(lot)
         call_command("finalize_auctions")
         lot.refresh_from_db()
@@ -224,7 +224,7 @@ class AuctionManagementTests(TestCase):
     # -- card sync ------------------------------------------------------------
     def test_archive_card_status_after_finalize(self):
         lot = self.make_auction()
-        bidding.place_bid(self.bob, lot.pk, Decimal("1000.00"))
+        bidding.place_bid(self.bob, lot.pk, Decimal("1100.00"))
         self._expire(lot)
         bidding.finalize_auction(lot)
         state = auction_service.card_auction_state(self.owner, self.card)
@@ -234,7 +234,7 @@ class AuctionManagementTests(TestCase):
     # -- relist ---------------------------------------------------------------
     def test_relist_creates_fresh_draft(self):
         lot = self.make_auction(with_image=True)
-        bidding.place_bid(self.bob, lot.pk, Decimal("1000.00"))
+        bidding.place_bid(self.bob, lot.pk, Decimal("1100.00"))
         self._expire(lot)
         bidding.finalize_auction(lot)
         resp = self._client(self.owner).post(reverse("market_api_auction_relist", args=[lot.pk]))

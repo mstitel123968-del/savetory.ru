@@ -37,24 +37,20 @@ class LandingRedirectTests(TestCase):
 
 
 class PublicDocumentTests(TestCase):
-    def test_requisites_page_is_public(self) -> None:
-        response = self.client.get(reverse("core:requisites"))
+    def test_information_placeholders_are_public_and_private_data_free(self) -> None:
+        for route_name in ("core:about", "core:contacts", "core:requisites"):
+            response = self.client.get(reverse(route_name))
 
-        self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "ИП Макаров Пётр Михайлович")
-        self.assertContains(response, "440123173264")
-        self.assertContains(response, "326440000016619")
-        self.assertContains(response, "savetory.ru@yandex.ru")
-        self.assertContains(response, "+7 (960) 748-84-35")
-        self.assertContains(response, "https://www.savetory.ru")
-        self.assertContains(response, "СКлад — Savetory")
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "Раздел готовится")
+            self.assertNotContains(response, "mailto:")
+            self.assertNotContains(response, "tel:")
 
-    def test_terms_page_links_to_requisites(self) -> None:
+    def test_terms_page_does_not_link_to_requisites(self) -> None:
         response = self.client.get(reverse("core:terms"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, reverse("core:requisites"))
-        self.assertContains(response, "Реквизиты")
+        self.assertNotContains(response, reverse("core:requisites"))
 
 
 class SettingsSubscriptionTests(TestCase):

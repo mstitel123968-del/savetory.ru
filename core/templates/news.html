@@ -22,16 +22,9 @@
     })();
   </script>
 </head>
-<body class="news-page">
+<body class="news-page app-shell-page">
   <script src="{% static 'js/prefs.js' %}"></script>
-  <aside class="sidebar">
-    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
-    <nav class="side-nav">
-      <div class="side-nav-footer">
-        {% include 'includes/side_nav_links.html' with current_section='news' %}
-      </div>
-    </nav>
-  </aside>
+  {% include 'includes/app_sidebar.html' with current_section='news' %}
 
   <header class="topbar">
     <div class="topbar-inner">
@@ -39,8 +32,7 @@
         <span class="page-title" data-page-title>Инструкции по пользованию</span>
       </div>
       <div class="topbar-spacer"></div>
-      <div class="topbar-actions">
-      </div>
+      <div class="topbar-actions">{% include 'includes/app_account_controls.html' %}</div>
     </div>
   </header>
 
@@ -48,6 +40,8 @@
     <a class="news-back-btn" href="/" data-news-back hidden>Назад</a>
     <section class="news-list" id="newsList"></section>
   </main>
+
+  {% include 'includes/app_footer.html' %}
 
   <div id="authModal" class="modal">
     <div class="modal-content">

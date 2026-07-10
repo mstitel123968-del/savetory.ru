@@ -174,3 +174,40 @@ body.card-flat .messages-compose{box-shadow:none}
     gap:calc(var(--app-layout-gap) + 16px);
   }
 }
+
+/* Messages keep the same 8px spacing step as the rest of the app. */
+.messages-list,
+.messages-dialog,
+.messages-dialog__main,
+.messages-dialog__head,
+.messages-dialog-titlebar,
+.messages-shell--dialog,
+.messages-bubble,
+.messages-bubble__meta,
+.messages-message-actions,
+.messages-reaction-panel,
+.messages-reactions,
+.messages-reaction-chip,
+.messages-edit-controls,
+.messages-compose,
+.messages-compose__row,
+.messages-compose__attach-item,
+.messages-compose__attach-info,
+.messages-attachment--file,
+.messages-attachment__info{
+  gap:var(--ui-gap-min,8px)!important;
+}
+
+.messages-edit-controls{
+  margin-top:var(--ui-gap-min,8px)!important;
+}
+
+.messages-thread{
+  gap:calc(var(--ui-gap-min,8px) + 30px)!important;
+}
+
+@media (max-width:640px){
+  .messages-thread{
+    gap:calc(var(--ui-gap-min,8px) + 16px)!important;
+  }
+}

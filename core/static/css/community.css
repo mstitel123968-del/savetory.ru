@@ -220,4 +220,87 @@ body.reduce-motion .community-card,body.reduce-motion .community-action{transiti
   .community-action{min-height:44px}
 }
 
+/* Shared account controls alongside the page-specific community search. */
+.community-topbar-tools{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:12px;
+  min-width:0;
+}
+
+.community-topbar-tools .community-topbar-searches{
+  flex:1 1 360px;
+  width:min(360px,100%);
+}
+
+@media (max-width:960px){
+  body.community-page .topbar-inner{
+    grid-template-columns:auto minmax(0,1fr) auto;
+    grid-template-areas:
+      "menu title title"
+      "search search search";
+  }
+  body.community-page .community-topbar-tools{
+    grid-area:search;
+    width:100%;
+    justify-self:stretch;
+  }
+}
+
+@media (max-width:640px){
+  body.community-page .topbar-inner{
+    grid-template-columns:auto minmax(0,1fr)!important;
+    grid-template-areas:
+      "menu search"
+      "title title"!important;
+  }
+  body.community-page .community-topbar-tools{
+    grid-area:search;
+    gap:6px;
+    min-width:0;
+  }
+  body.community-page .community-topbar-tools .community-topbar-searches{
+    flex:1 1 auto;
+    width:auto;
+    min-width:0;
+  }
+  body.community-page .community-topbar-tools .app-account-controls{gap:3px;}
+}
+
 /* Search + friends share the unified square card defined above. */
+
+/* Keep community spacing on the shared 8px minimum rhythm. */
+.community-shell,
+.community-titlebar,
+.community-panel,
+.community-grid,
+.community-grid .community-card,
+.community-grid .community-card__body,
+.community-grid .community-card__actions,
+.community-card,
+.community-card__body,
+.community-card__name,
+.community-card__actions,
+.community-action,
+.community-card-menu__list,
+.community-overview,
+.community-overview-card,
+.community-overview-card__head,
+.community-section-head,
+.community-avatar-row,
+.community-request-row,
+.community-pagination,
+.community-list,
+.community-profile-modal__head,
+.community-profile-modal__details,
+.community-profile-modal__actions{
+  gap:var(--ui-gap-min,8px)!important;
+}
+
+.community-card__actions,
+.community-card-menu__list,
+.community-profile-modal__details,
+.community-profile-modal__actions{
+  margin-top:var(--ui-gap-min,8px)!important;
+}

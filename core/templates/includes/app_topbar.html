@@ -1,0 +1,22 @@
+<header class="topbar app-topbar{% if archive_search %} app-topbar--search{% else %} app-topbar--title{% endif %}">
+  <div class="topbar-inner app-topbar__inner">
+    {% if archive_search %}
+      <div class="search-wrap app-topbar__search">
+        <svg class="app-topbar__search-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+        <input class="search" type="search" placeholder="Поиск по вашему архиву..." aria-label="Поиск по вашему архиву" />
+        <div class="search-results hidden" role="listbox" aria-live="polite" data-search-results></div>
+      </div>
+    {% else %}
+      <div class="logo-wrap">
+        <span class="page-title">{{ page_title }}</span>
+      </div>
+      <div class="topbar-spacer"></div>
+    {% endif %}
+    <div class="topbar-actions app-topbar__actions">
+      {% include 'includes/app_account_controls.html' %}
+    </div>
+  </div>
+</header>

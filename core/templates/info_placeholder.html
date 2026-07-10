@@ -1,0 +1,19 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/terms.css' %}" />
+</head>
+<body class="terms-body info-placeholder-body">
+  <main class="info-placeholder">
+    <span class="info-placeholder__brand">СКлад</span>
+    <h1>Раздел готовится</h1>
+    <p>Информация появится позже.</p>
+    <a class="info-placeholder__back" href="{% if user.is_authenticated %}{% url 'core:archive' %}{% else %}{% url 'core:landing' %}{% endif %}">Вернуться</a>
+  </main>
+</body>
+</html>

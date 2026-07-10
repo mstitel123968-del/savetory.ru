@@ -93,6 +93,7 @@ class Listing(models.Model):
     auction_start = models.DateTimeField(null=True, blank=True)
     auction_end = models.DateTimeField(null=True, blank=True)
     auction_start_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    auction_buy_now_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
     # Renamed from auction_min_price (reserve price). See auction_min_price
     # compatibility property below.
     auction_reserve_price = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
@@ -196,6 +197,11 @@ class Listing(models.Model):
             errors["auction_start_price"] = "Стартовая цена должна быть положительной."
         if self.auction_step is not None and self.auction_step <= 0:
             errors["auction_step"] = "Шаг ставки должен быть положительным."
+        if self.auction_buy_now_price is not None:
+            if self.auction_buy_now_price <= 0:
+                errors["auction_buy_now_price"] = "Цена «Купить сейчас» должна быть положительной."
+            elif self.auction_start_price is not None and self.auction_buy_now_price < self.auction_start_price:
+                errors["auction_buy_now_price"] = "Цена «Купить сейчас» не может быть ниже стартовой."
         if self.auction_start and self.auction_end and self.auction_end <= self.auction_start:
             errors["auction_end"] = "Окончание должно быть позже начала."
         if self.auction_reserve_price is not None:
@@ -262,6 +268,7 @@ class Listing(models.Model):
             self.auction_start = None
             self.auction_end = None
             self.auction_start_price = None
+            self.auction_buy_now_price = None
             self.auction_reserve_price = None
             self.auction_step = None
             self.current_price = None
@@ -280,12 +287,15 @@ class Listing(models.Model):
         super().save(*args, **kwargs)
 
     def get_minimum_bid_amount(self) -> Decimal | None:
-        """Return the minimal allowed bid increment for auction listings."""
+        """Return the minimal allowed total bid for auction listings."""
         if self.type != self.Type.AUCTION:
             return None
         if self.auction_step is None:
             return None
-        return self.auction_step
+        base = self.current_price if self.current_price is not None else self.auction_start_price
+        if base is None:
+            return None
+        return base + self.auction_step
 
 
 class ListingImage(models.Model):

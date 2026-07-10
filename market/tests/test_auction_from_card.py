@@ -68,8 +68,23 @@ class AuctionFromCardTests(TestCase):
         # A real ArchiveFile was created, keyed by the SPA card id.
         af = ArchiveFile.objects.get(owner=self.user, data__archive_card_id="card-abc-1")
         self.assertEqual(af.title, "Старинная ваза")
+        self.assertEqual(af.rubric.name, "Аукцион")
+        self.assertTrue(af.rubric.is_system)
+        self.assertTrue(af.rubric.field_schema)
         listing = Listing.objects.get(pk=data["listing_id"])
         self.assertEqual(listing.item_id, af.pk)  # lot linked to the ArchiveFile
+
+    def test_direct_card_without_rubric_uses_auction_rubric_and_photos(self):
+        payload = {"card": {"card_id": "direct-no-rubric", "title": "Фото-лот",
+                            "description": "Создано из аукциона", "images": [_DATA_URL, _DATA_URL]}}
+        resp = self.client.post(reverse("market_api_auction_draft_create"),
+                                data=json.dumps(payload), content_type="application/json")
+        self.assertEqual(resp.status_code, 200, resp.content)
+        listing_id = resp.json()["listing_id"]
+        af = ArchiveFile.objects.get(owner=self.user, data__archive_card_id="direct-no-rubric")
+        self.assertEqual(af.rubric.name, "Аукцион")
+        self.assertEqual(ArchiveFileImage.objects.filter(archive_file=af).count(), 2)
+        self.assertEqual(ListingImage.objects.filter(listing_id=listing_id).count(), 2)
 
     def test_no_card_not_found_error(self):
         resp = self._post_card(card_id="file-xyz-generated")

@@ -10,12 +10,6 @@
 </head>
 <body class="terms-body">
   <main class="terms-container">
-    <nav class="terms-links" aria-label="Документы">
-      <a href="{% url 'core:terms' %}" aria-current="page">Пользовательское соглашение</a>
-      <span aria-hidden="true">·</span>
-      <a href="{% url 'core:requisites' %}">Реквизиты</a>
-    </nav>
-
     <h1>Пользовательское соглашение сервиса SAVETORY</h1>
     <p class="terms-version">Версия: {{ terms_version }}</p>
     {% include 'includes/terms_content.html' %}

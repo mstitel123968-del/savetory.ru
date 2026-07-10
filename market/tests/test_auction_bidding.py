@@ -49,9 +49,9 @@ class BiddingTestBase(TestCase):
 
 
 class BiddingRuleTests(BiddingTestBase):
-    def test_first_bid_increases_start_price_by_amount(self):
+    def test_first_bid_uses_total_amount(self):
         lot = self.make_auction()
-        result = bidding.place_bid(self.alice, lot.pk, Decimal("100.00"))
+        result = bidding.place_bid(self.alice, lot.pk, Decimal("1100.00"))
         self.assertEqual(result["current_price"], Decimal("1100.00"))
         bid = AuctionBid.objects.get(pk=result["bid"].id)
         self.assertTrue(bid.is_winning)
@@ -59,25 +59,25 @@ class BiddingRuleTests(BiddingTestBase):
         lot.refresh_from_db()
         self.assertEqual(lot.current_price, Decimal("1100.00"))
 
-    def test_bid_increment_above_step(self):
+    def test_bid_above_minimum(self):
         lot = self.make_auction()
-        result = bidding.place_bid(self.alice, lot.pk, Decimal("500.00"))
+        result = bidding.place_bid(self.alice, lot.pk, Decimal("1500.00"))
         self.assertEqual(result["current_price"], Decimal("1500.00"))
 
-    def test_bid_below_step_rejected(self):
+    def test_bid_below_next_total_rejected(self):
         lot = self.make_auction()
         with self.assertRaises(bidding.BidError) as ctx:
-            bidding.place_bid(self.alice, lot.pk, Decimal("99.00"))
+            bidding.place_bid(self.alice, lot.pk, Decimal("1099.00"))
         self.assertEqual(ctx.exception.code, "bid_too_low")
         self.assertEqual(AuctionBid.objects.filter(listing=lot).count(), 0)
 
     def test_next_bid_respects_step(self):
         lot = self.make_auction()
-        bidding.place_bid(self.alice, lot.pk, Decimal("100.00"))
+        bidding.place_bid(self.alice, lot.pk, Decimal("1100.00"))
         with self.assertRaises(bidding.BidError) as ctx:
-            bidding.place_bid(self.bob, lot.pk, Decimal("50.00"))
+            bidding.place_bid(self.bob, lot.pk, Decimal("1199.00"))
         self.assertEqual(ctx.exception.code, "bid_too_low")
-        ok = bidding.place_bid(self.bob, lot.pk, Decimal("100.00"))
+        ok = bidding.place_bid(self.bob, lot.pk, Decimal("1200.00"))
         self.assertEqual(ok["current_price"], Decimal("1200.00"))
 
     def test_seller_cannot_bid(self):
@@ -116,53 +116,53 @@ class BiddingRuleTests(BiddingTestBase):
 
     def test_current_price_and_leader_change(self):
         lot = self.make_auction()
-        first = bidding.place_bid(self.alice, lot.pk, Decimal("1000.00"))
-        second = bidding.place_bid(self.bob, lot.pk, Decimal("100.00"))
+        first = bidding.place_bid(self.alice, lot.pk, Decimal("1100.00"))
+        second = bidding.place_bid(self.bob, lot.pk, Decimal("1200.00"))
         first_bid = AuctionBid.objects.get(pk=first["bid"].id)
         second_bid = AuctionBid.objects.get(pk=second["bid"].id)
         self.assertFalse(first_bid.is_winning)
         self.assertTrue(second_bid.is_winning)
-        self.assertEqual(second_bid.previous_price, Decimal("2000.00"))
+        self.assertEqual(second_bid.previous_price, Decimal("1100.00"))
         lot.refresh_from_db()
-        self.assertEqual(lot.current_price, Decimal("2100.00"))
+        self.assertEqual(lot.current_price, Decimal("1200.00"))
 
     def test_leader_must_raise_by_step(self):
         lot = self.make_auction()
-        bidding.place_bid(self.alice, lot.pk, Decimal("100.00"))
+        bidding.place_bid(self.alice, lot.pk, Decimal("1100.00"))
         with self.assertRaises(bidding.BidError) as ctx:
-            bidding.place_bid(self.alice, lot.pk, Decimal("99.00"))
+            bidding.place_bid(self.alice, lot.pk, Decimal("1199.00"))
         self.assertEqual(ctx.exception.code, "already_leading")
-        ok = bidding.place_bid(self.alice, lot.pk, Decimal("100.00"))
+        ok = bidding.place_bid(self.alice, lot.pk, Decimal("1200.00"))
         self.assertEqual(ok["current_price"], Decimal("1200.00"))
 
     def test_concurrent_bid_conflict(self):
         lot = self.make_auction()
         # Alice gets there first.
-        bidding.place_bid(self.alice, lot.pk, Decimal("100.00"))
+        bidding.place_bid(self.alice, lot.pk, Decimal("1100.00"))
         # Bob saw current_price=1000 before Alice's bid and now submits a stale request.
         with self.assertRaises(bidding.BidError) as ctx:
             bidding.place_bid(
                 self.bob,
                 lot.pk,
-                Decimal("100.00"),
-                seen_minimum=Decimal("100.00"),
+                Decimal("1100.00"),
+                seen_minimum=Decimal("1100.00"),
                 seen_current_price=Decimal("1000.00"),
             )
         self.assertEqual(ctx.exception.code, "concurrent_bid_conflict")
-        self.assertEqual(ctx.exception.minimum_bid, Decimal("100.00"))
+        self.assertEqual(ctx.exception.minimum_bid, Decimal("1200.00"))
         self.assertEqual(AuctionBid.objects.filter(listing=lot).count(), 1)
 
     def test_sequential_bid_increments_persist(self):
         lot = self.make_auction(auction_step=Decimal("50.00"))
-        first = bidding.place_bid(self.alice, lot.pk, Decimal("50.00"))
+        first = bidding.place_bid(self.alice, lot.pk, Decimal("1050.00"))
         self.assertEqual(first["current_price"], Decimal("1050.00"))
         lot.refresh_from_db()
         self.assertEqual(lot.current_price, Decimal("1050.00"))
 
-        second = bidding.place_bid(self.bob, lot.pk, Decimal("100.00"))
-        self.assertEqual(second["current_price"], Decimal("1150.00"))
+        second = bidding.place_bid(self.bob, lot.pk, Decimal("1100.00"))
+        self.assertEqual(second["current_price"], Decimal("1100.00"))
         lot.refresh_from_db()
-        self.assertEqual(lot.current_price, Decimal("1150.00"))
+        self.assertEqual(lot.current_price, Decimal("1100.00"))
         self.assertEqual(AuctionBid.objects.filter(listing=lot).count(), 2)
 
 
@@ -170,7 +170,7 @@ class AutoExtendTests(BiddingTestBase):
     def test_auto_extend_in_final_window(self):
         lot = self.make_auction(auction_auto_extend=True, auction_auto_extend_minutes=2,
                                 auction_end=self.now + timedelta(minutes=1))
-        result = bidding.place_bid(self.alice, lot.pk, Decimal("1000.00"))
+        result = bidding.place_bid(self.alice, lot.pk, Decimal("1100.00"))
         self.assertTrue(result["extended"])
         lot.refresh_from_db()
         self.assertGreater(lot.auction_end, self.now + timedelta(minutes=1))
@@ -178,7 +178,7 @@ class AutoExtendTests(BiddingTestBase):
     def test_no_extend_outside_window(self):
         lot = self.make_auction(auction_auto_extend=True, auction_auto_extend_minutes=2,
                                 auction_end=self.now + timedelta(hours=1))
-        result = bidding.place_bid(self.alice, lot.pk, Decimal("1000.00"))
+        result = bidding.place_bid(self.alice, lot.pk, Decimal("1100.00"))
         self.assertFalse(result["extended"])
 
 
@@ -186,10 +186,10 @@ class ReserveAndStateTests(BiddingTestBase):
     def test_reserve_status_transitions(self):
         lot = self.make_auction(auction_reserve_price=Decimal("1500.00"))
         self.assertEqual(bidding.reserve_status(lot), "not_reached")
-        bidding.place_bid(self.alice, lot.pk, Decimal("100.00"))
+        bidding.place_bid(self.alice, lot.pk, Decimal("1100.00"))
         lot.refresh_from_db()
         self.assertEqual(bidding.reserve_status(lot), "not_reached")
-        bidding.place_bid(self.bob, lot.pk, Decimal("400.00"))
+        bidding.place_bid(self.bob, lot.pk, Decimal("1500.00"))
         lot.refresh_from_db()
         self.assertEqual(bidding.reserve_status(lot), "reached")
 
@@ -223,7 +223,7 @@ class ReserveAndStateTests(BiddingTestBase):
 class BidHistoryAndApiTests(BiddingTestBase):
     def test_history_is_anonymised(self):
         lot = self.make_auction()
-        bidding.place_bid(self.alice, lot.pk, Decimal("1000.00"))
+        bidding.place_bid(self.alice, lot.pk, Decimal("1100.00"))
         resp = Client().get(reverse("market_api_auction_bids", args=[lot.pk]))
         bids = resp.json()["bids"]
         self.assertEqual(len(bids), 1)
@@ -236,12 +236,12 @@ class BidHistoryAndApiTests(BiddingTestBase):
         client = Client()
         client.force_login(self.alice)
         resp = client.post(reverse("market_api_auction_bid", args=[lot.pk]),
-                           data=json.dumps({"amount": "100"}), content_type="application/json")
+                           data=json.dumps({"amount": "1100"}), content_type="application/json")
         self.assertEqual(resp.status_code, 200, resp.content)
         data = resp.json()
         self.assertTrue(data["ok"])
         self.assertEqual(data["current_price"], "1100.00")
-        self.assertEqual(data["minimum_next_bid"], "100.00")
+        self.assertEqual(data["minimum_next_bid"], "1200.00")
         self.assertTrue(data["is_user_leading"])
 
     def test_bid_api_too_low_payload(self):
@@ -249,13 +249,13 @@ class BidHistoryAndApiTests(BiddingTestBase):
         client = Client()
         client.force_login(self.alice)
         resp = client.post(reverse("market_api_auction_bid", args=[lot.pk]),
-                           data=json.dumps({"amount": "50"}), content_type="application/json")
+                           data=json.dumps({"amount": "1050"}), content_type="application/json")
         self.assertEqual(resp.status_code, 400)
         data = resp.json()
         self.assertFalse(data["ok"])
         self.assertEqual(data["code"], "bid_too_low")
         self.assertIn("amount", data["errors"])
-        self.assertEqual(data["minimum_bid"], "100.00")
+        self.assertEqual(data["minimum_bid"], "1100.00")
 
     def test_bid_api_requires_authentication(self):
         lot = self.make_auction()
@@ -263,3 +263,30 @@ class BidHistoryAndApiTests(BiddingTestBase):
                              data=json.dumps({"amount": "1000"}), content_type="application/json")
         self.assertEqual(resp.status_code, 401)
         self.assertEqual(resp.json()["code"], "authentication_required")
+
+    def test_buy_now_completes_auction(self):
+        lot = self.make_auction(auction_buy_now_price=Decimal("2500.00"))
+        result = bidding.buy_now(self.alice, lot.pk)
+        self.assertEqual(result["status"], Listing.Status.COMPLETED)
+        lot.refresh_from_db()
+        self.assertEqual(lot.status, Listing.Status.COMPLETED)
+        self.assertEqual(lot.auction_result, Listing.AuctionResult.SOLD)
+        self.assertEqual(lot.winner, self.alice)
+        self.assertEqual(lot.current_price, Decimal("2500.00"))
+        self.assertEqual(AuctionBid.objects.filter(listing=lot, is_winning=True).count(), 1)
+
+    def test_seller_cannot_buy_now(self):
+        lot = self.make_auction(auction_buy_now_price=Decimal("2500.00"))
+        with self.assertRaises(bidding.BidError) as ctx:
+            bidding.buy_now(self.owner, lot.pk)
+        self.assertEqual(ctx.exception.code, "seller_cannot_bid")
+
+    def test_buy_now_api_success(self):
+        lot = self.make_auction(auction_buy_now_price=Decimal("2500.00"))
+        client = Client()
+        client.force_login(self.bob)
+        resp = client.post(reverse("market_api_auction_buy_now", args=[lot.pk]))
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertTrue(resp.json()["ok"])
+        lot.refresh_from_db()
+        self.assertEqual(lot.winner, self.bob)

@@ -8,17 +8,9 @@
   <link rel="stylesheet" href="{% static 'css/style.css' %}" />
   <link rel="stylesheet" href="{% static 'css/community.css' %}" />
 </head>
-<body class="community-page">
+<body class="community-page app-shell-page">
   <script src="{% static 'js/prefs.js' %}"></script>
-  <aside class="sidebar">
-    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
-    <nav class="side-nav">
-      <div class="side-nav-divider" aria-hidden="true"></div>
-      <div class="side-nav-footer">
-        {% include 'includes/side_nav_links.html' with current_section='community' %}
-      </div>
-    </nav>
-  </aside>
+  {% include 'includes/app_sidebar.html' with current_section='community' %}
 
   <header class="topbar">
     <div class="topbar-inner">
@@ -31,19 +23,22 @@
         </div>
       </div>
       <div class="topbar-spacer"></div>
-      <div class="topbar-actions community-topbar-searches">
-        <div class="community-searchbar community-searchbar--topbar community-searchbar--single-action" data-search-tab="search">
-          <input id="communitySearchInput" class="community-searchbar__input" type="search" placeholder="Поиск по имени или логину" autocomplete="off" />
-          <button id="communitySearchClear" class="community-searchbar__clear" type="button" aria-label="Очистить поиск">×</button>
+      <div class="community-topbar-tools">
+        <div class="topbar-actions community-topbar-searches">
+          <div class="community-searchbar community-searchbar--topbar community-searchbar--single-action" data-search-tab="search">
+            <input id="communitySearchInput" class="community-searchbar__input" type="search" placeholder="Поиск по имени или логину" autocomplete="off" />
+            <button id="communitySearchClear" class="community-searchbar__clear" type="button" aria-label="Очистить поиск">×</button>
+          </div>
+          <div class="community-searchbar community-searchbar--topbar community-searchbar--single-action" data-search-tab="friends" hidden>
+            <input id="communityFriendsSearch" class="community-searchbar__input" type="search" placeholder="Поиск среди друзей" autocomplete="off" />
+            <button id="communityFriendsClear" class="community-searchbar__clear" type="button" aria-label="Очистить поиск">×</button>
+          </div>
+          <div class="community-searchbar community-searchbar--topbar community-searchbar--single-action" data-search-tab="requests" hidden>
+            <input id="communityRequestsSearch" class="community-searchbar__input" type="search" placeholder="Поиск по заявкам" autocomplete="off" />
+            <button id="communityRequestsClear" class="community-searchbar__clear" type="button" aria-label="Очистить поиск">×</button>
+          </div>
         </div>
-        <div class="community-searchbar community-searchbar--topbar community-searchbar--single-action" data-search-tab="friends" hidden>
-          <input id="communityFriendsSearch" class="community-searchbar__input" type="search" placeholder="Поиск среди друзей" autocomplete="off" />
-          <button id="communityFriendsClear" class="community-searchbar__clear" type="button" aria-label="Очистить поиск">×</button>
-        </div>
-        <div class="community-searchbar community-searchbar--topbar community-searchbar--single-action" data-search-tab="requests" hidden>
-          <input id="communityRequestsSearch" class="community-searchbar__input" type="search" placeholder="Поиск по заявкам" autocomplete="off" />
-          <button id="communityRequestsClear" class="community-searchbar__clear" type="button" aria-label="Очистить поиск">×</button>
-        </div>
+        {% include 'includes/app_account_controls.html' %}
       </div>
     </div>
   </header>
@@ -80,6 +75,8 @@
       </section>
     </section>
   </main>
+
+  {% include 'includes/app_footer.html' %}
 
   {% include 'includes/terms_modal.html' %}
 

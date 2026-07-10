@@ -39,7 +39,7 @@ ALLOWED_PATCH_FIELDS = {
     "title", "description", "category", "condition", "location",
     "delivery_methods", "delivery_cost", "delivery_note",
     "auction_start_mode", "auction_start", "auction_end", "auction_duration_minutes",
-    "auction_start_price", "auction_step", "auction_reserve_price",
+    "auction_start_price", "auction_step", "auction_reserve_price", "auction_buy_now_price",
     "auction_auto_extend", "auction_auto_extend_minutes",
     "image_order", "cover_image_id", "excluded_image_ids",
 }
@@ -158,6 +158,7 @@ def serialize_draft_detail(listing: Listing) -> dict:
         "auction_duration_minutes": listing.auction_duration_minutes,
         "auction_start_price": str(listing.auction_start_price) if listing.auction_start_price is not None else None,
         "auction_step": str(listing.auction_step) if listing.auction_step is not None else None,
+        "auction_buy_now_price": str(listing.auction_buy_now_price) if listing.auction_buy_now_price is not None else None,
         # Reserve price is visible to the draft owner (this endpoint is owner-only).
         "auction_reserve_price": str(listing.auction_reserve_price) if listing.auction_reserve_price is not None else None,
         "auction_auto_extend": listing.auction_auto_extend,
@@ -242,12 +243,26 @@ def _description_from_card(card: ArchiveFile) -> str:
 
 
 def _market_source_rubric(user) -> Rubric:
-    """A per-user system rubric that owns market-materialised archive cards."""
+    """A per-user system rubric that owns auction-materialised archive cards."""
+    from auction.constants import AUCTION_FIELD_SCHEMA, AUCTION_RUBRIC_NAME, AUCTION_RUBRIC_SLUG
+
     profile, _ = Profile.objects.get_or_create(user=user)
     rubric, _ = Rubric.objects.get_or_create(
-        profile=profile, slug="market-source",
-        defaults={"name": "Маркет", "is_system": True, "field_schema": []},
+        profile=profile, slug=AUCTION_RUBRIC_SLUG,
+        defaults={"name": AUCTION_RUBRIC_NAME, "is_system": True, "field_schema": AUCTION_FIELD_SCHEMA},
     )
+    updates = []
+    if rubric.name != AUCTION_RUBRIC_NAME:
+        rubric.name = AUCTION_RUBRIC_NAME
+        updates.append("name")
+    if not rubric.is_system:
+        rubric.is_system = True
+        updates.append("is_system")
+    if rubric.field_schema != AUCTION_FIELD_SCHEMA:
+        rubric.field_schema = AUCTION_FIELD_SCHEMA
+        updates.append("field_schema")
+    if updates:
+        rubric.save(update_fields=updates + ["updated_at"])
     return rubric
 
 
@@ -486,7 +501,8 @@ def _apply_scalar_fields(listing: Listing, payload: dict, errors: dict) -> None:
                 listing.delivery_methods = cleaned
 
     for key, attr in (("delivery_cost", "delivery_cost"), ("auction_start_price", "auction_start_price"),
-                      ("auction_step", "auction_step"), ("auction_reserve_price", "auction_reserve_price")):
+                      ("auction_step", "auction_step"), ("auction_reserve_price", "auction_reserve_price"),
+                      ("auction_buy_now_price", "auction_buy_now_price")):
         if key in payload:
             parsed = _parse_decimal(payload[key], key, errors)
             if key not in errors:
@@ -595,6 +611,9 @@ def check_readiness(listing: Listing) -> dict:
     if (listing.auction_reserve_price is not None and listing.auction_start_price is not None
             and listing.auction_reserve_price < listing.auction_start_price):
         errors["auction_reserve_price"] = "Резервная цена не может быть ниже стартовой."
+    if (listing.auction_buy_now_price is not None and listing.auction_start_price is not None
+            and listing.auction_buy_now_price < listing.auction_start_price):
+        errors["auction_buy_now_price"] = "Цена «Купить сейчас» не может быть ниже стартовой."
 
     methods = listing.delivery_methods or []
     if not methods:
@@ -678,7 +697,7 @@ def delete_draft(user, listing: Listing) -> None:
 MANAGE_PRE_BID_FIELDS = {
     "title", "description", "category", "condition", "location",
     "delivery_methods", "delivery_cost", "delivery_note",
-    "auction_end", "auction_start_price", "auction_step", "auction_reserve_price",
+    "auction_end", "auction_start_price", "auction_step", "auction_reserve_price", "auction_buy_now_price",
     "auction_auto_extend", "auction_auto_extend_minutes",
     "image_order", "cover_image_id", "excluded_image_ids",
 }
@@ -823,6 +842,7 @@ def relist(user, listing_id) -> dict:
         delivery_methods=list(listing.delivery_methods or []), delivery_cost=listing.delivery_cost,
         delivery_note=listing.delivery_note, auction_start_price=listing.auction_start_price,
         auction_step=listing.auction_step, auction_reserve_price=listing.auction_reserve_price,
+        auction_buy_now_price=listing.auction_buy_now_price,
         auction_auto_extend=listing.auction_auto_extend,
         auction_auto_extend_minutes=listing.auction_auto_extend_minutes,
         auction_start_mode=listing.auction_start_mode,

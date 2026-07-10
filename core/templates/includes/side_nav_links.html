@@ -1,34 +1,29 @@
-{% load static %}
 {% with current=current_section|default:'' %}
-<div class="site-menu" data-site-menu>
-  <button class="side-btn site-menu__toggle" type="button" aria-haspopup="menu" aria-expanded="false" data-site-menu-toggle>
-    Меню
-  </button>
-  <div class="site-menu__list" role="menu" hidden>
-    {% if user.is_authenticated %}
-      {% if include_archive|default:True and current != 'archive' %}
-        <a class="site-menu__item" href="{% url 'core:archive' %}" role="menuitem">Ваш архив</a>
-      {% endif %}
-      {% if current != 'profile' %}
-        <a class="site-menu__item" href="{% url 'core:profile' %}" role="menuitem">Профиль</a>
-      {% endif %}
-      {% if current != 'community' %}
-        <a class="site-menu__item" href="{% url 'core:community' %}" role="menuitem" data-nav-section="community">Люди</a>
-      {% endif %}
-      <a class="site-menu__item{% if current == 'messages' %} is-active{% endif %}" href="{% url 'core:messages' %}" role="menuitem" data-nav-section="messages"{% if current == 'messages' %} aria-current="page"{% endif %}>Сообщения</a>
-    {% endif %}
-    <a class="site-menu__item{% if current == 'market' %} is-active{% endif %}" href="{% url 'market_root' %}" role="menuitem" data-nav-section="market"{% if current == 'market' %} aria-current="page"{% endif %}>Маркет</a>
-    {% if user.is_authenticated and current != 'settings' %}
-      <a class="site-menu__item" href="{% url 'core:settings' %}" role="menuitem">Настройки</a>
-    {% endif %}
-    {% if current != 'news' %}
-      <a class="site-menu__item" href="{% url 'core:news' %}" role="menuitem">Тех. информация</a>
-    {% endif %}
-    {% if include_reviews|default:False or current == 'news' or current == 'reviews' %}
-      {% if current != 'reviews' %}
-        <a class="site-menu__item" href="{% url 'core:reviews' %}" role="menuitem">Отзывы</a>
-      {% endif %}
-    {% endif %}
-  </div>
+<div class="app-nav-links">
+  {% if user.is_authenticated %}
+    <a class="side-btn app-nav-link{% if current == 'archive' %} active{% endif %}" href="{% url 'core:archive' %}"{% if current == 'archive' %} aria-current="page"{% endif %} title="Ваш архив">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 5h16v14H4z"/><path d="M8 3h8v4H8zM8 11h8M8 15h5"/></svg>
+      <span>Ваш архив</span>
+    </a>
+  {% endif %}
+  <a class="side-btn app-nav-link{% if current == 'market' %} active{% endif %}" href="{% url 'market_root' %}"{% if current == 'market' %} aria-current="page"{% endif %} title="Маркет">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/><path d="M3 4h2l2.4 10.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L21 8H6"/></svg>
+    <span>Маркет</span>
+  </a>
+  {% if user.is_authenticated %}
+    <a class="side-btn app-nav-link{% if current == 'community' %} active{% endif %}" href="{% url 'core:community' %}"{% if current == 'community' %} aria-current="page"{% endif %} title="Люди">
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>
+      <span>Люди</span>
+    </a>
+  {% endif %}
+  <a class="side-btn app-nav-link{% if current == 'news' %} active{% endif %}" href="{% url 'core:news' %}"{% if current == 'news' %} aria-current="page"{% endif %} title="Новости">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8M8 11h8"/></svg>
+    <span>Новости</span>
+  </a>
+  <a class="side-btn app-nav-link{% if current == 'reviews' %} active{% endif %}" href="{% url 'core:reviews' %}"{% if current == 'reviews' %} aria-current="page"{% endif %} title="Отзывы">
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/><path d="M8 9h8M8 13h5"/></svg>
+    <span>Отзывы</span>
+  </a>
 </div>
+{% include 'includes/subscription_card.html' %}
 {% endwith %}

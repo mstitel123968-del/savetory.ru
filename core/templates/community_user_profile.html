@@ -8,26 +8,10 @@
   <link rel="stylesheet" href="{% static 'css/style.css' %}" />
   <link rel="stylesheet" href="{% static 'css/profile.css' %}" />
 </head>
-<body class="community-public-profile-page profile-showcase-page">
+<body class="community-public-profile-page profile-showcase-page app-shell-page">
   <script src="{% static 'js/prefs.js' %}"></script>
-  <aside class="sidebar">
-    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
-    <nav class="side-nav">
-      <div class="side-nav-divider" aria-hidden="true"></div>
-      <div class="side-nav-footer">
-        {% include 'includes/side_nav_links.html' with current_section=profile_nav_section %}
-      </div>
-    </nav>
-  </aside>
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div class="logo-wrap">
-        <span class="page-title">Профиль</span>
-      </div>
-      <div class="topbar-spacer"></div>
-      <div class="topbar-actions"></div>
-    </div>
-  </header>
+  {% include 'includes/app_sidebar.html' with current_section=profile_nav_section %}
+  {% include 'includes/app_topbar.html' with page_title='Профиль' %}
 
   <main class="main profile-showcase-main">
     <section class="profile-showcase" aria-label="Профиль пользователя">
@@ -331,6 +315,8 @@
       {% endif %}
     </section>
   </main>
+
+  {% include 'includes/app_footer.html' %}
 
   {% if profile_page.is_owner %}
     <div id="profileEditModal" class="pe-modal" style="display:none;">

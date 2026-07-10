@@ -1054,7 +1054,16 @@
   const archiveBulkMove = document.getElementById('archiveBulkMove');
   const archiveBulkDelete = document.getElementById('archiveBulkDelete');
   const archiveBulkClose = document.getElementById('archiveBulkClose');
-  const topbarActions = document.querySelector('.topbar-actions');
+  const archiveAddFile = document.getElementById('archiveAddFile');
+  const rubricCreateShortcut = document.getElementById('rubricCreateShortcut');
+  const rubricScroll = document.querySelector('[data-rubric-scroll]');
+  const allRubricCount = document.querySelector('[data-all-rubric-count]');
+  const archiveViewButtons = Array.from(document.querySelectorAll('[data-archive-view]'));
+  const archiveSortSelect = document.getElementById('archiveSortSelect');
+  const topbarActions = document.querySelector('.archive-toolbar__secondary');
+  const sidebarArchiveUsed = document.querySelector('[data-sidebar-archive-used]');
+  const sidebarArchiveProgress = document.querySelector('[data-sidebar-archive-progress]');
+  const sidebarArchiveProgressBar = document.querySelector('[data-sidebar-archive-progress-bar]');
   const OPEN_FILE_SESSION_KEY = 'trezo:open-file';
 
   if (!createBtn || !createWrap || !nameInput || !nameSaveBtn || !emptySection || !rubricsContainer || !modalHost || !rubricButtons) {
@@ -1159,27 +1168,17 @@
     if (!rubric){
       return;
     }
-    topbarActions.insertBefore(createExportMenu(rubric, 'export-menu--topbar'), archiveSelectionToggle || null);
+    const anchor = topbarActions.querySelector('.archive-view-switch');
+    topbarActions.insertBefore(createExportMenu(rubric, 'export-menu--topbar'), anchor || topbarActions.firstChild);
   }
 
   function renderTopbarMeta(text){
-    const host = document.querySelector('.topbar .logo-wrap');
-    if (!host){
-      return;
-    }
-    let el = host.querySelector('.topbar-file-meta');
-    if (!text){
-      if (el){
-        el.remove();
-      }
-      return;
-    }
+    const el = document.querySelector('[data-archive-meta]');
     if (!el){
-      el = document.createElement('span');
-      el.className = 'topbar-file-meta';
-      host.appendChild(el);
+      return;
     }
-    el.textContent = text;
+    el.textContent = text || '';
+    el.classList.toggle('hidden', !text);
   }
 
   function flattenErrors(errors){
@@ -1502,6 +1501,35 @@
     return result;
   }
 
+  function syncArchivePreferenceControls(prefs){
+    const current = prefs || getArchivePrefs();
+    archiveViewButtons.forEach((button) => {
+      const isActive = button.dataset.archiveView === current.archiveView;
+      button.classList.toggle('active', isActive);
+      button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    });
+    if (archiveSortSelect && archiveSortSelect.value !== current.archiveSort){
+      archiveSortSelect.value = current.archiveSort;
+    }
+  }
+
+  function saveArchivePreference(key, value){
+    let prefs = {};
+    try {
+      prefs = typeof window.__loadUIPrefs === 'function' ? window.__loadUIPrefs() : {};
+    } catch (error){
+      prefs = {};
+    }
+    const next = Object.assign({}, prefs, { [key]: value });
+    if (typeof window.__saveUIPrefs === 'function'){
+      window.__saveUIPrefs(next);
+    }
+    if (typeof window.__applyUIPrefs === 'function'){
+      window.__applyUIPrefs(next);
+    }
+    renderRubrics();
+  }
+
   function compareText(a, b){
     return String(a || '').localeCompare(String(b || ''), 'ru', { sensitivity: 'base', numeric: true });
   }
@@ -1603,7 +1631,12 @@
     const count = getSelectedFileCount();
     const visibleCount = getVisibleFileRefs().length;
     if (archiveSelectionToggle){
-      archiveSelectionToggle.textContent = selectionMode ? 'Отмена' : 'Выбрать';
+      const label = archiveSelectionToggle.querySelector('span');
+      if (label){
+        label.textContent = selectionMode ? 'Отмена' : 'Выбрать';
+      } else {
+        archiveSelectionToggle.textContent = selectionMode ? 'Отмена' : 'Выбрать';
+      }
       archiveSelectionToggle.classList.toggle('active', selectionMode);
     }
     if (archiveBulkBar){
@@ -1986,8 +2019,33 @@
   function renderRubrics(){
     const hasRubrics = state.rubrics.length > 0;
     const archivePrefs = getArchivePrefs();
+    const totalFileCount = state.rubrics.reduce((total, rubric) => {
+      return total + (Array.isArray(rubric && rubric.files) ? rubric.files.length : 0);
+    }, 0);
     reconcileSelectedFiles();
     updateBulkSelectionUi();
+    syncArchivePreferenceControls(archivePrefs);
+
+    if (archiveAddFile){
+      archiveAddFile.disabled = !stateReady || !hasRubrics;
+    }
+    if (allRubricCount){
+      allRubricCount.textContent = formatArchiveCount(totalFileCount);
+    }
+    const displayedArchiveUsage = totalFileCount;
+    if (sidebarArchiveUsed){
+      sidebarArchiveUsed.textContent = String(displayedArchiveUsage);
+    }
+    if (sidebarArchiveProgress){
+      const archiveLimit = Number(sidebarArchiveProgress.dataset.archiveLimit);
+      const usagePercent = Number.isFinite(archiveLimit) && archiveLimit > 0
+        ? Math.min(100, Math.round((displayedArchiveUsage / archiveLimit) * 100))
+        : 0;
+      sidebarArchiveProgress.setAttribute('aria-valuenow', String(usagePercent));
+      if (sidebarArchiveProgressBar){
+        sidebarArchiveProgressBar.style.setProperty('--tariff-progress', `${usagePercent}%`);
+      }
+    }
 
     if (allRubricsBtn){
       allRubricsBtn.classList.toggle('hidden', !hasRubrics);
@@ -1999,6 +2057,7 @@
     if (!hasRubrics){
       emptySection.classList.remove('hidden');
       rubricsContainer.classList.add('hidden');
+      rubricsContainer.classList.remove('rubrics--viewing-all');
       rubricsContainer.innerHTML = '';
       rubricButtons.innerHTML = '';
       rubricButtons.classList.add('hidden');
@@ -2015,13 +2074,14 @@
       activeRubricId = state.rubrics.length ? ALL_RUBRICS_ID : null;
     }
     viewingAll = activeRubricId === ALL_RUBRICS_ID;
+    rubricsContainer.classList.toggle('rubrics--viewing-all', viewingAll);
 
     if (allRubricsBtn){
       allRubricsBtn.classList.toggle('active', viewingAll);
     }
     const activeRubric = viewingAll ? null : state.rubrics.find((item) => item.id === activeRubricId);
     renderTopbarExport(activeRubric);
-    renderTopbarMeta(activeRubric ? (activeRubric.files.length ? `Файлов: ${activeRubric.files.length}` : 'Файлов пока нет') : null);
+    renderTopbarMeta(activeRubric ? formatArchiveCount(activeRubric.files.length) : formatArchiveCount(totalFileCount));
 
     emptySection.classList.add('hidden');
     rubricsContainer.classList.remove('hidden');
@@ -2035,8 +2095,16 @@
 
       const navBtn = document.createElement('button');
       navBtn.type = 'button';
-      navBtn.className = 'side-btn rubric-nav-item__button';
-      navBtn.textContent = rubric.name;
+      navBtn.className = 'rubric-filter-card rubric-nav-item__button';
+      navBtn.innerHTML = '<svg class="rubric-filter-card__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h6l2 2h10v11H3z" /></svg>';
+      const navContent = document.createElement('span');
+      navContent.className = 'rubric-filter-card__content';
+      const navTitle = document.createElement('strong');
+      navTitle.textContent = rubric.name;
+      const navCount = document.createElement('small');
+      navCount.textContent = formatArchiveCount(rubric.files.length);
+      navContent.append(navTitle, navCount);
+      navBtn.appendChild(navContent);
       if (rubric.id === activeRubricId){
         navBtn.classList.add('active');
         navItem.classList.add('rubric-nav-item--active');
@@ -2051,7 +2119,8 @@
       editBtn.type = 'button';
       editBtn.className = 'rubric-nav-item__edit';
       editBtn.setAttribute('aria-label', `Редактировать рубрику «${rubric.name}»`);
-      editBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13.586 7 6.314 14.272l-.707 3.535 3.535-.707L16.414 9Z" fill="currentColor"/><path d="m14.293 5.586 2.121-2.122 4.122 4.122-2.122 2.121Z" fill="currentColor"/></svg>';
+      editBtn.title = 'Настроить рубрику';
+      editBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>';
       editBtn.addEventListener('click', (event) => {
         event.stopPropagation();
         event.preventDefault();
@@ -2072,7 +2141,7 @@
       card.className = 'rubric-card rubric-card--all';
       card.dataset.rubricId = rubric.id;
 
-      const metaText = rubric.files.length ? `Файлов: ${rubric.files.length}` : 'Файлов пока нет';
+      const metaText = formatArchiveCount(rubric.files.length);
 
       if (viewingAll){
         const header = document.createElement('div');
@@ -2104,7 +2173,7 @@
           grid.appendChild(createFileCard(rubric, file));
         });
         if (!selectionMode){
-          grid.appendChild(createAddTile(() => openFileFormModal(rubric.id)));
+          grid.appendChild(createAddTile(() => openFileFormForRubric(rubric)));
         }
         body.appendChild(grid);
       }
@@ -2121,15 +2190,37 @@
     }
   }
 
+  function formatArchiveCount(count){
+    const value = Math.max(0, Number(count) || 0);
+    const mod10 = value % 10;
+    const mod100 = value % 100;
+    let noun = 'карточек';
+    if (mod10 === 1 && mod100 !== 11){
+      noun = 'карточка';
+    } else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)){
+      noun = 'карточки';
+    }
+    return `${value} ${noun}`;
+  }
+
   document.addEventListener('click', (event) => {
     document.querySelectorAll('.export-menu[open]').forEach((node) => {
       if (!node.contains(event.target)){
         node.open = false;
       }
     });
+    document.querySelectorAll('.file-card-menu[open]').forEach((node) => {
+      if (!node.contains(event.target)){
+        node.open = false;
+      }
+    });
 
     if (!createWrap.classList.contains('hidden')){
-      if (!createWrap.contains(event.target) && !createBtn.contains(event.target)){
+      if (
+        !createWrap.contains(event.target)
+        && !createBtn.contains(event.target)
+        && (!rubricCreateShortcut || !rubricCreateShortcut.contains(event.target))
+      ){
         toggleCreateForm(false);
       }
     }
@@ -2143,6 +2234,62 @@
     btn.innerHTML = '<span aria-hidden="true">+</span><span class="sr-only">Добавить файл</span>';
     btn.addEventListener('click', handler);
     return btn;
+  }
+
+  function openFileFormForRubric(rubric){
+    if (!rubric){
+      return;
+    }
+    if (!rubric.fields.length){
+      openFieldSelectionModal(rubric.id);
+      return;
+    }
+    openFileFormModal(rubric.id);
+  }
+
+  function openAddFileFlow(){
+    if (!stateReady){
+      setArchiveStatus('Архив еще загружается. Подождите несколько секунд и попробуйте снова.');
+      return;
+    }
+    if (!state.rubrics.length){
+      toggleCreateForm(true);
+      return;
+    }
+    const activeRubric = activeRubricId && activeRubricId !== ALL_RUBRICS_ID
+      ? getRubric(activeRubricId)
+      : null;
+    if (activeRubric){
+      openFileFormForRubric(activeRubric);
+      return;
+    }
+
+    const modal = openModal({ title: 'Выберите рубрику' });
+    const list = document.createElement('div');
+    list.className = 'archive-rubric-picker';
+    state.rubrics.forEach((rubric) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'archive-rubric-picker__item';
+      button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h6l2 2h10v11H3z" /></svg>';
+      const text = document.createElement('span');
+      const title = document.createElement('strong');
+      title.textContent = rubric.name;
+      const count = document.createElement('small');
+      count.textContent = formatArchiveCount(rubric.files.length);
+      text.append(title, count);
+      button.appendChild(text);
+      button.addEventListener('click', () => {
+        modal.close();
+        openFileFormForRubric(rubric);
+      });
+      list.appendChild(button);
+    });
+    modal.body.replaceChildren(list);
+    modal.footer.replaceChildren();
+    const cancel = createActionButton('Отмена');
+    cancel.addEventListener('click', () => modal.close());
+    modal.footer.appendChild(cancel);
   }
 
   function getFieldValue(rubric, file, field){
@@ -2179,20 +2326,61 @@
     return rubric.name || '';
   }
 
+  function formatArchiveDate(timestamp){
+    const value = Number(timestamp);
+    if (!Number.isFinite(value) || value <= 0){
+      return '';
+    }
+    try {
+      return new Intl.DateTimeFormat('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(new Date(value));
+    } catch (error){
+      return '';
+    }
+  }
+
+  function createFileMenuAction(label, handler, options){
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'file-card-menu__item';
+    if (options && options.danger){
+      button.classList.add('file-card-menu__item--danger');
+    }
+    button.textContent = label;
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const details = button.closest('.file-card-menu');
+      if (details){
+        details.open = false;
+      }
+      handler();
+    });
+    return button;
+  }
+
   function createFileCard(rubric, file){
     const archivePrefs = getArchivePrefs();
     const fileSelectionKey = getFileSelectionKey(rubric.id, file.id);
     const isSelected = selectedFileKeys.has(fileSelectionKey);
+    const card = document.createElement('article');
+    card.className = 'file-card';
+    card.dataset.fileId = file.id;
+    card.dataset.rubricId = rubric.id;
+
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'file-card';
-    btn.dataset.fileId = file.id;
-    btn.dataset.rubricId = rubric.id;
+    btn.className = 'file-card__open';
+    btn.setAttribute('aria-label', `Открыть карточку «${getDisplayName(rubric, file)}»`);
     if (selectionMode){
-      btn.classList.add('file-card--selectable');
+      card.classList.add('file-card--selectable');
+      btn.setAttribute('aria-pressed', isSelected ? 'true' : 'false');
     }
     if (isSelected){
-      btn.classList.add('file-card--selected');
+      card.classList.add('file-card--selected');
     }
 
     const allowMedia = rubric.mode !== 'text' && archivePrefs.archiveThumbnails !== 'hidden';
@@ -2204,15 +2392,23 @@
       if (photoValue && hasImageItems(photoValue)){
         const primary = getPrimaryImage(photoValue);
         if (primary){
-          thumb.style.backgroundImage = `url(${primary.src})`;
+          const image = document.createElement('img');
+          image.src = primary.src;
+          image.alt = '';
+          image.loading = 'lazy';
+          image.decoding = 'async';
+          thumb.appendChild(image);
         }
-        thumb.textContent = '';
       } else {
-        thumb.textContent = '⧉';
+        thumb.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 15-5-5L5 20"/></svg>';
       }
       btn.appendChild(thumb);
     } else {
-      btn.classList.add('file-card--text-only');
+      card.classList.add('file-card--text-only');
+      const placeholder = document.createElement('div');
+      placeholder.className = 'file-card__thumb file-card__thumb--text';
+      placeholder.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h8M9 17h6"/></svg>';
+      btn.appendChild(placeholder);
     }
 
     const title = document.createElement('div');
@@ -2225,7 +2421,7 @@
       selector.className = 'file-card__selector';
       selector.setAttribute('aria-hidden', 'true');
       selector.textContent = isSelected ? '✓' : '';
-      btn.appendChild(selector);
+      card.appendChild(selector);
     }
 
     btn.addEventListener('click', () => {
@@ -2235,7 +2431,35 @@
       }
       openFileViewModal(rubric.id, file.id);
     });
-    return btn;
+    card.appendChild(btn);
+
+    if (!selectionMode){
+      const menu = document.createElement('details');
+      menu.className = 'file-card-menu';
+      const summary = document.createElement('summary');
+      summary.className = 'file-card-menu__toggle';
+      summary.setAttribute('aria-label', `Действия с карточкой «${getDisplayName(rubric, file)}»`);
+      summary.title = 'Действия';
+      summary.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>';
+      const menuList = document.createElement('div');
+      menuList.className = 'file-card-menu__list';
+      menuList.append(
+        createFileMenuAction('Открыть', () => openFileViewModal(rubric.id, file.id)),
+        createFileMenuAction('Редактировать', () => openFileViewModal(rubric.id, file.id, { edit: true })),
+        createFileMenuAction('В Маркет', () => openAuctionForCard(rubric, file)),
+        createFileMenuAction('Скачать PDF', () => downloadFilePdf(rubric, file)),
+        createFileMenuAction('Удалить', () => {
+          openConfirmModal('Вы точно хотите удалить данный файл?', () => {
+            rubric.files = rubric.files.filter((item) => item.id !== file.id);
+            persistAndRender();
+          });
+        }, { danger: true })
+      );
+      menu.append(summary, menuList);
+      card.appendChild(menu);
+    }
+
+    return card;
   }
 
 
@@ -3948,11 +4172,12 @@
     });
   }
 
-  function openFileViewModal(rubricId, fileId){
+  function openFileViewModal(rubricId, fileId, options){
     if (!stateReady){
       pendingOpenFileDetail = { rubricId, fileId };
       return;
     }
+    const viewOptions = options || {};
     const rubric = getRubric(rubricId);
     if (!rubric) return;
     const file = rubric.files.find((item) => item.id === fileId);
@@ -4209,6 +4434,12 @@
             const strip = document.createElement('div');
             const itemCount = photoValue ? photoValue.items.length : 0;
             let activeIndex = 0;
+            const photoCounter = document.createElement('div');
+            photoCounter.className = 'file-view__photo-counter';
+            photoCounter.setAttribute('aria-live', 'polite');
+            const updatePhotoCounter = (index) => {
+              photoCounter.textContent = `${index + 1}/${itemCount}`;
+            };
             strip.className = 'media-split';
             strip.style.setProperty('--media-split-count', Math.max(itemCount, 1));
             strip.dataset.safeTop = '0';
@@ -4230,6 +4461,7 @@
               if (activeIndex < 0){
                 activeIndex = 0;
               }
+              updatePhotoCounter(activeIndex);
               photoValue.items.forEach((item, index) => {
                 const slice = document.createElement('div');
                 slice.className = 'media-split__item';
@@ -4323,6 +4555,7 @@
                   prevBtn.disabled = clamped === 0;
                   nextBtn.disabled = clamped === items.length - 1;
                   updateFrameFromIndex(clamped);
+                  updatePhotoCounter(clamped);
                 };
 
                 const stepActive = (delta) => {
@@ -4354,6 +4587,9 @@
             }
 
           frame.appendChild(strip);
+          if (itemCount > 0){
+            frame.appendChild(photoCounter);
+          }
           inner.appendChild(frame);
 
           if (displayName){
@@ -4583,7 +4819,11 @@
       focusFirst();
     }
 
-    renderView();
+    if (viewOptions.edit){
+      renderEdit();
+    } else {
+      renderView();
+    }
   }
 
   function createActionButton(text, options){
@@ -4999,6 +5239,37 @@
   }
 
   createBtn.addEventListener('click', () => toggleCreateForm());
+  if (rubricCreateShortcut){
+    rubricCreateShortcut.addEventListener('click', () => toggleCreateForm(true));
+  }
+  if (archiveAddFile){
+    archiveAddFile.addEventListener('click', openAddFileFlow);
+  }
+  archiveViewButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      const view = button.dataset.archiveView;
+      if (view === 'cards' || view === 'list'){
+        saveArchivePreference('archiveView', view);
+      }
+    });
+  });
+  if (archiveSortSelect){
+    archiveSortSelect.addEventListener('change', () => {
+      const sort = archiveSortSelect.value;
+      if (['created', 'title', 'rubric', 'manual'].includes(sort)){
+        saveArchivePreference('archiveSort', sort);
+      }
+    });
+  }
+  if (rubricScroll){
+    rubricScroll.addEventListener('wheel', (event) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX) || rubricScroll.scrollWidth <= rubricScroll.clientWidth){
+        return;
+      }
+      rubricScroll.scrollLeft += event.deltaY;
+      event.preventDefault();
+    }, { passive: false });
+  }
   nameSaveBtn.addEventListener('click', handleCreateRubric);
   if (archiveSelectionToggle){
     archiveSelectionToggle.addEventListener('click', () => {

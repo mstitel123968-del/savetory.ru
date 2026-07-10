@@ -75,6 +75,7 @@
         <p class="auction-detail__substat">
           <span data-bidcount-wrap{% if not state.has_bids %} hidden{% endif %}>Ставок: <b data-bid-count>{{ state.bid_count }}</b> · </span>
           Шаг: {{ listing.auction_step }} ₽ · Мин. следующая: <b data-min-next>{{ state.minimum_bid }}</b> ₽
+          {% if listing.auction_buy_now_price %} · Купить сейчас: <b>{{ listing.auction_buy_now_price }}</b> ₽{% endif %}
         </p>
         <p class="auction-detail__reserve" data-reserve data-reserve-status="{{ state.reserve_status }}">
           {% if state.reserve_status == 'not_set' %}Резервная цена не установлена
@@ -137,9 +138,16 @@
                 <button type="button" class="aw-chip" data-quick="5">+5 шагов</button>
               </div>
               <p class="auction-detail__biderror" data-bid-error role="alert"></p>
+              {% if can_buy_now %}
+                <button type="button" class="ios-button auction-detail__buynow" data-buy-now>
+                  Купить сейчас за {{ listing.auction_buy_now_price }} ₽
+                </button>
+              {% endif %}
             </form>
           {% else %}
-            <a class="ios-button ios-button--primary auction-detail__login" href="{{ login_url }}">Войти, чтобы сделать ставку</a>
+            <a class="ios-button ios-button--primary auction-detail__login" href="{{ login_url }}">
+              {% if listing.auction_buy_now_price %}Войти, чтобы сделать ставку или купить сейчас{% else %}Войти, чтобы сделать ставку{% endif %}
+            </a>
           {% endif %}
         {% elif listing.status == 'scheduled' %}
           <p class="auction-detail__note" data-scheduled-note>Аукцион начнётся {{ listing.auction_start|date:'d.m.Y H:i' }}</p>

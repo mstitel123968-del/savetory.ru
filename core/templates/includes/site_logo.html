@@ -1,16 +1,27 @@
 {% load static %}
+{% if brand_class == 'logo' %}
+  <div class="sidebar-brand">
+    <a class="brand-logo logo" href="{{ brand_href|default:'/' }}" aria-label="{{ brand_label|default:'СКлад' }}">
+      <span class="sidebar-logo-container" aria-hidden="true">
+        <img class="sidebar-logo-image" src="{% static 'img/logo-sklad-glow.png' %}?v=20260710-2" alt="">
+      </span>
+      <span class="sr-only">{{ brand_label|default:'СКлад' }}</span>
+    </a>
+    <button class="sidebar-collapse" type="button" aria-label="Свернуть меню" aria-expanded="true" data-sidebar-collapse>
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+  </div>
+{% else %}
 <a class="brand-logo{% if brand_class %} {{ brand_class }}{% endif %}" href="{{ brand_href|default:'/' }}" aria-label="{{ brand_label|default:'Склад' }}">
-  {% if brand_class == 'logo' %}
-    <span class="sidebar-logo-container">
-      <img class="sidebar-logo-image" src="{% static 'img/logo-sklad.png' %}" alt="{{ brand_label|default:'Склад' }}">
-    </span>
-    <span class="sr-only">{{ brand_label|default:'Склад' }}</span>
-  {% elif brand_class == 'landing-brand' %}
+  {% if brand_class == 'landing-brand' %}
     <span class="landing-logo-container">
-      <img class="landing-logo-image" src="{% static 'img/logo-sklad.png' %}" alt="{{ brand_label|default:'Склад' }}">
+      <img class="landing-logo-image" src="{% static 'img/logo-sklad-glow.png' %}?v=20260710-2" alt="{{ brand_label|default:'Склад' }}">
     </span>
     <span class="sr-only">{{ brand_label|default:'Склад' }}</span>
   {% else %}
     <span class="brand-logo__text">{{ brand_label|default:'Склад' }}</span>
   {% endif %}
 </a>
+{% endif %}

@@ -8,24 +8,10 @@
   <link rel="stylesheet" href="{% static 'css/style.css' %}" />
   <link rel="stylesheet" href="{% static 'css/subscriptions.css' %}" />
 </head>
-<body class="subscriptions-page">
+<body class="subscriptions-page app-shell-page">
   <script src="{% static 'js/prefs.js' %}"></script>
-  <aside class="sidebar">
-    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
-    <nav class="side-nav">
-      <div class="side-nav-divider" aria-hidden="true"></div>
-      <div class="side-nav-footer">
-        {% include 'includes/side_nav_links.html' with current_section='settings' %}
-      </div>
-    </nav>
-  </aside>
-
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div class="logo-wrap"><span class="page-title">Статус платежа</span></div>
-      <div class="topbar-spacer"></div>
-    </div>
-  </header>
+  {% include 'includes/app_sidebar.html' with current_section='settings' %}
+  {% include 'includes/app_topbar.html' with page_title='Статус платежа' %}
 
   <main class="main subscriptions-main">
     <section class="subscription-account">
@@ -58,6 +44,7 @@
       </div>
     </section>
   </main>
+  {% include 'includes/app_footer.html' %}
   <script src="{% static 'js/nav.js' %}"></script>
 </body>
 </html>

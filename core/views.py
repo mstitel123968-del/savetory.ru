@@ -613,19 +613,45 @@ def terms(request: HttpRequest) -> HttpResponse:
     )
 
 
+def about(request: HttpRequest) -> HttpResponse:
+    return render(
+        request,
+        'info_placeholder.html',
+        _seo_context(
+            request,
+            title='О нас - СКлад',
+            description='Раздел находится в разработке.',
+            indexable=False,
+            canonical_path=reverse('core:about'),
+        ),
+    )
+
+
+def contacts(request: HttpRequest) -> HttpResponse:
+    return render(
+        request,
+        'info_placeholder.html',
+        _seo_context(
+            request,
+            title='Контакты - СКлад',
+            description='Раздел находится в разработке.',
+            indexable=False,
+            canonical_path=reverse('core:contacts'),
+        ),
+    )
+
+
 def requisites(request: HttpRequest) -> HttpResponse:
     return render(
         request,
-        'requisites.html',
-        {
-            **_seo_context(
-                request,
-                title='Реквизиты - СКлад',
-                description='Реквизиты ИП Макарова Петра Михайловича для проверки платежного провайдера.',
-                indexable=True,
-                canonical_path=reverse('core:requisites'),
-            ),
-        },
+        'info_placeholder.html',
+        _seo_context(
+            request,
+            title='Информация - СКлад',
+            description='Раздел находится в разработке.',
+            indexable=False,
+            canonical_path=reverse('core:requisites'),
+        ),
     )
 
 

@@ -24,6 +24,7 @@
     </p>
     <ul class="market-card__facts">
       <li><span>Ставок</span><b>{{ listing.num_bids }}</b></li>
+      {% if listing.auction_buy_now_price %}<li><span>Купить сейчас</span><b>{{ listing.auction_buy_now_price|money }} ₽</b></li>{% endif %}
       {% if listing.condition_label %}<li><span>Состояние</span><b>{{ listing.condition_label }}</b></li>{% endif %}
       {% if listing.city %}<li><span>Город</span><b>{{ listing.city }}</b></li>{% endif %}
       {% if listing.reserve_label %}<li><span>Резерв</span><b>{{ listing.reserve_label }}</b></li>{% endif %}

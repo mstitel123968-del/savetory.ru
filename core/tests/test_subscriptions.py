@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
-from core.models import ArchiveFile, Profile, Rubric, SubscriptionPayment, SubscriptionPlan, UserSubscription
+from core.models import ArchiveFile, ArchiveState, Profile, Rubric, SubscriptionPayment, SubscriptionPlan, UserSubscription
 from core.services import subscriptions
 from market.services import auction as market_auction
 from market.models import Listing
@@ -232,6 +232,14 @@ class SubscriptionTests(TestCase):
         self.assertEqual(snapshot.archive_limit, 2)
         self.assertEqual(snapshot.archive_used, 1)
         self.assertEqual(snapshot.archive_remaining, 1)
+
+    def test_archive_display_usage_prefers_visible_archive_state(self):
+        for index in range(4):
+            self._card(f'Database item {index}')
+        ArchiveState.objects.create(user=self.user, data=self._archive_state(2))
+
+        self.assertEqual(subscriptions.archive_display_usage(self.user), 2)
+        self.assertEqual(subscriptions.archive_usage(self.user), 4)
 
     def test_limited_tariff_blocks_extra_archive_object_with_clear_message(self):
         free = SubscriptionPlan.objects.get(code=SubscriptionPlan.Code.FREE)

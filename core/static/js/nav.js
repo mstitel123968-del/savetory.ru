@@ -571,5 +571,214 @@
       window.addEventListener('resize', repositionOpenGroup);
       window.addEventListener('scroll', repositionOpenGroup, true);
     }
+
+    const sidebarCollapse = document.querySelector('[data-sidebar-collapse]');
+    if (body && sidebarCollapse){
+      const collapseKey = 'savetory:sidebar-collapsed';
+      const desktopMedia = window.matchMedia('(min-width: 961px)');
+
+      const applySidebarState = (collapsed) => {
+        const shouldCollapse = Boolean(collapsed) && desktopMedia.matches;
+        body.classList.toggle('sidebar-collapsed', shouldCollapse);
+        sidebarCollapse.setAttribute('aria-expanded', shouldCollapse ? 'false' : 'true');
+        sidebarCollapse.setAttribute('aria-label', shouldCollapse ? 'Развернуть меню' : 'Свернуть меню');
+      };
+
+      let savedCollapsed = false;
+      try {
+        savedCollapsed = window.localStorage.getItem(collapseKey) === '1';
+      } catch (error) {}
+      applySidebarState(savedCollapsed);
+
+      sidebarCollapse.addEventListener('click', () => {
+        if (!desktopMedia.matches){
+          body.classList.remove('mobile-nav-open');
+          const mobileToggle = document.querySelector('.mobile-nav-toggle');
+          if (mobileToggle){
+            mobileToggle.setAttribute('aria-expanded', 'false');
+            mobileToggle.focus();
+          }
+          return;
+        }
+        const collapsed = !body.classList.contains('sidebar-collapsed');
+        savedCollapsed = collapsed;
+        applySidebarState(collapsed);
+        try {
+          window.localStorage.setItem(collapseKey, collapsed ? '1' : '0');
+        } catch (error) {}
+      });
+
+      const handleDesktopBreakpoint = () => applySidebarState(savedCollapsed || body.classList.contains('sidebar-collapsed'));
+      if (typeof desktopMedia.addEventListener === 'function'){
+        desktopMedia.addEventListener('change', handleDesktopBreakpoint);
+      } else if (typeof desktopMedia.addListener === 'function'){
+        desktopMedia.addListener(handleDesktopBreakpoint);
+      }
+    }
+
+    const profileMenus = Array.from(document.querySelectorAll('[data-profile-menu]'));
+    if (profileMenus.length){
+      let openProfileMenu = null;
+
+      const closeProfileMenu = (menu, focusToggle) => {
+        if (!menu){
+          return;
+        }
+        const toggle = menu.querySelector('[data-profile-menu-toggle]');
+        const list = menu.querySelector('[data-profile-menu-list]');
+        if (!toggle || !list){
+          return;
+        }
+        list.hidden = true;
+        menu.classList.remove('profile-menu--open');
+        toggle.setAttribute('aria-expanded', 'false');
+        if (openProfileMenu === menu){
+          openProfileMenu = null;
+        }
+        if (focusToggle){
+          toggle.focus();
+        }
+      };
+
+      const openProfile = (menu, focusFirst) => {
+        const toggle = menu.querySelector('[data-profile-menu-toggle]');
+        const list = menu.querySelector('[data-profile-menu-list]');
+        if (!toggle || !list){
+          return;
+        }
+        if (openProfileMenu && openProfileMenu !== menu){
+          closeProfileMenu(openProfileMenu, false);
+        }
+        list.hidden = false;
+        menu.classList.add('profile-menu--open');
+        toggle.setAttribute('aria-expanded', 'true');
+        openProfileMenu = menu;
+        if (focusFirst){
+          const first = list.querySelector('[role="menuitem"]');
+          if (first){
+            first.focus();
+          }
+        }
+      };
+
+      profileMenus.forEach((menu) => {
+        const toggle = menu.querySelector('[data-profile-menu-toggle]');
+        const list = menu.querySelector('[data-profile-menu-list]');
+        if (!toggle || !list){
+          return;
+        }
+        toggle.addEventListener('click', () => {
+          if (list.hidden){
+            openProfile(menu, false);
+          } else {
+            closeProfileMenu(menu, false);
+          }
+        });
+        toggle.addEventListener('keydown', (event) => {
+          if (event.key === 'ArrowDown'){
+            event.preventDefault();
+            openProfile(menu, true);
+          }
+        });
+        list.addEventListener('keydown', (event) => {
+          const items = Array.from(list.querySelectorAll('[role="menuitem"]'));
+          const index = items.indexOf(event.target);
+          if (event.key === 'Escape'){
+            event.preventDefault();
+            closeProfileMenu(menu, true);
+          } else if (event.key === 'ArrowDown' && items.length){
+            event.preventDefault();
+            items[(index + 1 + items.length) % items.length].focus();
+          } else if (event.key === 'ArrowUp' && items.length){
+            event.preventDefault();
+            items[(index <= 0 ? items.length : index) - 1].focus();
+          }
+        });
+      });
+
+      document.addEventListener('click', (event) => {
+        if (openProfileMenu && !openProfileMenu.contains(event.target)){
+          closeProfileMenu(openProfileMenu, false);
+        }
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && openProfileMenu){
+          closeProfileMenu(openProfileMenu, true);
+        }
+      });
+    }
+
+    const logoutButtons = Array.from(document.querySelectorAll('[data-profile-logout]'));
+    logoutButtons.forEach((button) => {
+      button.addEventListener('click', async () => {
+        if (button.disabled){
+          return;
+        }
+        const csrfMatch = document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);
+        const csrfToken = window.__csrfToken || (csrfMatch ? decodeURIComponent(csrfMatch[1]) : '');
+        button.disabled = true;
+        try {
+          const response = await fetch('/api/auth/logout/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Accept': 'application/json',
+              'X-CSRFToken': csrfToken,
+            },
+          });
+          if (!response.ok){
+            throw new Error(`HTTP ${response.status}`);
+          }
+          window.location.assign('/');
+        } catch (error){
+          button.disabled = false;
+        }
+      });
+    });
+
+    const notificationButtons = Array.from(document.querySelectorAll('[data-notification-channel]'));
+    if (notificationButtons.length){
+      const endpoints = {
+        messages: '/api/messages/unread/',
+        requests: '/api/community/unread-requests/',
+      };
+
+      const refreshTopbarNotifications = async () => {
+        const channels = Array.from(new Set(notificationButtons.map((button) => button.dataset.notificationChannel).filter(Boolean)));
+        await Promise.all(channels.map(async (channel) => {
+          const endpoint = endpoints[channel];
+          if (!endpoint){
+            return;
+          }
+          let total = 0;
+          try {
+            const response = await fetch(endpoint, {
+              credentials: 'include',
+              headers: { 'Accept': 'application/json' },
+            });
+            if (!response.ok){
+              return;
+            }
+            const payload = await response.json();
+            total = payload && payload.success !== false ? Math.max(0, Number(payload.total) || 0) : 0;
+          } catch (error){
+            return;
+          }
+          notificationButtons
+            .filter((button) => button.dataset.notificationChannel === channel)
+            .forEach((button) => {
+              const badge = button.querySelector('[data-notification-badge]');
+              button.classList.toggle('has-unread', total > 0);
+              if (badge){
+                badge.hidden = total <= 0;
+                badge.textContent = total > 99 ? '99+' : String(total);
+              }
+            });
+        }));
+      };
+
+      refreshTopbarNotifications();
+      window.setInterval(refreshTopbarNotifications, 30000);
+    }
   });
 })();

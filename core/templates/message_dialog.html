@@ -8,17 +8,9 @@
   <link rel="stylesheet" href="{% static 'css/style.css' %}" />
   <link rel="stylesheet" href="{% static 'css/messages.css' %}" />
 </head>
-<body class="messages-page">
+<body class="messages-page app-shell-page">
   <script src="{% static 'js/prefs.js' %}"></script>
-  <aside class="sidebar">
-    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
-    <nav class="side-nav">
-      <div class="side-nav-divider" aria-hidden="true"></div>
-      <div class="side-nav-footer">
-        {% include 'includes/side_nav_links.html' with current_section='messages' %}
-      </div>
-    </nav>
-  </aside>
+  {% include 'includes/app_sidebar.html' with current_section='messages' %}
 
   <header class="topbar">
     <div class="topbar-inner">
@@ -29,7 +21,7 @@
         <a class="page-title messages-dialog-name" href="{% url 'core:community-user-profile' username=dialog_user.username %}">{{ dialog_display_name }}</a>
       </div>
       <div class="topbar-spacer"></div>
-      <div class="topbar-actions"></div>
+      <div class="topbar-actions">{% include 'includes/app_account_controls.html' %}</div>
     </div>
   </header>
 
@@ -108,6 +100,8 @@
       </form>
     </section>
   </main>
+
+  {% include 'includes/app_footer.html' %}
 
   {% include 'includes/terms_modal.html' %}
 

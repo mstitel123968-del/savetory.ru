@@ -1,7 +1,7 @@
 (function(){
   const KEY='ui_prefs_v1';
   const DEFAULTS={
-    theme:'dark',
+    theme:'light',
     accent:'blue',
     fontScale:1,
     bgIntensity:1,
@@ -17,7 +17,7 @@
     headingColor:'auto',
     textTone:'balanced',
     reduceMotion:false,
-    plainBackground:false,
+    plainBackground:true,
     focusStrong:false,
     showHints:true,
     topbarMode:'floating',

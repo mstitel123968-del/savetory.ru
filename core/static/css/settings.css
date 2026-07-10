@@ -144,3 +144,29 @@ body.theme-sepia .pref-dropdown__menu{box-shadow:0 20px 40px rgba(60,32,18,0.36)
     width:100%;
   }
 }
+
+/* Keep settings spacing aligned with the shared 8px UI rhythm. */
+.settings-grid,
+.card.settings-card,
+.settings-group,
+.settings-card .row,
+.settings-card .row.range-row,
+.theme-row,
+.settings-option,
+.setting-option__info,
+.pref-dropdown__toggle,
+.pref-dropdown__menu,
+.subscription-current,
+.subscription-usage-grid,
+.subscription-usage,
+.subscription-plan-grid,
+.subscription-plan,
+.subscription-plan__head,
+.subscription-plan__limits,
+.subscription-plan__actions{
+  gap:var(--ui-gap-min,8px)!important;
+}
+
+.settings-option+ .settings-option{
+  margin-top:var(--ui-gap-min,8px)!important;
+}

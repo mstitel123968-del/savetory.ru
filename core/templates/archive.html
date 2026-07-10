@@ -7,62 +7,101 @@
   {% include 'includes/seo_meta.html' %}
   <link rel="stylesheet" href="{% static 'css/style.css' %}" />
 </head>
-<body class="archive-page">
+<body class="archive-page app-shell-page">
   <script src="{% static 'js/prefs.js' %}"></script>
-  <aside class="sidebar">
-    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
-    <nav class="side-nav">
-      <button id="createRubric" class="side-btn danger">Создать рубрику</button>
-      <div id="rubricCreateWrap" class="rubric-create hidden" aria-hidden="true">
+
+  {% include 'includes/app_sidebar.html' with current_section='archive' %}
+  {% include 'includes/app_topbar.html' with archive_search=True %}
+
+  <main class="main archive-main">
+    <section class="archive-heading" aria-label="Управление архивом">
+
+      <div class="archive-toolbar" aria-label="Управление архивом">
+        <div class="archive-toolbar__primary">
+          <button id="archiveAddFile" class="archive-action archive-action--primary" type="button" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" /></svg>
+            <span>Добавить карточку</span>
+          </button>
+          <button id="createRubric" class="archive-action" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h6l2 2h10v11H3z" /><path d="M12 11v5M9.5 13.5h5" /></svg>
+            <span>Создать рубрику</span>
+          </button>
+        </div>
+
+        <div class="archive-toolbar__secondary">
+          <button id="archiveSelectionToggle" class="archive-action" type="button">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" /></svg>
+            <span>Выбрать</span>
+          </button>
+          <div class="archive-view-switch" role="group" aria-label="Вид архива">
+            <button id="archiveViewCards" type="button" aria-label="Карточки" title="Карточки" data-archive-view="cards">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" /></svg>
+            </button>
+            <button id="archiveViewList" type="button" aria-label="Список" title="Список" data-archive-view="list">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01" /></svg>
+            </button>
+          </div>
+          <label class="archive-sort" for="archiveSortSelect">
+            <span class="sr-only">Сортировка архива</span>
+            <select id="archiveSortSelect" data-theme-select>
+              <option value="created">По дате (новые)</option>
+              <option value="title">По названию</option>
+              <option value="rubric">По рубрикам</option>
+              <option value="manual">Вручную</option>
+            </select>
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m6 9 6 6 6-6" /></svg>
+          </label>
+        </div>
+      </div>
+
+      <div id="rubricCreateWrap" class="rubric-create archive-rubric-create hidden" aria-hidden="true">
         <label class="rubric-create__label" for="rubricNameInput">Наименование рубрики</label>
         <input id="rubricNameInput" class="rubric-create__input" type="text" placeholder="Например, «Картины»" />
-        <button id="rubricNameSave" class="rubric-create__save side-btn" type="button">Сохранить</button>
+        <button id="rubricNameSave" class="rubric-create__save archive-action archive-action--primary" type="button">Сохранить</button>
         <div id="rubricNameError" class="rubric-create__error" role="alert"></div>
       </div>
-      <button id="rubricAllButton" class="side-btn hidden" type="button">Все файлы</button>
-      <div class="side-nav-scroll">
+    </section>
+
+    <div id="archiveStatusMessage" class="archive-status-message hidden" role="alert" aria-live="polite"></div>
+
+    <section class="archive-rubric-strip" aria-labelledby="archiveRubricsTitle">
+      <h2 id="archiveRubricsTitle">Рубрики</h2>
+      <div class="archive-rubric-scroll" data-rubric-scroll>
+        <button id="rubricAllButton" class="rubric-filter-card hidden" type="button">
+          <svg class="rubric-filter-card__icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h6l2 2h10v11H3z" /></svg>
+          <span class="rubric-filter-card__content">
+            <strong>Все карточки</strong>
+            <small data-all-rubric-count>0</small>
+          </span>
+        </button>
         <div id="rubricButtons" class="rubric-buttons hidden" aria-live="polite"></div>
       </div>
-      <div class="side-nav-divider" aria-hidden="true"></div>
-      <div class="side-nav-footer">
-        {% include 'includes/side_nav_links.html' with current_section='archive' include_archive=False %}
-      </div>
-    </nav>
-  </aside>
+    </section>
 
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div class="logo-wrap"><span class="page-title">Ваш архив</span></div>
-      <div class="search-wrap">
-        <input class="search" type="search" placeholder="Поиск по файлам" />
-        <div class="search-results hidden" role="listbox" aria-live="polite" data-search-results></div>
-      </div>
-      <div class="topbar-actions">
-        <button id="archiveSelectionToggle" class="side-btn topbar-selection-toggle" type="button">Выбрать</button>
-      </div>
-    </div>
-  </header>
-
-  <main class="main">
-    <div id="archiveStatusMessage" class="archive-status-message hidden" role="alert" aria-live="polite"></div>
     <section id="archiveBulkBar" class="archive-bulk-bar hidden" aria-live="polite">
       <div class="archive-bulk-bar__summary" id="archiveBulkSummary">Выбрано: 0</div>
       <div class="archive-bulk-bar__actions">
-        <button id="archiveBulkSelectAll" class="side-btn" type="button">Выбрать все</button>
-        <button id="archiveBulkClear" class="side-btn" type="button">Снять выделение</button>
-        <button id="archiveBulkMove" class="side-btn" type="button">Перенести</button>
-        <button id="archiveBulkDelete" class="side-btn danger" type="button">Удалить</button>
-        <button id="archiveBulkClose" class="side-btn" type="button">Готово</button>
+        <button id="archiveBulkSelectAll" class="archive-action" type="button">Выбрать все</button>
+        <button id="archiveBulkClear" class="archive-action" type="button">Снять выделение</button>
+        <button id="archiveBulkMove" class="archive-action" type="button">Перенести</button>
+        <button id="archiveBulkDelete" class="archive-action archive-action--danger" type="button">Удалить</button>
+        <button id="archiveBulkClose" class="archive-action" type="button">Готово</button>
       </div>
     </section>
+
     <section id="archiveEmpty" class="archive-empty">
-      <p>В этом разделе не создано ни одной рубрики.</p>
+      <div class="archive-empty__content">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 6h6l2 2h10v11H3z" /><path d="M12 11v5M9.5 13.5h5" /></svg>
+        <h2>Архив пока пуст</h2>
+        <p>Создайте первую рубрику, чтобы добавить в неё карточки.</p>
+      </div>
     </section>
     <section id="rubricsContainer" class="rubrics hidden" aria-live="polite"></section>
   </main>
 
-  <div id="archiveModalHost"></div>
+  {% include 'includes/app_footer.html' %}
 
+  <div id="archiveModalHost"></div>
   {% include 'includes/terms_modal.html' %}
 
   <script src="{% static 'js/nav.js' %}"></script>

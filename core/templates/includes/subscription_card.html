@@ -1,0 +1,22 @@
+{% if user.is_authenticated and app_subscription_plan %}
+<section class="sidebar-tariff" aria-label="Текущий тариф">
+  <div class="sidebar-tariff__name">Тариф: {{ app_subscription_plan.name }}</div>
+  <div class="sidebar-tariff__usage">
+    <strong data-sidebar-archive-used>{{ app_archive_used }}</strong>
+    <span>/ {{ app_archive_limit_label }} карточек</span>
+  </div>
+  <div
+    class="sidebar-tariff__progress"
+    role="progressbar"
+    aria-label="Использование архива"
+    aria-valuemin="0"
+    aria-valuemax="100"
+    aria-valuenow="{{ app_archive_usage_percent }}"
+    data-sidebar-archive-progress
+    data-archive-limit="{{ app_archive_limit|default_if_none:'' }}"
+  >
+    <span style="--tariff-progress: {{ app_archive_usage_percent }}%" data-sidebar-archive-progress-bar></span>
+  </div>
+  <a class="sidebar-tariff__upgrade" href="{% url 'core:settings' %}#subscriptionPlans">Улучшить тариф</a>
+</section>
+{% endif %}

@@ -395,3 +395,59 @@ body.profile-modal-open{overflow:hidden;}
   /* Карточки рубрик в карусели: чуть меньше */
   .profile-rubric-card{flex:0 0 min(72vw,260px);min-height:160px}
 }
+
+/* Profile surfaces use the same minimum spacing step as the rest of the UI. */
+.profile-header,
+.profile-header__main,
+.profile-footer-actions,
+.profile-confirm__dialog,
+.profile-confirm__actions,
+.pe-body,
+.pe-avatar,
+.pe-grid,
+.pe-actions,
+.profile-showcase,
+.profile-hero__content,
+.profile-hero__info,
+.profile-hero__title-row,
+.profile-hero__meta,
+.profile-hero__actions,
+.profile-dashboard,
+.profile-dashboard__main,
+.profile-dashboard__side,
+.profile-panel__header,
+.profile-rubric-carousel,
+.profile-rubric-card__body,
+.profile-record-list,
+.profile-record-row,
+.profile-record-row__main,
+.profile-empty-state,
+.profile-about-list,
+.profile-about-list div,
+.profile-friends-row,
+.profile-friends-meta,
+.profile-activity-list,
+.profile-activity-item,
+.profile-cover-modal__header,
+.profile-cover-grid,
+.profile-cover-modal__actions,
+.pe-avatar .avatar-controls,
+.pe-avatar .avatar-controls-row,
+.pe-avatar .avatar-zoom{
+  gap:var(--ui-gap-min,8px)!important;
+}
+
+.profile-header,
+.profile-panel__header,
+.profile-cover-modal__header,
+.profile-cover-modal__error{
+  margin-bottom:var(--ui-gap-min,8px)!important;
+}
+
+.profile-footer-actions,
+.public-profile-view,
+.profile-friends-meta,
+.profile-cover-modal__actions,
+.pe-avatar .avatar-controls{
+  margin-top:var(--ui-gap-min,8px)!important;
+}

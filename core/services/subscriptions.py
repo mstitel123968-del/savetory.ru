@@ -866,6 +866,14 @@ def archive_usage(user) -> int:
     return max(db_count, state_count)
 
 
+def archive_display_usage(user) -> int:
+    """Return the number of cards visible in the canonical archive UI state."""
+    state = ArchiveState.objects.filter(user=user).first()
+    if state is not None:
+        return archive_state_file_count(state.data)
+    return ArchiveFile.objects.filter(owner=user).count()
+
+
 def active_auction_usage(user) -> int:
     from market.models import Listing
 

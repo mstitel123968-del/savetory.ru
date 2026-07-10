@@ -165,8 +165,8 @@ def current_price_base(listing: Listing) -> Decimal:
 
 
 def minimum_bid(listing: Listing) -> Decimal:
-    """Return the minimal allowed bid increment."""
-    return listing.auction_step or Decimal("0")
+    """Return the minimal allowed total bid amount."""
+    return current_price_base(listing) + (listing.auction_step or Decimal("0"))
 
 
 def reserve_status(listing: Listing) -> str:
@@ -240,8 +240,8 @@ def place_bid(
         raise BidError("invalid_amount", "Некорректная сумма ставки.")
 
     now = timezone.now()
-    min_bid = minimum_bid(listing)
     base_price = current_price_base(listing)
+    min_bid = minimum_bid(listing)
     leader = leading_bid(listing)
 
     if seen_current_price is not None and seen_current_price != base_price:
@@ -265,7 +265,7 @@ def place_bid(
                        current_price=base_price, minimum_bid=min_bid)
 
     previous_price = base_price
-    new_price = base_price + amount
+    new_price = amount
     AuctionBid.objects.filter(listing=listing, is_winning=True).update(is_winning=False)
     bid = AuctionBid.objects.create(
         listing=listing, bidder=user, amount=amount, previous_price=previous_price, is_winning=True,
@@ -286,7 +286,7 @@ def place_bid(
     return {
         "bid": bid,
         "current_price": new_price,
-        "minimum_next_bid": min_bid,
+        "minimum_next_bid": new_price + (listing.auction_step or Decimal("0")),
         "bid_count": AuctionBid.objects.filter(listing=listing).count(),
         "is_user_leading": True,
         "auction_end": listing.auction_end,
@@ -316,6 +316,62 @@ def serialize_state(user, listing: Listing) -> dict:
         "is_leading": bool(authed and leader and leader.bidder_id == user.id),
         "can_bid": allowed,
         "bid_block_reason": code,
+    }
+
+
+@transaction.atomic
+def buy_now(user, listing_id) -> dict:
+    listing = Listing.objects.select_for_update().filter(pk=listing_id, type=Listing.Type.AUCTION).first()
+    if listing is None:
+        raise BidError("auction_not_started", "Лот не найден.", status=404)
+
+    _finalize_locked(listing, timezone.now())
+    if not user or not getattr(user, "is_authenticated", False):
+        raise BidError("authentication_required", "Войдите, чтобы купить лот.", status=401)
+    if listing.seller_id == user.id:
+        raise BidError("seller_cannot_bid", "Нельзя купить собственный лот.", status=403)
+    if listing.status == Listing.Status.CANCELLED:
+        raise BidError("auction_cancelled", "Аукцион отменён.")
+    if listing.status == Listing.Status.COMPLETED:
+        raise BidError("auction_ended", "Аукцион завершён.")
+    if listing.status != Listing.Status.ACTIVE:
+        raise BidError("auction_not_started", "Купить сейчас можно только в активном аукционе.")
+    if listing.auction_buy_now_price is None:
+        raise BidError("buy_now_unavailable", "Для этого лота недоступна покупка сейчас.")
+
+    base_price = current_price_base(listing)
+    price = listing.auction_buy_now_price
+    if price < base_price:
+        raise BidError("buy_now_unavailable", "Цена покупки сейчас ниже текущей цены.")
+
+    now = timezone.now()
+    AuctionBid.objects.filter(listing=listing, is_winning=True).update(is_winning=False)
+    bid = AuctionBid.objects.create(
+        listing=listing, bidder=user, amount=price, previous_price=base_price, is_winning=True,
+    )
+    Listing.objects.filter(pk=listing.pk).update(
+        status=Listing.Status.COMPLETED,
+        is_active=False,
+        auction_result=Listing.AuctionResult.SOLD,
+        winner=user,
+        winning_bid=bid,
+        current_price=price,
+        completed_at=now,
+    )
+    listing.status = Listing.Status.COMPLETED
+    listing.is_active = False
+    listing.auction_result = Listing.AuctionResult.SOLD
+    listing.winner = user
+    listing.winning_bid = bid
+    listing.current_price = price
+    listing.completed_at = now
+
+    logger.info("auction bought now listing=%s buyer=%s price=%s", listing.pk, user.pk, price)
+    return {
+        "listing_id": listing.pk,
+        "status": listing.status,
+        "current_price": price,
+        "bid": bid,
     }
 
 

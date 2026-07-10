@@ -8,35 +8,15 @@
   <link rel="stylesheet" href="{% static 'css/style.css' %}" />
   <link rel="stylesheet" href="{% static 'css/settings.css' %}" />
 </head>
-<body>
+<body class="app-shell-page">
   <script src="{% static 'js/prefs.js' %}"></script>
-  <aside class="sidebar">
-    {% include 'includes/site_logo.html' with brand_class='logo' brand_label='СКлад' %}
-    <nav class="side-nav">
-      <div class="side-nav-divider" aria-hidden="true"></div>
-      <div class="side-nav-footer">
-        {% include 'includes/side_nav_links.html' with current_section='settings' %}
-      </div>
-    </nav>
-  </aside>
-
-  <header class="topbar">
-    <div class="topbar-inner">
-      <div class="logo-wrap">
-        <span class="page-title">Настройки</span>
-      </div>
-
-      <div class="topbar-spacer"></div>
-
-      <div class="topbar-actions">
-      </div>
-    </div>
-  </header>
+  {% include 'includes/app_sidebar.html' with current_section='settings' %}
+  {% include 'includes/app_topbar.html' with page_title='Настройки' %}
 
   <main class="main settings-main">
     <div class="settings-grid">
       {% if user.is_authenticated and subscription_plan %}
-      <section class="card settings-card subscription-card">
+      <section class="card settings-card subscription-card" id="subscriptionPlans">
         <h2>Подписка</h2>
         <div class="subscription-current">
           <div>
@@ -474,6 +454,8 @@
       </section>
     </div>
   </main>
+
+  {% include 'includes/app_footer.html' %}
 
 
   <script src="{% static 'js/nav.js' %}"></script>

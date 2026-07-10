@@ -625,7 +625,7 @@ AUCTION_CHARACTERISTIC_FIELDS = (
 def market_auction_create(request: HttpRequest) -> HttpResponse:
     """Render the «Создать лот» flow (archive card or new card)."""
     from auction import services
-    from auction.constants import AUCTION_FIELD_SCHEMA, CONDITION_OPTIONS
+    from auction.constants import AUCTION_FIELD_SCHEMA
 
     cards = [services.serialize_eligible_card(c) for c in services.eligible_cards_for_user(request.user)]
     context = {
@@ -637,7 +637,7 @@ def market_auction_create(request: HttpRequest) -> HttpResponse:
         "eligible_cards": cards,
         "field_schema": AUCTION_FIELD_SCHEMA,
         "categories_list": CATEGORY_LIST,
-        "conditions": [{"value": v, "label": l} for v, l in CONDITION_OPTIONS],
+        "conditions": [{"value": v, "label": l} for v, l in Listing.Condition.choices],
         "back_url": reverse("market_auction"),
         **_seo_context(
             request,
@@ -745,6 +745,13 @@ def market_auction_detail(request: HttpRequest, listing_id: int) -> HttpResponse
     can_cancel = is_owner and is_live and not has_bids
     can_admin_cancel = is_admin and is_live and has_bids
     can_relist = is_owner and listing.status in (Listing.Status.COMPLETED, Listing.Status.CANCELLED)
+    can_buy_now = (
+        request.user.is_authenticated
+        and not is_owner
+        and listing.status == Listing.Status.ACTIVE
+        and listing.auction_buy_now_price is not None
+        and listing.auction_buy_now_price >= bidding.current_price_base(listing)
+    )
 
     result_text_map = {
         Listing.AuctionResult.NO_BIDS: "Аукцион завершён без ставок",
@@ -770,6 +777,7 @@ def market_auction_detail(request: HttpRequest, listing_id: int) -> HttpResponse
         "endpoints": {
             "state": reverse("market_api_auction_state", args=[listing.pk]),
             "bid": reverse("market_api_auction_bid", args=[listing.pk]),
+            "buy_now": reverse("market_api_auction_buy_now", args=[listing.pk]),
             "bids": reverse("market_api_auction_bids", args=[listing.pk]),
             "detail": reverse("market_api_auction_draft_manage", args=[listing.pk]),
             "manage": reverse("market_api_auction_manage", args=[listing.pk]),
@@ -807,6 +815,7 @@ def market_auction_detail(request: HttpRequest, listing_id: int) -> HttpResponse
         "can_cancel": can_cancel,
         "can_admin_cancel": can_admin_cancel,
         "can_relist": can_relist,
+        "can_buy_now": can_buy_now,
         "result_text": result_text,
         "is_sold": is_sold,
         "final_price": final_price,

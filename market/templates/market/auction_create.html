@@ -69,7 +69,7 @@
                 {% for opt in field.options %}<option value="{{ opt.value }}">{{ opt.label }}</option>{% endfor %}
               </select>
             {% elif field.type == 'image' %}
-              <input type="file" name="{{ field.id }}" accept="image/*" multiple data-field="{{ field.id }}" disabled />
+              <input type="file" name="{{ field.id }}" accept="image/*" multiple data-field="{{ field.id }}" />
               <small class="auction-create__hint">Фотографии можно добавить после создания карточки в разделе «Ваш архив».</small>
             {% else %}
               <input type="text" name="{{ field.id }}" data-field="{{ field.id }}" />
@@ -93,6 +93,13 @@
           <select name="category" required data-theme-select>
             <option value="">—</option>
             {% for c in categories_list %}<option value="{{ c.value }}">{{ c.label }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="auction-create__field">
+          <span>Состояние *</span>
+          <select name="condition" required data-theme-select>
+            <option value="">—</option>
+            {% for c in conditions %}<option value="{{ c.value }}">{{ c.label }}</option>{% endfor %}
           </select>
         </label>
         <div class="auction-create__grid2">
@@ -125,9 +132,13 @@
   <script type="application/json" data-create-config>
     {
       "endpoints": {
+        "draftCreate": "{% url 'market_api_auction_draft_create' %}",
+        "draftManage": "{% url 'market_api_auction_draft_manage' 0 %}",
+        "draftPublish": "{% url 'market_api_auction_draft_publish' 0 %}",
         "createFromCard": "{% url 'auction:lot-create-from-card' %}",
         "createNew": "{% url 'auction:lot-create' %}"
       },
+      "auctionDetailUrl": "{% url 'market_auction_detail' 0 %}",
       "fieldIds": [{% for field in field_schema %}"{{ field.id }}"{% if not forloop.last %},{% endif %}{% endfor %}]
     }
   </script>

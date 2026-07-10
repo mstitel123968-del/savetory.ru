@@ -383,6 +383,25 @@ def auction_bid_place(request: HttpRequest, listing_id: int) -> JsonResponse:
     })
 
 
+@require_POST
+def auction_buy_now(request: HttpRequest, listing_id: int) -> JsonResponse:
+    """POST /market/api/auction/<id>/buy-now/ - close an active auction at buy-now price."""
+    if not request.user.is_authenticated:
+        return JsonResponse({"ok": False, "code": "authentication_required",
+                             "errors": {"__all__": "Войдите, чтобы купить лот."}}, status=401)
+    try:
+        result = bidding_service.buy_now(request.user, listing_id)
+    except bidding_service.BidError as exc:
+        return _bid_error(exc)
+    return JsonResponse({
+        "ok": True,
+        "listing_id": result["listing_id"],
+        "status": result["status"],
+        "current_price": str(result["current_price"]),
+        "redirect": reverse("market_auction_detail", args=[result["listing_id"]]),
+    })
+
+
 # --- Seller management of a published lot -------------------------------------
 @login_required
 @require_http_methods(["PATCH"])
