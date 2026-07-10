@@ -22,6 +22,7 @@
 
   <header class="topbar market-topbar">
     <div class="topbar-inner market-topbar-inner">
+      <div class="market-topbar-actions">{% block market_topbar_actions %}{% endblock %}</div>
       {% if show_search|default:True %}
       <div class="search-wrap market-search-wrap">
         <form method="get" class="market-search" action="{{ search_action|default:'' }}" data-market-search-form>
@@ -32,7 +33,6 @@
       {% else %}
       <div class="market-search-wrap"></div>
       {% endif %}
-      <div class="market-topbar-actions">{% block market_topbar_actions %}{% endblock %}</div>
       <div class="market-topbar-controls">
         <nav class="market-tabs" role="tablist">
           {% for tab in tabs %}
