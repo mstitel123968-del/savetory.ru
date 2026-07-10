@@ -429,11 +429,13 @@ def settings(request: HttpRequest) -> HttpResponse:
             'subscription_limits': limits,
             'available_plans': subscriptions.available_plan_cards(),
             'payment_enabled': True,
+            'settings_can_customize_colors': limits['plan'].code == subscriptions.SubscriptionPlan.Code.PRO,
         }
     return render(
         request,
         'settings.html',
         {
+            'settings_can_customize_colors': False,
             **subscription_context,
             **_seo_context(
             request,

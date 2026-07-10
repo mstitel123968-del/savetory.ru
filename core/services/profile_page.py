@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from urllib.parse import urlencode
 
 from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
@@ -195,15 +196,20 @@ def _archive_state_payload(user, *, is_owner: bool) -> dict | None:
             if not isinstance(file_item, dict):
                 continue
             created = _state_dt(file_item.get('createdAt'))
+            file_id = str(file_item.get('id') or '')
+            if is_owner:
+                record_url = f"{rubric_url}?{urlencode({'rubric': str(rubric.get('id') or ''), 'file': file_id})}"
+            else:
+                record_url = f"{rubric_url}#card-{file_id}" if rubric_url and file_id else rubric_url
             record_items.append({
-                'id': str(file_item.get('id') or ''),
+                'id': file_id,
                 'title': _state_file_title(rubric, file_item),
                 'rubric': str(rubric.get('name') or ''),
                 'is_public': bool(rubric.get('publicEnabled')) or is_owner,
                 'thumbnail_url': _state_file_thumb(rubric, file_item),
                 'created_at': created.isoformat(),
                 'created_at_label': timezone.localtime(created).strftime('%d.%m.%Y'),
-                'url': rubric_url,
+                'url': record_url,
             })
     rubric_items.sort(key=lambda item: item['updated_at'], reverse=True)
     record_items.sort(key=lambda item: item['created_at'], reverse=True)
@@ -280,7 +286,7 @@ def _public_rubrics_payload(user, rubrics) -> list[dict]:
     return items
 
 
-def _latest_records_payload(user, visible_rubrics) -> list[dict]:
+def _latest_records_payload(user, visible_rubrics, *, is_owner: bool = False) -> list[dict]:
     rubric_ids = list(visible_rubrics.values_list('id', flat=True))
     if not rubric_ids:
         return []
@@ -293,7 +299,11 @@ def _latest_records_payload(user, visible_rubrics) -> list[dict]:
     items = []
     for archive_file in files:
         image = next(iter(archive_file.images.all()), None)
-        collection_url = _public_collection_url(user, archive_file.rubric) if archive_file.rubric.is_public else ''
+        if is_owner:
+            record_url = f"{reverse('core:archive')}?{urlencode({'rubric': archive_file.rubric_id, 'file': archive_file.pk})}"
+        else:
+            collection_url = _public_collection_url(user, archive_file.rubric) if archive_file.rubric.is_public else ''
+            record_url = f"{collection_url}#card-{archive_file.pk}" if collection_url else ''
         items.append({
             'id': archive_file.pk,
             'title': archive_file.title,
@@ -302,7 +312,7 @@ def _latest_records_payload(user, visible_rubrics) -> list[dict]:
             'thumbnail_url': _image_url(image),
             'created_at': archive_file.created_at.isoformat(),
             'created_at_label': timezone.localtime(archive_file.created_at).strftime('%d.%m.%Y'),
-            'url': f"{collection_url}#card-{archive_file.pk}" if collection_url else '',
+            'url': record_url,
         })
     return items
 
@@ -425,7 +435,7 @@ def build_extended_profile_context(viewer, username: str) -> dict:
     visible_rubrics = _visible_rubrics(user, viewer, profile, can_view_details)
     public_rubrics_queryset = visible_rubrics if is_owner else visible_rubrics.filter(is_public=True)
     archive_state = _archive_state_payload(user, is_owner=is_owner)
-    latest_records = archive_state['records'] if archive_state else _latest_records_payload(user, visible_rubrics)
+    latest_records = archive_state['records'] if archive_state else _latest_records_payload(user, visible_rubrics, is_owner=is_owner)
     public_rubrics = archive_state['rubrics'] if archive_state else _public_rubrics_payload(user, public_rubrics_queryset)
     friends = _friends_payload(user, viewer) if can_view_details else {'total': 0, 'mutual_count': 0, 'items': []}
     rubrics_count = archive_state['rubrics_count'] if archive_state else visible_rubrics.count()

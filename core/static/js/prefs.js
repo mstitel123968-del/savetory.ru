@@ -3,6 +3,8 @@
   const DEFAULTS={
     theme:'light',
     accent:'blue',
+    customThemeColor:'#102a43',
+    customAccentColor:'#3b82f6',
     fontScale:1,
     bgIntensity:1,
     fontFamily:'system',
@@ -30,9 +32,11 @@
   };
   const UI_PREF_KEYS=[
     'theme',
+    'customThemeColor',
     'fontScale',
     'bgIntensity',
     'accent',
+    'customAccentColor',
     'fontFamily',
     'lineHeight',
     'density',
@@ -57,7 +61,9 @@
     'archiveThumbnails',
   ];
   const themeClasses=['theme-dark','theme-light','theme-retro','theme-sepia','theme-contrast','theme-midnight','theme-aurora','theme-pastel'];
-  const accentClasses=['accent-blue','accent-violet','accent-emerald','accent-amber','accent-rose','accent-sky','accent-mint','accent-copper'];
+  const accentClasses=['accent-blue','accent-black','accent-red','accent-green','accent-violet','accent-emerald','accent-amber','accent-rose','accent-sky','accent-mint','accent-copper'];
+  const customThemeProperties=['--app-gradient','--bg','--card','--card-overlay','--input-bg','--input-border','--btn-bg','--btn-bg-hover','--btn-border','--text','--text-base','--muted','--body-color','--heading-color','--app-surface','--app-border','--app-soft'];
+  const customAccentProperties=['--accent','--primary-bg','--primary-hover','--primary-fg','--accent-bg','--accent-fg'];
   const fontStacks={
     system:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif',
     arial:'"Arial","Helvetica",sans-serif',
@@ -137,6 +143,71 @@
     return fallback;
   }
 
+  function normalizeHex(value,fallback){
+    const text=String(value||'').trim();
+    return /^#[0-9a-f]{6}$/i.test(text) ? text.toLowerCase() : fallback;
+  }
+
+  function hexRgb(value){
+    const hex=normalizeHex(value,'#000000').slice(1);
+    return [parseInt(hex.slice(0,2),16),parseInt(hex.slice(2,4),16),parseInt(hex.slice(4,6),16)];
+  }
+
+  function mixHex(first,second,weight){
+    const a=hexRgb(first),b=hexRgb(second),w=Math.min(1,Math.max(0,Number(weight)||0));
+    return '#'+a.map((value,index)=>Math.round(value*w+b[index]*(1-w)).toString(16).padStart(2,'0')).join('');
+  }
+
+  function luminance(value){
+    const channels=hexRgb(value).map((channel)=>{ const c=channel/255; return c<=.03928?c/12.92:Math.pow((c+.055)/1.055,2.4); });
+    return channels[0]*.2126+channels[1]*.7152+channels[2]*.0722;
+  }
+
+  function clearInline(properties){
+    const targets=[document.documentElement,document.body].filter(Boolean);
+    targets.forEach((target)=>properties.forEach((property)=>target.style.removeProperty(property)));
+  }
+
+  function applyCustomTheme(color){
+    const root=document.body||document.documentElement;
+    const light=luminance(color)>.48;
+    const bg=light?mixHex(color,'#ffffff',.10):mixHex(color,'#050914',.22);
+    const card=light?mixHex(color,'#ffffff',.055):mixHex(color,'#0d1728',.20);
+    const input=light?mixHex(color,'#ffffff',.09):mixHex(color,'#111c2d',.25);
+    const border=light?mixHex(color,'#94a3b8',.20):mixHex(color,'#334155',.30);
+    const text=light?'#101827':'#edf4ff';
+    const muted=light?'#5d6778':'#9ba9bd';
+    if(document.body){ document.body.classList.add(light?'theme-light':'theme-dark'); }
+    root.style.setProperty('--app-gradient',`radial-gradient(120% 120% at 0% 0%, ${mixHex(color,'#ffffff',light?.28:.52)} 0%, ${bg} 58%, ${mixHex(bg,'#000000',light?.04:.72)} 100%)`);
+    root.style.setProperty('--bg',bg);
+    root.style.setProperty('--card',card);
+    root.style.setProperty('--card-overlay',card);
+    root.style.setProperty('--input-bg',input);
+    root.style.setProperty('--input-border',border);
+    root.style.setProperty('--btn-bg',input);
+    root.style.setProperty('--btn-bg-hover',mixHex(color,input,.20));
+    root.style.setProperty('--btn-border',border);
+    root.style.setProperty('--text',text);
+    root.style.setProperty('--text-base',text);
+    root.style.setProperty('--muted',muted);
+    root.style.setProperty('--body-color',text);
+    root.style.setProperty('--heading-color',text);
+    root.style.setProperty('--app-surface',card);
+    root.style.setProperty('--app-border',border);
+    root.style.setProperty('--app-soft',mixHex(color,card,.16));
+  }
+
+  function applyCustomAccent(color){
+    const root=document.body||document.documentElement;
+    const foreground=luminance(color)>.46?'#07111f':'#ffffff';
+    root.style.setProperty('--accent',color);
+    root.style.setProperty('--primary-bg',color);
+    root.style.setProperty('--primary-hover',mixHex(color,luminance(color)>.46?'#000000':'#ffffff',.84));
+    root.style.setProperty('--primary-fg',foreground);
+    root.style.setProperty('--accent-bg',`color-mix(in srgb,${color} 25%,transparent)`);
+    root.style.setProperty('--accent-fg',foreground);
+  }
+
   function apply(p){
     const body=document.body;
     if(!body) return;
@@ -146,19 +217,36 @@
     body.classList.remove(...themeClasses);
     body.classList.remove('theme-system');
     body.removeAttribute('data-system-theme');
+    clearInline(customThemeProperties);
     let theme=typeof prefs.theme==='string' ? prefs.theme : DEFAULTS.theme;
-    const themeClass='theme-'+theme;
-    if(!themeClasses.includes(themeClass)){
+    if(theme==='custom'){
+      applyCustomTheme(normalizeHex(prefs.customThemeColor,DEFAULTS.customThemeColor));
+      body.dataset.customTheme='true';
+    } else {
+      const themeClass='theme-'+theme;
+      if(!themeClasses.includes(themeClass)){
+        theme = DEFAULTS.theme;
+      }
+      body.classList.add('theme-'+theme);
+      body.removeAttribute('data-custom-theme');
+    }
+    if(theme!=='custom' && !themeClasses.includes('theme-'+theme)){
       theme = DEFAULTS.theme;
     }
-    body.classList.add('theme-'+theme);
 
     // Accent colors
     body.classList.remove(...accentClasses);
+    clearInline(customAccentProperties);
     const accent = typeof prefs.accent==='string' ? prefs.accent : DEFAULTS.accent;
-    const accentClass='accent-'+accent;
-    if(accentClasses.includes(accentClass)){ body.classList.add(accentClass); }
-    else { body.classList.add('accent-'+DEFAULTS.accent); }
+    if(accent==='custom'){
+      applyCustomAccent(normalizeHex(prefs.customAccentColor,DEFAULTS.customAccentColor));
+      body.dataset.customAccent='true';
+    } else {
+      const accentClass='accent-'+accent;
+      if(accentClasses.includes(accentClass)){ body.classList.add(accentClass); }
+      else { body.classList.add('accent-'+DEFAULTS.accent); }
+      body.removeAttribute('data-custom-accent');
+    }
 
     // Typography
     body.classList.remove('font-system','font-serif','font-rounded','font-mono','font-arial','font-montserrat','font-roboto','font-playfair','font-lato','font-kudry');

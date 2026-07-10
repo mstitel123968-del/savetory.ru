@@ -348,6 +348,16 @@
     });
   });
 
+  function openCardFromHash(){
+    const match = String(window.location.hash || '').match(/^#card-(.+)$/);
+    if (!match) return;
+    const cardId = decodeURIComponent(match[1]);
+    openCard(cardMap.get(cardId));
+  }
+
+  openCardFromHash();
+  window.addEventListener('hashchange', openCardFromHash);
+
   const filterButtons = Array.from(document.querySelectorAll('[data-status-filter]'));
   const cardNodes = Array.from(document.querySelectorAll('[data-public-card-id]'));
   function applyStatusFilter(status){

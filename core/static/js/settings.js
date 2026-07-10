@@ -5,8 +5,8 @@
     localStorage.setItem('ui_prefs_v1', JSON.stringify(prefs));
     return prefs;
   });
-  const allowedThemes = ['dark','light','retro','sepia','contrast','midnight','aurora','pastel'];
-  const allowedAccents = ['blue','violet','emerald','amber','rose','sky','mint','copper'];
+  const allowedThemes = ['dark','light','custom','retro','sepia','contrast','midnight','aurora','pastel'];
+  const allowedAccents = ['blue','black','red','green','custom','violet','emerald','amber','rose','sky','mint','copper'];
   const allowedFontFamilies = ['system','arial','montserrat','roboto','playfair','lato','kudry'];
   const allowedLineHeights = ['normal','relaxed','compact'];
   const allowedDensity = ['cozy','compact','spacious'];
@@ -26,6 +26,7 @@
   const allowedArchiveThumbnails = ['always','hidden'];
   const allowedPrivacy = ['public','friends','private'];
   const booleanPrefs = new Set(['reduceMotion','plainBackground','focusStrong','showHints','expandNews']);
+  const canCustomizeColors = window.__settingsCanCustomizeColors === true;
 
   function csrf(){
     const match = document.cookie.match(/csrftoken=([^;]+)/);
@@ -35,6 +36,8 @@
   const defaults = Object.assign({
     theme: 'dark',
     accent: 'blue',
+    customThemeColor: '#102a43',
+    customAccentColor: '#3b82f6',
     fontScale: 1,
     bgIntensity: 1,
     fontFamily: 'system',
@@ -80,7 +83,14 @@
   const fontLabel = document.getElementById('fontLabel');
   const bgRange = document.getElementById('bgIntensityRange');
   const bgLabel = document.getElementById('bgIntensityLabel');
-  const resetAppearanceBtn = document.getElementById('resetAppearanceBtn');
+  const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
+  const settingsSaveBtn = document.getElementById('settingsSaveBtn');
+  const customThemeInput = document.getElementById('customThemeColor');
+  const customAccentInput = document.getElementById('customAccentColor');
+  const themeColorTrigger = document.querySelector('[data-color-trigger="theme"]');
+  const accentColorTrigger = document.querySelector('[data-color-trigger="accent"]');
+  const themeColorPreview = document.querySelector('[data-theme-color-preview]');
+  const accentColorPreview = document.querySelector('[data-accent-color-preview]');
   const prefControls = Array.from(document.querySelectorAll('input[data-pref], select[data-pref]'));
   const privacyControl = document.querySelector('.privacy-control');
   const privacyToggle = document.getElementById('privacyToggle');
@@ -108,6 +118,11 @@
     return Math.min(1, Math.max(0, num));
   }
 
+  function normalizeColor(value, fallback) {
+    const text = String(value || '').trim();
+    return /^#[0-9a-f]{6}$/i.test(text) ? text.toLowerCase() : fallback;
+  }
+
   const dropdownControls = Array.from(document.querySelectorAll('.pref-dropdown[data-pref]')).map((control) => {
     const key = control.dataset.pref;
     const toggle = control.querySelector('.pref-dropdown__toggle');
@@ -125,6 +140,10 @@
   function sanitizeState() {
     if (!allowedThemes.includes(state.theme)) state.theme = defaults.theme;
     if (!allowedAccents.includes(state.accent)) state.accent = defaults.accent;
+    state.customThemeColor = normalizeColor(state.customThemeColor, defaults.customThemeColor);
+    state.customAccentColor = normalizeColor(state.customAccentColor, defaults.customAccentColor);
+    if (!canCustomizeColors && state.theme === 'custom') state.theme = defaults.theme;
+    if (!canCustomizeColors && state.accent === 'custom') state.accent = defaults.accent;
     if (!allowedFontFamilies.includes(state.fontFamily)) state.fontFamily = defaults.fontFamily;
     if (!allowedLineHeights.includes(state.lineHeight)) state.lineHeight = defaults.lineHeight;
     if (!allowedDensity.includes(state.density)) state.density = defaults.density;
@@ -153,6 +172,7 @@
   }
 
   sanitizeState();
+  const initialState = Object.assign({}, state);
 
   function ensureToast() {
     let toast = document.getElementById('appToast');
@@ -177,9 +197,11 @@
 
   const UI_PREF_KEYS = Array.isArray(window.__uiPrefKeys) ? window.__uiPrefKeys.slice() : [
     'theme',
+    'customThemeColor',
     'fontScale',
     'bgIntensity',
     'accent',
+    'customAccentColor',
     'fontFamily',
     'lineHeight',
     'density',
@@ -259,6 +281,12 @@
     if (bgLabel) {
       bgLabel.textContent = `${intensityPercent}%`;
     }
+    if (customThemeInput) customThemeInput.value = state.customThemeColor;
+    if (customAccentInput) customAccentInput.value = state.customAccentColor;
+    if (themeColorPreview) themeColorPreview.style.setProperty('--custom-theme-preview', state.customThemeColor);
+    if (accentColorPreview && state.accent === 'custom') accentColorPreview.style.background = state.customAccentColor;
+    if (themeColorTrigger) themeColorTrigger.classList.toggle('is-selected', state.theme === 'custom');
+    if (accentColorTrigger) accentColorTrigger.classList.toggle('is-selected', state.accent === 'custom');
     const overlayAlpha = state.bgIntensity >= 0.995 ? 1 : Number(state.bgIntensity.toFixed(2));
     document.documentElement.style.setProperty('--bg-intensity', state.bgIntensity.toFixed(3));
     document.documentElement.style.setProperty('--bg-overlay-alpha', overlayAlpha.toFixed(2));
@@ -384,6 +412,21 @@
     showToast('Внешний вид сброшен');
   }
 
+  function cancelSettings() {
+    UI_PREF_KEYS.forEach((key) => {
+      state[key] = initialState[key];
+    });
+    state.privacy = initialState.privacy;
+    sanitizeState();
+    render();
+    savePrefs(buildUIPrefs());
+    try {
+      localStorage.setItem('profile_privacy_v1', state.privacy);
+    } catch (e) {}
+    savePrivacyToServer();
+    showToast('Изменения отменены');
+  }
+
   if (fontRange) {
     fontRange.addEventListener('input', () => {
       const normalized = clampFont(Number(fontRange.value) / 100);
@@ -430,6 +473,33 @@
       setPref('bgIntensity', normalized, `Интенсивность фона: ${Math.round(normalized * 100)}%`);
     });
   }
+
+  function openColorPicker(input) {
+    if (!canCustomizeColors) {
+      showToast('Произвольные цвета доступны только на тарифе PRO');
+      return;
+    }
+    if (input) input.click();
+  }
+
+  function setCustomColor(kind, value) {
+    if (!canCustomizeColors) return;
+    if (kind === 'theme') {
+      state.customThemeColor = normalizeColor(value, defaults.customThemeColor);
+      state.theme = 'custom';
+    } else {
+      state.customAccentColor = normalizeColor(value, defaults.customAccentColor);
+      state.accent = 'custom';
+    }
+    sanitizeState();
+    render();
+    save(kind === 'theme' ? 'Цвет темы применён' : 'Акцентный цвет применён');
+  }
+
+  if (themeColorTrigger) themeColorTrigger.addEventListener('click', () => openColorPicker(customThemeInput));
+  if (accentColorTrigger) accentColorTrigger.addEventListener('click', () => openColorPicker(customAccentInput));
+  if (customThemeInput) customThemeInput.addEventListener('input', () => setCustomColor('theme', customThemeInput.value));
+  if (customAccentInput) customAccentInput.addEventListener('input', () => setCustomColor('accent', customAccentInput.value));
 
   prefControls.forEach((ctrl) => {
     const key = ctrl.dataset.pref;
@@ -622,8 +692,15 @@
     });
   });
 
-  if (resetAppearanceBtn) {
-    resetAppearanceBtn.addEventListener('click', resetAppearance);
+  if (cancelSettingsBtn) {
+    cancelSettingsBtn.addEventListener('click', cancelSettings);
+  }
+  if (settingsSaveBtn) {
+    settingsSaveBtn.addEventListener('click', () => {
+      persistState();
+      savePrivacyToServer();
+      showToast('Настройки сохранены');
+    });
   }
 
   document.addEventListener('click', (ev) => {
