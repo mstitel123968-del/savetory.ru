@@ -1,6 +1,12 @@
 {% if user.is_authenticated and app_subscription_plan %}
 <section class="sidebar-tariff" aria-label="Текущий тариф">
-  <div class="sidebar-tariff__name">Тариф: {{ app_subscription_plan.name }}</div>
+  <div class="sidebar-tariff__name">
+    <svg class="sidebar-tariff__crown" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="m3 7 4.5 4L12 4l4.5 7L21 7l-2 11H5L3 7Z" />
+      <path d="M6 21h12" />
+    </svg>
+    <span>Тариф: {{ app_subscription_plan.name }}</span>
+  </div>
   <div class="sidebar-tariff__usage">
     <strong data-sidebar-archive-used>{{ app_archive_used }}</strong>
     <span>/ {{ app_archive_limit_label }} карточек</span>

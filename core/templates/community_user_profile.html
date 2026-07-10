@@ -83,7 +83,7 @@
       </article>
 
       {% if not profile_page.is_closed %}
-        {# Shared SVG gradient used by all stat icons #}
+        {# Shared SVG gradient used by the general information icons #}
         <svg xmlns="http://www.w3.org/2000/svg" width="0" height="0" style="position:absolute">
           <defs>
             <linearGradient id="stat-grad" x1="0" y1="0" x2="1" y2="1">
@@ -92,74 +92,19 @@
             </linearGradient>
           </defs>
         </svg>
-        <section class="profile-stats" aria-label="Статистика профиля">
-          <a class="profile-stat" href="#profile-rubrics">
-            <span class="profile-stat__icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="url(#stat-grad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="8" y="36" width="48" height="22" rx="3"/>
-                <rect x="8" y="30" width="48" height="8" rx="2"/>
-                <rect x="24" y="46" width="16" height="6" rx="2"/>
-                <path d="M18 30 L18 14 L36 14 L44 22 L44 30"/>
-                <path d="M36 14 L36 22 L44 22"/>
-                <path d="M15 30 L15 17"/>
-                <path d="M12 30 L12 20"/>
-              </svg>
-            </span>
-            <strong>{{ profile_page.stats.rubrics_count }}</strong>
-            <span>Рубрик</span>
-          </a>
-          <a class="profile-stat" href="#profile-records">
-            <span class="profile-stat__icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="url(#stat-grad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="6" y="34" width="52" height="22" rx="3"/>
-                <rect x="6" y="27" width="52" height="9" rx="2"/>
-                <rect x="22" y="44" width="20" height="6" rx="2"/>
-                <path d="M16 27 L16 13 L38 13 L48 23 L48 27"/>
-                <path d="M38 13 L38 23 L48 23"/>
-                <path d="M12 27 L12 17"/>
-              </svg>
-            </span>
-            <strong>{{ profile_page.stats.records_count }}</strong>
-            <span>Записей в архиве</span>
-          </a>
-          <a class="profile-stat" href="#profile-friends">
-            <span class="profile-stat__icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="url(#stat-grad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="22" cy="18" r="8"/>
-                <path d="M4 54 Q4 38 22 38"/>
-                <path d="M40 54 Q40 38 22 38"/>
-                <path d="M31 38 Q38 44 38 48 Q38 54 31 54 Q24 54 24 48 Q24 44 31 38 Z"/>
-                <circle cx="42" cy="18" r="7"/>
-                <path d="M60 54 Q60 39 42 39"/>
-              </svg>
-            </span>
-            <strong>{{ profile_page.stats.friends_count }}</strong>
-            <span>Друзей</span>
-          </a>
-          <div class="profile-stat profile-stat--static">
-            <span class="profile-stat__icon" aria-hidden="true">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="url(#stat-grad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="6" y="14" width="46" height="42" rx="4"/>
-                <line x1="6" y1="26" x2="52" y2="26"/>
-                <line x1="20" y1="8" x2="20" y2="20"/>
-                <line x1="38" y1="8" x2="38" y2="20"/>
-                <rect x="14" y="32" width="6" height="6" rx="1"/>
-                <rect x="26" y="32" width="6" height="6" rx="1"/>
-                <rect x="38" y="32" width="6" height="6" rx="1"/>
-                <rect x="14" y="42" width="6" height="6" rx="1"/>
-                <rect x="26" y="42" width="6" height="6" rx="1"/>
-                <circle cx="50" cy="50" r="11" fill="none"/>
-                <polyline points="44,50 48,54 56,46"/>
-              </svg>
-            </span>
-            <strong>{{ profile_page.stats.date_joined_label|default:"—" }}</strong>
-            <span>Регистрация</span>
-          </div>
-        </section>
-
         <section class="profile-dashboard" aria-label="Подробности профиля">
-          <div class="profile-dashboard__main">
-            <section id="profile-rubrics" class="profile-panel">
+          <div class="profile-dashboard__main profile-center-card">
+            <nav class="profile-tabs" role="tablist" aria-label="Разделы профиля" data-profile-tabs>
+              <button class="profile-tabs__button is-active" type="button" role="tab" data-profile-tab="rubrics" aria-selected="true">Рубрики</button>
+              <button class="profile-tabs__button" type="button" role="tab" data-profile-tab="files" aria-selected="false">Файлы</button>
+              <button class="profile-tabs__button" type="button" role="tab" data-profile-tab="personal" aria-selected="false">Личные данные</button>
+              <button class="profile-tabs__button" type="button" role="tab" data-profile-tab="activity" aria-selected="false">Активность</button>
+              <button class="profile-tabs__button" type="button" role="tab" data-profile-tab="friends" aria-selected="false">Друзья</button>
+              <button class="profile-tabs__button" type="button" role="tab" data-profile-tab="general" aria-selected="false">Общая информация</button>
+              <span class="profile-tabs__indicator" aria-hidden="true"></span>
+            </nav>
+            <div class="profile-center-content">
+            <section id="profile-rubrics" class="profile-panel profile-center-section" data-profile-content="rubrics">
               <header class="profile-panel__header">
                 <h2>{% if profile_page.is_owner %}Рубрики{% else %}Публичные рубрики{% endif %}</h2>
                 {% if profile_page.stats.public_rubrics_count > 4 %}
@@ -197,44 +142,36 @@
               {% endif %}
             </section>
 
-            <section id="profile-records" class="profile-panel">
+            <section class="profile-panel profile-center-section" data-profile-content="files" hidden>
               <header class="profile-panel__header">
-                <h2>Последние записи</h2>
-                {% if profile_page.stats.records_count > 4 %}
-                  <a href="#profile-records" class="profile-panel__link">Показать все</a>
-                {% endif %}
+                <h2>Файлы</h2>
               </header>
               {% if profile_page.latest_records %}
-                <div class="profile-record-list">
-                  {% for record in profile_page.latest_records|slice:":4" %}
-                    <a class="profile-record-row" href="{{ record.url|default:'#profile-records' }}">
-                      <span class="profile-record-row__thumb{% if not record.thumbnail_url %} profile-record-row__thumb--empty{% endif %}">
+                <div class="profile-file-grid">
+                  {% for record in profile_page.latest_records|slice:":8" %}
+                    <a class="profile-file-card" href="{{ record.url|default:'#' }}">
+                      <span class="profile-file-card__preview{% if not record.thumbnail_url %} profile-file-card__preview--empty{% endif %}">
                         {% if record.thumbnail_url %}
                           <img src="{{ record.thumbnail_url }}" alt="" loading="lazy" />
                         {% else %}
-                          <span aria-hidden="true">□</span>
+                          <span aria-hidden="true">▧</span>
                         {% endif %}
                       </span>
-                      <span class="profile-record-row__main">
+                      <span class="profile-file-card__body">
                         <strong>{{ record.title }}</strong>
-                        <span>{{ record.rubric }}</span>
+                        <small>{{ record.rubric }}</small>
                       </span>
-                      <time datetime="{{ record.created_at }}">{{ record.created_at_label }}</time>
                     </a>
                   {% endfor %}
                 </div>
               {% else %}
-                <div class="profile-empty-state">
-                  <span>Записей пока нет.</span>
-                </div>
+                <div class="profile-empty-state"><span>Файлов пока нет.</span></div>
               {% endif %}
             </section>
-          </div>
 
-          <aside class="profile-dashboard__side">
-            <section class="profile-panel profile-about-panel">
+            <section class="profile-panel profile-center-section" data-profile-content="personal" hidden>
               <header class="profile-panel__header">
-                <h2>О пользователе</h2>
+                <h2>Личные данные</h2>
               </header>
               {% if profile_page.profile.city or profile_page.profile.interests or profile_page.profile.link or profile_page.profile.bio %}
                 <dl class="profile-about-list">
@@ -252,18 +189,32 @@
                   {% endif %}
                 </dl>
               {% else %}
-                <div class="profile-empty-state">
-                  <span>Пользователь пока ничего о себе не рассказал.</span>
-                </div>
+                <div class="profile-empty-state"><span>Пользователь пока ничего о себе не рассказал.</span></div>
               {% endif %}
             </section>
 
-            <section id="profile-friends" class="profile-panel">
+            <section class="profile-panel profile-center-section" data-profile-content="activity" hidden>
+              <header class="profile-panel__header">
+                <h2>Последняя активность</h2>
+              </header>
+              {% if profile_page.activity %}
+                <div class="profile-activity-list">
+                  {% for item in profile_page.activity|slice:":8" %}
+                    <a class="profile-activity-item" href="{{ item.url|default:'#' }}">
+                      <span class="profile-activity-item__icon" aria-hidden="true">•</span>
+                      <span class="profile-activity-item__text">{{ item.label }}</span>
+                      <time datetime="{{ item.created_at }}">{{ item.created_at_label }}</time>
+                    </a>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <div class="profile-empty-state"><span>Публичной активности пока нет.</span></div>
+              {% endif %}
+            </section>
+
+            <section class="profile-panel profile-center-section" data-profile-content="friends" hidden>
               <header class="profile-panel__header">
                 <h2>Друзья</h2>
-                {% if profile_page.friends.total > 5 %}
-                  <a href="#profile-friends" class="profile-panel__link">Показать всех</a>
-                {% endif %}
               </header>
               {% if profile_page.friends.items %}
                 <div class="profile-friends-row">
@@ -284,33 +235,48 @@
                   {% endif %}
                 </div>
               {% else %}
-                <div class="profile-empty-state">
-                  <span>Друзей пока нет.</span>
-                </div>
+                <div class="profile-empty-state"><span>Друзей пока нет.</span></div>
               {% endif %}
             </section>
 
-            <section class="profile-panel">
+            <section class="profile-panel profile-center-section profile-general-section" data-profile-content="general" hidden>
               <header class="profile-panel__header">
-                <h2>Последняя активность</h2>
+                <h2>Общая информация</h2>
               </header>
-              {% if profile_page.activity %}
-                <div class="profile-activity-list">
-                  {% for item in profile_page.activity|slice:":5" %}
-                    <a class="profile-activity-item" href="{{ item.url|default:'#' }}">
-                      <span class="profile-activity-item__icon" aria-hidden="true">•</span>
-                      <span class="profile-activity-item__text">{{ item.label }}</span>
-                      <time datetime="{{ item.created_at }}">{{ item.created_at_label }}</time>
-                    </a>
-                  {% endfor %}
+              <div class="profile-stats" aria-label="Статистика профиля">
+                <div class="profile-stat profile-stat--static">
+                  <span class="profile-stat__icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="url(#stat-grad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="36" width="48" height="22" rx="3"/><rect x="8" y="30" width="48" height="8" rx="2"/><rect x="24" y="46" width="16" height="6" rx="2"/><path d="M18 30 L18 14 L36 14 L44 22 L44 30"/><path d="M36 14 L36 22 L44 22"/></svg>
+                  </span>
+                  <strong>{{ profile_page.stats.rubrics_count }}</strong>
+                  <span>Рубрик</span>
                 </div>
-              {% else %}
-                <div class="profile-empty-state">
-                  <span>Публичной активности пока нет.</span>
+                <div class="profile-stat profile-stat--static">
+                  <span class="profile-stat__icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="url(#stat-grad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="34" width="52" height="22" rx="3"/><rect x="6" y="27" width="52" height="9" rx="2"/><rect x="22" y="44" width="20" height="6" rx="2"/><path d="M16 27 L16 13 L38 13 L48 23 L48 27"/><path d="M38 13 L38 23 L48 23"/></svg>
+                  </span>
+                  <strong>{{ profile_page.stats.records_count }}</strong>
+                  <span>Файлов</span>
                 </div>
-              {% endif %}
+                <div class="profile-stat profile-stat--static">
+                  <span class="profile-stat__icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="url(#stat-grad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="22" cy="18" r="8"/><path d="M4 54 Q4 38 22 38"/><path d="M40 54 Q40 38 22 38"/><circle cx="42" cy="18" r="7"/><path d="M60 54 Q60 39 42 39"/></svg>
+                  </span>
+                  <strong>{{ profile_page.stats.friends_count }}</strong>
+                  <span>Друзей</span>
+                </div>
+                <div class="profile-stat profile-stat--static">
+                  <span class="profile-stat__icon" aria-hidden="true">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="url(#stat-grad)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="14" width="46" height="42" rx="4"/><line x1="6" y1="26" x2="52" y2="26"/><line x1="20" y1="8" x2="20" y2="20"/><line x1="38" y1="8" x2="38" y2="20"/><circle cx="50" cy="50" r="11"/><polyline points="44,50 48,54 56,46"/></svg>
+                  </span>
+                  <strong>{{ profile_page.stats.date_joined_label|default:"—" }}</strong>
+                  <span>Регистрация</span>
+                </div>
+              </div>
+
             </section>
-          </aside>
+            </div>
+          </div>
         </section>
       {% endif %}
     </section>
@@ -395,6 +361,7 @@
 
 
   <script src="{% static 'js/nav.js' %}"></script>
+  <script src="{% static 'js/profile-tabs.js' %}"></script>
   {% if profile_page.is_owner %}
     <script src="{% static 'js/profile.js' %}"></script>
   {% endif %}
