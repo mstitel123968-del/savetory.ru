@@ -2602,7 +2602,12 @@ body.sidebar-wide{--sidebar-w:304px;}
 
 body.archive-page{
   background:transparent;
+  scrollbar-width:none;
+  -ms-overflow-style:none;
 }
+body.archive-page::-webkit-scrollbar,
+body.archive-page .archive-main::-webkit-scrollbar{width:0;height:0;display:none;}
+body.archive-page .archive-main{scrollbar-width:none;-ms-overflow-style:none;}
 
 .sidebar{
   align-items:stretch;

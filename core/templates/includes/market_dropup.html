@@ -1,16 +1,14 @@
 {% with current=current_section|default:"" %}
 <div class="market-dropup{% if current == 'market' %} market-dropup--active{% endif %}" data-market-dropup>
   <button
-    class="side-btn nav-market side-btn--inactive has-tooltip{% if current == 'market' %} active{% endif %}"
+    class="side-btn app-nav-link nav-market{% if current == 'market' %} active{% endif %}"
     type="button"
     aria-haspopup="true"
     aria-expanded="false"
-    aria-disabled="true"
-    tabindex="-1"
-    data-disabled
-    data-tooltip="в разработке"
+    title="Маркет"
   >
-    Маркет
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/><path d="M3 4h2l2.4 10.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L21 8H6"/></svg>
+    <span>Маркет</span>
   </button>
   <div class="market-dropup__list" data-market-list hidden role="menu">
     <a class="market-dropup__item" href="/market/auction/" role="menuitem">Аукцион</a>

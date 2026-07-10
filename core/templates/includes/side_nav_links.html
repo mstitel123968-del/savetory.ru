@@ -6,10 +6,7 @@
       <span>Ваш архив</span>
     </a>
   {% endif %}
-  <a class="side-btn app-nav-link{% if current == 'market' %} active{% endif %}" href="{% url 'market_root' %}"{% if current == 'market' %} aria-current="page"{% endif %} title="Маркет">
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/><path d="M3 4h2l2.4 10.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L21 8H6"/></svg>
-    <span>Маркет</span>
-  </a>
+  {% include 'includes/market_dropup.html' with current_section=current %}
   {% if user.is_authenticated %}
     <a class="side-btn app-nav-link{% if current == 'community' %} active{% endif %}" href="{% url 'core:community' %}"{% if current == 'community' %} aria-current="page"{% endif %} title="Люди">
       <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>

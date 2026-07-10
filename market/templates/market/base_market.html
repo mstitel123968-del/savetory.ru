@@ -34,20 +34,6 @@
       <div class="market-search-wrap"></div>
       {% endif %}
       <div class="market-topbar-controls">
-        <nav class="market-tabs" role="tablist">
-          {% for tab in tabs %}
-            {% if tab.enabled %}
-              <a href="{% url tab.url_name %}" class="market-tab{% if tab.active %} market-tab--active{% endif %}" role="tab" aria-selected="{% if tab.active %}true{% else %}false{% endif %}">
-                {{ tab.label }}
-              </a>
-            {% else %}
-              <span class="market-tab market-tab--disabled" role="tab" aria-disabled="true" title="Скоро">
-                {{ tab.label }}<span class="market-tab__soon">Скоро</span>
-              </span>
-            {% endif %}
-          {% endfor %}
-          {% block extra_tabs %}{% endblock %}
-        </nav>
         {% include 'includes/app_account_controls.html' %}
       </div>
     </div>

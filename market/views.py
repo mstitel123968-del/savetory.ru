@@ -123,6 +123,15 @@ def market_root(request: HttpRequest) -> HttpResponse:
         {"label": "Обмен", "note": "Меняйтесь вещами с другими пользователями."},
         {"label": "Бесплатная передача", "note": "Отдавайте вещи даром."},
     ]
+    try:
+        auction_count = Listing.objects.filter(
+            type=Listing.Type.AUCTION,
+            is_active=True,
+            is_invalidated=False,
+            is_unpublished=False,
+        ).count()
+    except DatabaseError:
+        auction_count = 0
     context = {
         "page_title": "Маркет",
         "active_section": "market",
@@ -131,6 +140,13 @@ def market_root(request: HttpRequest) -> HttpResponse:
         "tabs": list(_get_tabs("")),
         "auction_url": reverse("market_auction"),
         "create_url": reverse("market_auction_create"),
+        "reset_url": reverse("market_auction"),
+        "order": "-date",
+        "category_options": CATEGORY_LIST,
+        "conditions": [{"value": value, "label": label} for value, label in Listing.Condition.choices],
+        "delivery_options": [{"value": value, "label": label} for value, label in Listing.DeliveryMethod.choices],
+        "found_count": auction_count,
+        "found_word": _ru_plural(auction_count, ("объявление", "объявления", "объявлений")),
         "soon_directions": soon_directions,
         **_seo_context(
             request,

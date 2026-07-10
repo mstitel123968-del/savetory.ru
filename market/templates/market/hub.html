@@ -2,9 +2,14 @@
 
 {% block market_topbar_actions %}
   <div class="market-quick-actions">
-    <a class="filter-menu__toggle market-filter-quick" href="{{ auction_url }}">
-      <span>Фильтр</span><span class="filter-menu__caret" aria-hidden="true"></span>
-    </a>
+    <div class="filter-menu filter-menu--topbar" data-filter-menu>
+      <button type="button" class="filter-menu__toggle" aria-haspopup="true" aria-expanded="false">
+        <span>Фильтр</span><span class="filter-menu__caret" aria-hidden="true"></span>
+      </button>
+      <div class="filter-menu__panel" hidden>
+        {% include 'market/_auction_filters.html' %}
+      </div>
+    </div>
     {% if request.user.is_authenticated %}
       <a class="ios-button ios-button--primary market-create-quick" href="{{ create_url }}">Создать лот</a>
     {% endif %}
