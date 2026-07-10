@@ -3597,7 +3597,8 @@ html.news-guest .app-footer{margin-left:0;}
 
 /* Browser-zoom resilience. Zooming reduces the effective CSS viewport, so
    flexible children must be allowed to shrink/wrap before they can overlap. */
-html,body{max-width:100%;overflow-x:hidden;}
+html,body{max-width:100%;overflow-x:hidden;scrollbar-width:none;-ms-overflow-style:none;}
+html::-webkit-scrollbar,body::-webkit-scrollbar{width:0;height:0;display:none;}
 img,video,canvas{max-width:100%;height:auto;}
 .app-shell-page :where(.main,.topbar,.topbar-inner,.app-topbar__inner,.sidebar,.side-nav,form,fieldset){min-width:0;}
 .app-shell-page :where(.topbar-inner,.app-topbar__inner,.settings-layout,.settings-row,.archive-toolbar,.profile-header,.community-layout,.messages-layout)>*{min-width:0;max-width:100%;}
