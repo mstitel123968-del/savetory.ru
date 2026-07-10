@@ -33,7 +33,17 @@
                   <span class="settings-color-preview" data-theme-color-preview></span>
                   Выбрать{% if not settings_can_customize_colors %} · PRO{% endif %}
                 </button>
-                <input class="settings-native-color" id="customThemeColor" type="color" value="#102a43" aria-label="Выбрать цвет темы" {% if not settings_can_customize_colors %}disabled{% endif %} />
+                <div class="settings-color-palette" data-color-palette="theme" hidden>
+                  <div class="settings-color-palette__swatches" aria-label="Палитра цвета темы">
+                    <button type="button" data-color-value="#102a43" style="--swatch:#102a43" aria-label="Тёмно-синий"></button>
+                    <button type="button" data-color-value="#172554" style="--swatch:#172554" aria-label="Индиго"></button>
+                    <button type="button" data-color-value="#052e2b" style="--swatch:#052e2b" aria-label="Тёмно-зелёный"></button>
+                    <button type="button" data-color-value="#3f1d2e" style="--swatch:#3f1d2e" aria-label="Бордовый"></button>
+                    <button type="button" data-color-value="#f8fafc" style="--swatch:#f8fafc" aria-label="Белый"></button>
+                    <button type="button" data-color-value="#f5efe6" style="--swatch:#f5efe6" aria-label="Кремовый"></button>
+                  </div>
+                  <label class="settings-color-palette__custom">Свой цвет <input id="customThemeColor" type="color" value="#102a43" aria-label="Выбрать произвольный цвет темы" {% if not settings_can_customize_colors %}disabled{% endif %} /></label>
+                </div>
               </div>
             </div>
 
@@ -48,7 +58,19 @@
                   <span class="settings-color-preview settings-color-preview--rainbow" data-accent-color-preview></span>
                   Выбрать{% if not settings_can_customize_colors %} · PRO{% endif %}
                 </button>
-                <input class="settings-native-color" id="customAccentColor" type="color" value="#3b82f6" aria-label="Выбрать акцентный цвет" {% if not settings_can_customize_colors %}disabled{% endif %} />
+                <div class="settings-color-palette" data-color-palette="accent" hidden>
+                  <div class="settings-color-palette__swatches" aria-label="Палитра акцентного цвета">
+                    <button type="button" data-color-value="#3b82f6" style="--swatch:#3b82f6" aria-label="Синий"></button>
+                    <button type="button" data-color-value="#8b5cf6" style="--swatch:#8b5cf6" aria-label="Фиолетовый"></button>
+                    <button type="button" data-color-value="#ec4899" style="--swatch:#ec4899" aria-label="Розовый"></button>
+                    <button type="button" data-color-value="#ef3340" style="--swatch:#ef3340" aria-label="Красный"></button>
+                    <button type="button" data-color-value="#f59e0b" style="--swatch:#f59e0b" aria-label="Янтарный"></button>
+                    <button type="button" data-color-value="#10b981" style="--swatch:#10b981" aria-label="Зелёный"></button>
+                    <button type="button" data-color-value="#06b6d4" style="--swatch:#06b6d4" aria-label="Бирюзовый"></button>
+                    <button type="button" data-color-value="#05070b" style="--swatch:#05070b" aria-label="Чёрный"></button>
+                  </div>
+                  <label class="settings-color-palette__custom">Свой цвет <input id="customAccentColor" type="color" value="#3b82f6" aria-label="Выбрать произвольный акцентный цвет" {% if not settings_can_customize_colors %}disabled{% endif %} /></label>
+                </div>
               </div>
             </div>
 
@@ -84,15 +106,15 @@
             </header>
             <label class="settings-select-row">
               <span><strong>Плотность интерфейса</strong><small>Определяет количество элементов и отступы на страницах</small></span>
-              <select data-pref="density" aria-label="Плотность интерфейса"><option value="compact">Компактная</option><option value="cozy">Стандартная</option><option value="spacious">Воздушная</option></select>
+              <select data-pref="density" data-theme-select aria-label="Плотность интерфейса"><option value="compact">Компактная</option><option value="cozy">Стандартная</option><option value="spacious">Воздушная</option></select>
             </label>
             <label class="settings-select-row">
               <span><strong>Ширина боковой панели</strong><small>Влияет на размер навигации рабочей области</small></span>
-              <select data-pref="sidebarSize" aria-label="Ширина боковой панели"><option value="narrow">Узкая</option><option value="normal">Стандартная</option><option value="wide">Расширенная</option></select>
+              <select data-pref="sidebarSize" data-theme-select aria-label="Ширина боковой панели"><option value="narrow">Узкая</option><option value="normal">Стандартная</option><option value="wide">Расширенная</option></select>
             </label>
             <label class="settings-select-row">
               <span><strong>Поведение верхней панели</strong><small>Настройка видимости и поведения верхней панели</small></span>
-              <select data-pref="topbarMode" aria-label="Поведение верхней панели"><option value="floating">Всегда на виду</option><option value="static">Статично вверху</option><option value="hidden">Скрыть панель</option></select>
+              <select data-pref="topbarMode" data-theme-select aria-label="Поведение верхней панели"><option value="floating">Всегда на виду</option><option value="static">Статично вверху</option><option value="hidden">Скрыть панель</option></select>
             </label>
           </section>
         </div>
@@ -204,6 +226,7 @@
 
   {% include 'includes/app_footer.html' %}
   <script src="{% static 'js/nav.js' %}"></script>
+  <script src="{% static 'js/theme-select.js' %}"></script>
   <script src="{% static 'js/settings.js' %}"></script>
   {% include 'includes/terms_modal.html' %}
 </body>

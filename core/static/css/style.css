@@ -1627,6 +1627,7 @@ body.archive-page.topbar-hidden.density-cozy .main{padding-top:var(--archive-lay
 
 body.card-flat .settings-card,
 body.card-flat .rubric-card,
+body.card-flat .file-card,
 body.card-flat .archive-empty,
 body.card-flat .rubric-create,
 body.card-flat .news-card,
@@ -1637,6 +1638,7 @@ body.card-flat .toast{box-shadow:none!important;}
 
 body.card-outline .settings-card,
 body.card-outline .rubric-card,
+body.card-outline .file-card,
 body.card-outline .archive-empty,
 body.card-outline .rubric-create,
 body.card-outline .news-card,

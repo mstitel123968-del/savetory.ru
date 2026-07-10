@@ -91,6 +91,7 @@
   const accentColorTrigger = document.querySelector('[data-color-trigger="accent"]');
   const themeColorPreview = document.querySelector('[data-theme-color-preview]');
   const accentColorPreview = document.querySelector('[data-accent-color-preview]');
+  const colorPalettes = Array.from(document.querySelectorAll('[data-color-palette]'));
   const prefControls = Array.from(document.querySelectorAll('input[data-pref], select[data-pref]'));
   const privacyControl = document.querySelector('.privacy-control');
   const privacyToggle = document.getElementById('privacyToggle');
@@ -474,21 +475,16 @@
     });
   }
 
-  function openColorPicker(input) {
+  function toggleColorPalette(kind) {
     if (!canCustomizeColors) {
       showToast('Произвольные цвета доступны только на тарифе PRO');
       return;
     }
-    if (!input) return;
-    try {
-      if (typeof input.showPicker === 'function') {
-        input.showPicker();
-        return;
-      }
-    } catch (error) {
-      /* Older embedded browsers can reject showPicker; click is the fallback. */
-    }
-    input.click();
+    const target = colorPalettes.find((palette) => palette.dataset.colorPalette === kind);
+    if (!target) return;
+    const willOpen = target.hidden;
+    colorPalettes.forEach((palette) => { palette.hidden = true; });
+    target.hidden = !willOpen;
   }
 
   function setCustomColor(kind, value) {
@@ -505,8 +501,18 @@
     save(kind === 'theme' ? 'Цвет темы применён' : 'Акцентный цвет применён');
   }
 
-  if (themeColorTrigger) themeColorTrigger.addEventListener('click', () => openColorPicker(customThemeInput));
-  if (accentColorTrigger) accentColorTrigger.addEventListener('click', () => openColorPicker(customAccentInput));
+  if (themeColorTrigger) themeColorTrigger.addEventListener('click', (event) => { event.stopPropagation(); toggleColorPalette('theme'); });
+  if (accentColorTrigger) accentColorTrigger.addEventListener('click', (event) => { event.stopPropagation(); toggleColorPalette('accent'); });
+  colorPalettes.forEach((palette) => {
+    palette.addEventListener('click', (event) => event.stopPropagation());
+    palette.querySelectorAll('[data-color-value]').forEach((swatch) => {
+      swatch.addEventListener('click', () => {
+        setCustomColor(palette.dataset.colorPalette, swatch.dataset.colorValue);
+        palette.hidden = true;
+      });
+    });
+  });
+  document.addEventListener('click', () => colorPalettes.forEach((palette) => { palette.hidden = true; }));
   if (customThemeInput) {
     const applyThemeColor = () => setCustomColor('theme', customThemeInput.value);
     customThemeInput.addEventListener('input', applyThemeColor);
