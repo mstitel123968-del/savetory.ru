@@ -22,36 +22,37 @@
 .market-filter{min-height:40px;border-radius:12px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--input-fg);padding:8px 12px;box-shadow:var(--btn-shadow);}
 .market-filter-apply{min-height:40px;}
 
-/* ===== Single-bar market topbar (brand + search + tabs, one background) ===
-   Brand title + description sit side by side and the description is clamped to
-   two lines so the bar never exceeds the standard topbar height. */
-/* Brand column caps at 340px on wide screens (full description) but can shrink
-   toward the title on narrow desktops; tabs stay one row, search takes slack —
-   so the bar fits single-row without horizontal overflow. */
-.market-topbar-inner{grid-template-columns:minmax(0,410px) minmax(150px,1fr) auto;gap:16px;align-items:center;}
-.market-brand{display:flex;flex-direction:row;align-items:center;gap:10px;min-width:0;}
-.market-brand .page-title{font-size:20px;font-weight:700;line-height:1.1;white-space:nowrap;flex:0 0 auto;}
-.market-brand__desc{color:var(--muted);font-size:.76rem;line-height:1.2;min-width:0;flex:1 1 auto;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
-.market-search-wrap{max-width:420px;}
+/* ===== Single-bar market topbar (search + tabs, one background) ===== */
+.market-topbar-inner{grid-template-columns:minmax(240px,420px) auto minmax(0,1fr);gap:10px;align-items:center;padding-left:12px;padding-right:16px;}
+.market-search-wrap{width:100%;max-width:420px;justify-self:start;}
 .market-topbar-controls{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0;}
 .market-topbar-controls .market-tabs{min-width:0;}
 .market-topbar-controls .app-account-controls{flex:0 0 auto;}
+.market-topbar-actions{min-width:0;}
 
 /* ===== Left-sidebar actions: «Создать лот» + «Фильтр» ===== */
 .sidebar-actions{width:100%;display:flex;flex-direction:column;gap:8px;}
 .market-create-side{width:100%;justify-content:center;text-align:center;}
+.market-quick-actions{display:flex;align-items:center;gap:8px;min-width:0;}
+.market-create-quick{width:auto;min-width:136px;min-height:42px;padding:9px 22px;border-radius:11px;font-size:.9rem;font-weight:700;white-space:nowrap;box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 24%,transparent);}
+.filter-menu--topbar{width:auto;min-width:0;}
+.filter-menu--topbar .filter-menu__toggle{width:auto;min-width:104px;min-height:36px;padding:7px 12px;border-radius:10px;font-size:.82rem;}
 
 /* ===== «Фильтр» dropdown (left sidebar, opens one column downward) ===== */
-.filter-menu{position:relative;width:100%;}
+.filter-menu{position:relative;width:100%;box-sizing:border-box;min-width:0;}
 .filter-menu__toggle{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:38px;padding:8px 14px;border-radius:12px;border:1px solid var(--input-border);background:var(--input-bg);color:var(--input-fg);font:inherit;font-weight:600;cursor:pointer;box-shadow:var(--btn-shadow);transition:border-color .2s ease;}
 .filter-menu__toggle:hover{border-color:color-mix(in srgb,var(--accent) 45%,transparent);}
 .filter-menu__toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 .filter-menu__caret{flex:0 0 auto;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg) translateY(-2px);transition:transform .2s ease;}
 .filter-menu.is-open .filter-menu__caret{transform:rotate(-135deg) translateY(-1px);}
-/* Single-column panel that drops straight down from the button; scrolls
-   internally with a hidden scrollbar and never causes page overflow. */
-.filter-menu__panel{position:absolute;top:calc(100% + 6px);left:0;z-index:200;width:min(264px,calc(100vw - 24px));max-height:min(74vh,600px);overflow-y:auto;overflow-x:hidden;padding:12px;border-radius:14px;border:1px solid var(--card-border);background:var(--card);box-shadow:0 24px 60px rgba(0,0,0,.34);scrollbar-width:none;-ms-overflow-style:none;}
-.filter-menu__panel::-webkit-scrollbar{width:0;height:0;display:none;}
+/* The open filter is one bounded card inside the sidebar. Keeping the panel in
+   normal flow prevents its border and action buttons from being clipped by the
+   fixed sidebar/footer. */
+.filter-menu.is-open{overflow:hidden;border:1px solid color-mix(in srgb,var(--accent) 72%,var(--card-border));border-radius:14px;background:var(--card);box-shadow:0 14px 34px rgba(0,0,0,.22);}
+.filter-menu.is-open .filter-menu__toggle{border:0;border-bottom:1px solid color-mix(in srgb,var(--card-border) 78%,transparent);border-radius:0;background:var(--input-bg);box-shadow:none;}
+.filter-menu__panel{position:static;z-index:auto;width:100%;max-width:100%;box-sizing:border-box;max-height:clamp(220px,calc(100vh - var(--app-footer-h,32px) - 230px),600px);overflow-y:auto;overflow-x:hidden;padding:12px;border:0;border-radius:0;background:var(--card);box-shadow:none;scrollbar-width:thin;scrollbar-color:color-mix(in srgb,var(--muted) 38%,transparent) transparent;overscroll-behavior:contain;}
+.filter-menu__panel::-webkit-scrollbar{width:6px;}
+.filter-menu__panel::-webkit-scrollbar-thumb{border-radius:999px;background:color-mix(in srgb,var(--muted) 38%,transparent);}
 .filter-menu__panel[hidden]{display:none;}
 .filter-menu__grid{display:grid;grid-template-columns:1fr;gap:10px;}
 
@@ -68,11 +69,19 @@
 .mf-check{display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--text);cursor:pointer;min-width:0;}
 .mf-check span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .mf-check input{accent-color:var(--accent);width:16px;height:16px;flex:0 0 auto;}
-.filter-menu__actions{display:flex;flex-direction:column;align-items:stretch;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid color-mix(in srgb,var(--card-border) 70%,transparent);}
+.filter-menu__actions{display:flex;flex-direction:column;align-items:stretch;gap:8px;margin-top:12px;padding:10px 0 2px;border-top:1px solid color-mix(in srgb,var(--card-border) 70%,transparent);background:var(--card);}
 .filter-menu__count{margin:0;font-size:.8rem;color:var(--muted);text-align:center;}
 .filter-menu__count b{color:var(--text);}
 .filter-menu__buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .mf-apply,.mf-reset{box-sizing:border-box;width:100%;min-width:0;min-height:38px;padding:0 12px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;}
+
+@media(max-height:700px){
+  .filter-menu__panel{max-height:clamp(180px,calc(100vh - var(--app-footer-h,32px) - 205px),420px);}
+}
+
+.filter-menu--topbar.is-open{overflow:visible;border:0;border-radius:0;background:transparent;box-shadow:none;}
+.filter-menu--topbar.is-open .filter-menu__toggle{border:1px solid var(--accent);border-radius:10px;background:var(--input-bg);box-shadow:none;}
+.filter-menu--topbar .filter-menu__panel{position:absolute;top:calc(100% + 8px);left:0;width:280px;max-width:min(280px,calc(100vw - 24px));max-height:calc(100vh - var(--topbar-h,72px) - var(--app-footer-h,32px) - 16px);border:1px solid color-mix(in srgb,var(--accent) 62%,var(--card-border));border-radius:14px;box-shadow:0 20px 46px rgba(0,0,0,.32);}
 
 .market-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,300px));gap:24px;justify-content:start;}
 .market-card{background:var(--card);border:1px solid var(--card-border);border-radius:20px;box-shadow:var(--btn-shadow);padding:18px;display:flex;flex-direction:column;gap:14px;position:relative;overflow:hidden;}
@@ -167,6 +176,11 @@
 .market-card__price-label{color:var(--muted);font-size:.76rem;font-weight:500;}
 .market-card__price-amount{color:var(--text);font-size:1.2rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
 .market-card--auction .market-card__title{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;}
+.market-card--auction{padding:12px;gap:10px;}
+.market-card--auction .market-card__media{border-radius:14px;}
+.market-card--auction .market-card__body{gap:5px;padding:0 2px 2px;}
+.market-card--auction .market-card__title{margin:0;color:var(--text);text-decoration:none;}
+.market-card--auction .market-card__price-amount{color:var(--accent);}
 .market-card--auction .market-card__category{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .market-card__facts b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;}
 .market-tab--disabled{display:inline-flex;align-items:center;gap:6px;color:var(--muted);opacity:.6;cursor:not-allowed;background:transparent;border:1px solid transparent;}
@@ -256,16 +270,13 @@
 
 @media (max-width:960px){
   .market-main{
-    /* Stacked topbar is taller (and still fixed) — reserve room for it. */
+    /* Search, quick actions and controls stack into compact rows. */
     padding:172px 16px 16px;
     gap:16px;
   }
   .market-topbar-inner{
     grid-template-columns:1fr;
     gap:10px;
-  }
-  .market-brand{
-    max-width:none;
   }
   .market-search-wrap{
     max-width:none;
@@ -277,6 +288,9 @@
     padding:0;
     justify-content:flex-start;
   }
+  .market-quick-actions{width:100%;}
+  .market-create-quick{flex:0 0 auto;}
+  .filter-menu--topbar .filter-menu__panel{width:min(280px,calc(100vw - 32px));}
   .market-topbar-controls{
     width:100%;
     justify-content:space-between;
