@@ -669,7 +669,7 @@ body.topbar-hidden .main{padding-top:32px;}
 .market-dropup{position:relative;width:100%;--market-dropup-gap:18px;}
 .market-dropup.market-dropup--open{z-index:1400;}
 .market-dropup .nav-market{width:100%;}
-.market-dropup__list{position:absolute;top:0;left:calc(100% + var(--market-dropup-gap));display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:18px;background:var(--card);border:1px solid var(--card-border);box-shadow:0 18px 40px rgba(8,12,34,0.28);z-index:1300;min-width:176px;width:max-content;transform:translateY(var(--market-dropup-offset-y,0));transition:transform .2s ease;will-change:transform;}
+.market-dropup__list{position:absolute;top:0;left:calc(100% + var(--market-dropup-gap));display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:18px;background:color-mix(in srgb,var(--card) 82%,transparent);border:1px solid color-mix(in srgb,var(--card-border) 86%,transparent);box-shadow:0 18px 40px rgba(8,12,34,0.28);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);z-index:1300;min-width:176px;width:max-content;transform:translateY(var(--market-dropup-offset-y,0));transition:transform .2s ease;will-change:transform;}
 body.theme-light .market-dropup__list{box-shadow:0 12px 28px rgba(136,150,230,0.24);}
 body.theme-retro .market-dropup__list{box-shadow:0 14px 34px rgba(14,16,28,0.36);}
 body.theme-sepia .market-dropup__list{box-shadow:0 14px 34px rgba(62,34,18,0.32);}
@@ -2618,6 +2618,25 @@ body.archive-page .archive-main{scrollbar-width:none;-ms-overflow-style:none;}
   box-shadow:none!important;
   overflow:hidden;
 }
+.sidebar:has(.market-dropup--open){overflow:visible;}
+.app-shell-page .market-dropup{--market-dropup-gap:12px;}
+.app-shell-page .market-dropup__list{
+  position:absolute;
+  top:0;
+  left:calc(100% + var(--market-dropup-gap));
+  width:max-content;
+  min-width:188px;
+  max-width:min(220px,calc(100vw - var(--sidebar-w) - 28px));
+  padding:8px;
+  border:1px solid color-mix(in srgb,var(--card-border) 86%,transparent);
+  border-radius:18px;
+  background:color-mix(in srgb,var(--card) 82%,transparent);
+  box-shadow:0 18px 42px rgba(2,8,20,.34);
+  backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+  transform:translateY(var(--market-dropup-offset-y,0));
+}
+.app-shell-page .market-dropup__item{justify-content:center;}
 
 .app-shell-page .sidebar{
   bottom:var(--app-footer-h);
