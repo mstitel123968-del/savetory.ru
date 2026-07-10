@@ -35,7 +35,9 @@
       data-profile-menu-toggle
     >
       <span class="profile-menu__avatar" aria-hidden="true">
-        {% if user.profile.avatar %}
+        {% if user.profile.avatar_meta.avatar_data %}
+          <img src="{{ user.profile.avatar_meta.avatar_data }}" alt="" />
+        {% elif user.profile.avatar %}
           <img src="{{ user.profile.avatar.url }}" alt="" />
         {% else %}
           {{ user.username|slice:':1'|upper }}
