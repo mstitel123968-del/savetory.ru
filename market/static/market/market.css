@@ -23,12 +23,13 @@
 .market-filter-apply{min-height:40px;}
 
 /* ===== Single-bar market topbar (search + tabs, one background) ===== */
-.market-topbar-inner{grid-template-columns:minmax(240px,420px) auto minmax(0,1fr);gap:10px;align-items:center;padding-left:12px;padding-right:16px;}
-.market-search-wrap{width:100%;max-width:420px;justify-self:start;}
-.market-topbar-controls{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0;}
-.market-topbar-controls .market-tabs{min-width:0;}
+.market-topbar-inner{grid-template-columns:minmax(190px,300px) auto minmax(0,1fr);gap:10px;align-items:center;padding-left:12px;padding-right:16px;overflow:hidden;}
+.market-search-wrap{width:100%;max-width:300px;justify-self:start;min-width:0;}
+.market-topbar-controls{display:flex;align-items:center;justify-content:flex-end;gap:10px;min-width:0;max-width:100%;overflow:hidden;}
+.market-topbar-controls .market-tabs{flex:1 1 auto;min-width:0;max-width:100%;justify-content:flex-end;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;overscroll-behavior-x:contain;}
+.market-topbar-controls .market-tabs::-webkit-scrollbar{display:none;}
 .market-topbar-controls .app-account-controls{flex:0 0 auto;}
-.market-topbar-actions{min-width:0;}
+.market-topbar-actions{min-width:0;max-width:100%;position:relative;z-index:2;}
 
 /* ===== Left-sidebar actions: «Создать лот» + «Фильтр» ===== */
 .sidebar-actions{width:100%;display:flex;flex-direction:column;gap:8px;}
