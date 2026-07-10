@@ -3571,6 +3571,30 @@ body.theme-light .file-card:hover{box-shadow:0 8px 22px rgba(30,50,90,.08);}
 
 html.news-guest .app-footer{margin-left:0;}
 
+/* Browser-zoom resilience. Zooming reduces the effective CSS viewport, so
+   flexible children must be allowed to shrink/wrap before they can overlap. */
+html,body{max-width:100%;overflow-x:hidden;}
+img,video,canvas{max-width:100%;height:auto;}
+.app-shell-page :where(.main,.topbar,.topbar-inner,.app-topbar__inner,.sidebar,.side-nav,form,fieldset){min-width:0;}
+.app-shell-page :where(.topbar-inner,.app-topbar__inner,.settings-layout,.settings-row,.archive-toolbar,.profile-header,.community-layout,.messages-layout)>*{min-width:0;max-width:100%;}
+.app-shell-page :where(input,select,textarea,button){max-width:100%;}
+.app-shell-page :where(h1,h2,h3,h4,p,span,a,strong,small){overflow-wrap:anywhere;}
+
+@media (max-width:1280px){
+  .app-shell-page{--page-padding:16px;--app-layout-gap:12px;}
+  .topbar-inner,.app-topbar__inner{gap:10px;padding-inline:16px;}
+  .app-account-controls{flex-shrink:0;}
+  .profile-menu__name{display:none;}
+}
+
+@media (max-width:1080px){
+  .topbar-inner>*{min-width:0;}
+  .topbar-inner :where(.market-tabs,.app-topbar__actions,.topbar-actions){max-width:100%;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;}
+  .topbar-inner :where(.market-tabs,.app-topbar__actions,.topbar-actions)::-webkit-scrollbar{display:none;}
+  .app-footer{gap:12px;padding-inline:18px;}
+  .app-footer__links{gap:16px;min-width:0;}
+}
+
 body.app-shell-page.topbar-static .archive-main,
 body.app-shell-page.topbar-hidden .archive-main{padding-top:12px!important;}
 

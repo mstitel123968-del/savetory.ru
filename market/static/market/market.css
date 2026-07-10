@@ -37,6 +37,7 @@
 .market-create-quick{width:auto;min-width:136px;min-height:42px;padding:9px 22px;border-radius:11px;font-size:.9rem;font-weight:700;white-space:nowrap;box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 24%,transparent);}
 .filter-menu--topbar{width:auto;min-width:0;}
 .filter-menu--topbar .filter-menu__toggle{width:auto;min-width:104px;min-height:36px;padding:7px 12px;border-radius:10px;font-size:.82rem;}
+.market-filter-quick{width:auto;min-width:104px;min-height:36px;padding:7px 12px;border-radius:10px;font-size:.82rem;text-decoration:none;}
 
 /* ===== «Фильтр» dropdown (left sidebar, opens one column downward) ===== */
 .filter-menu{position:relative;width:100%;box-sizing:border-box;min-width:0;}
@@ -268,7 +269,7 @@
 .market-messages__form textarea{border:1px solid var(--input-border);border-radius:14px;padding:12px;background:var(--input-bg);color:var(--input-fg);min-height:140px;resize:vertical;}
 .market-messages__form label{font-weight:600;}
 
-@media (max-width:960px){
+@media (max-width:1180px){
   .market-main{
     /* Search, quick actions and controls stack into compact rows. */
     padding:172px 16px 16px;

@@ -1,5 +1,16 @@
 {% extends 'market/base_market.html' %}
 
+{% block market_topbar_actions %}
+  <div class="market-quick-actions">
+    {% if request.user.is_authenticated %}
+      <a class="ios-button ios-button--primary market-create-quick" href="{{ create_url }}">Создать лот</a>
+    {% endif %}
+    <a class="filter-menu__toggle market-filter-quick" href="{{ auction_url }}">
+      <span>Фильтр</span><span class="filter-menu__caret" aria-hidden="true"></span>
+    </a>
+  </div>
+{% endblock %}
+
 {% block content %}
   <div class="market-hub__grid">
     <a class="market-hub__card market-hub__card--active" href="{{ auction_url }}">

@@ -130,6 +130,7 @@ def market_root(request: HttpRequest) -> HttpResponse:
         "search_action": reverse("market_auction"),
         "tabs": list(_get_tabs("")),
         "auction_url": reverse("market_auction"),
+        "create_url": reverse("market_auction_create"),
         "soon_directions": soon_directions,
         **_seo_context(
             request,
