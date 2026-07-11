@@ -19,7 +19,7 @@
     headingColor:'auto',
     textTone:'balanced',
     reduceMotion:false,
-    plainBackground:true,
+    plainBackground:false,
     focusStrong:false,
     showHints:true,
     topbarMode:'floating',
@@ -62,7 +62,7 @@
   ];
   const themeClasses=['theme-dark','theme-light','theme-retro','theme-sepia','theme-contrast','theme-midnight','theme-aurora','theme-pastel'];
   const accentClasses=['accent-blue','accent-black','accent-red','accent-green','accent-violet','accent-emerald','accent-amber','accent-rose','accent-sky','accent-mint','accent-copper'];
-  const customThemeProperties=['--app-gradient','--background-overlay','--bg','--card','--card-overlay','--card-border','--input-bg','--input-fg','--input-border','--input-placeholder','--btn-bg','--btn-fg','--btn-bg-hover','--btn-border','--btn-shadow','--topbar-bg','--topbar-border','--overlay','--text','--text-base','--muted','--muted-base','--body-color','--heading-color','--app-surface','--app-border','--app-soft'];
+  const customThemeProperties=['--app-gradient','--bg','--card','--card-overlay','--card-border','--input-bg','--input-fg','--input-border','--input-placeholder','--btn-bg','--btn-fg','--btn-bg-hover','--btn-border','--btn-shadow','--topbar-bg','--topbar-border','--overlay','--text','--text-base','--muted','--muted-base','--body-color','--heading-color','--app-surface','--app-border','--app-soft'];
   const customAccentProperties=['--accent','--primary-bg','--primary-hover','--primary-fg','--accent-bg','--accent-fg'];
   const fontStacks={
     system:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif',
@@ -171,17 +171,16 @@
   function applyCustomTheme(color){
     const root=document.body||document.documentElement;
     const light=luminance(color)>.48;
-    const bg=light?mixHex(color,'#ffffff',.72):mixHex(color,'#050914',.42);
-    const card=light?mixHex(color,'#ffffff',.22):mixHex(color,'#0d1728',.34);
-    const input=light?mixHex(color,'#ffffff',.16):mixHex(color,'#111c2d',.38);
+    const bg=light?mixHex(color,'#ffffff',.18):mixHex(color,'#050914',.22);
+    const card=light?mixHex(color,'#ffffff',.68):mixHex(color,'#0d1728',.62);
+    const input=light?mixHex(color,'#ffffff',.48):mixHex(color,'#111c2d',.52);
     const border=light?mixHex(color,'#64748b',.46):mixHex(color,'#475569',.48);
     const text=light?'#101827':'#edf4ff';
     const muted=light?'#465267':'#9ba9bd';
-    const topbar=light?mixHex(color,'#ffffff',.14):mixHex(color,'#08111f',.32);
+    const topbar=light?mixHex(color,'#ffffff',.58):mixHex(color,'#08111f',.58);
     const overlay=light?'rgba(15,23,42,.28)':'rgba(3,7,18,.74)';
     if(document.body){ document.body.classList.add(light?'theme-light':'theme-dark'); }
-    root.style.setProperty('--app-gradient',`radial-gradient(120% 120% at 0% 0%, ${mixHex(color,'#ffffff',light?.78:.62)} 0%, ${bg} 58%, ${mixHex(bg,light?'#ffffff':'#000000',light?.88:.78)} 100%)`);
-    root.style.setProperty('--background-overlay','var(--app-gradient)');
+    root.style.setProperty('--app-gradient',`radial-gradient(120% 120% at 0% 0%, ${mixHex(color,light?'#ffffff':'#111827',light?.34:.38)} 0%, ${bg} 58%, ${mixHex(bg,light?'#ffffff':'#000000',light?.72:.72)} 100%)`);
     root.style.setProperty('--bg',bg);
     root.style.setProperty('--card',card);
     root.style.setProperty('--card-overlay',card);

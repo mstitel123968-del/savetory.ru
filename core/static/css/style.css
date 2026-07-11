@@ -3526,6 +3526,8 @@ body.theme-light.app-shell-page.plain-background{
   background:transparent;
 }
 body.theme-light.app-shell-page::after{opacity:.22;}
+body[data-custom-theme='true'].app-shell-page::after{opacity:var(--bg-overlay-alpha,1);}
+body[data-custom-theme='true'].plain-background::after{background:var(--background-overlay,var(--app-gradient));}
 body.theme-light .file-card:hover{box-shadow:0 8px 22px rgba(30,50,90,.08);}
 
 @media (max-width:1240px){

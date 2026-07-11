@@ -165,6 +165,7 @@
     if (!allowedPrivacy.includes(state.privacy)) state.privacy = defaults.privacy;
     state.reduceMotion = !!state.reduceMotion;
     state.plainBackground = !!state.plainBackground;
+    if (state.theme === 'custom' && state.plainBackground) state.plainBackground = false;
     state.focusStrong = !!state.focusStrong;
     state.showHints = state.showHints !== false;
     state.expandNews = !!state.expandNews;
@@ -373,6 +374,10 @@
       }
     } else if (state[key] !== value) {
       state[key] = value;
+      changed = true;
+    }
+    if (key === 'backgroundStyle' && allowedBackgrounds.includes(String(value)) && state.plainBackground) {
+      state.plainBackground = false;
       changed = true;
     }
     sanitizeState();
