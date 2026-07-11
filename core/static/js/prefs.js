@@ -62,7 +62,7 @@
   ];
   const themeClasses=['theme-dark','theme-light','theme-retro','theme-sepia','theme-contrast','theme-midnight','theme-aurora','theme-pastel'];
   const accentClasses=['accent-blue','accent-black','accent-red','accent-green','accent-violet','accent-emerald','accent-amber','accent-rose','accent-sky','accent-mint','accent-copper'];
-  const customThemeProperties=['--app-gradient','--bg','--card','--card-overlay','--input-bg','--input-border','--btn-bg','--btn-bg-hover','--btn-border','--text','--text-base','--muted','--body-color','--heading-color','--app-surface','--app-border','--app-soft'];
+  const customThemeProperties=['--app-gradient','--background-overlay','--bg','--card','--card-overlay','--card-border','--input-bg','--input-fg','--input-border','--input-placeholder','--btn-bg','--btn-fg','--btn-bg-hover','--btn-border','--btn-shadow','--topbar-bg','--topbar-border','--overlay','--text','--text-base','--muted','--muted-base','--body-color','--heading-color','--app-surface','--app-border','--app-soft'];
   const customAccentProperties=['--accent','--primary-bg','--primary-hover','--primary-fg','--accent-bg','--accent-fg'];
   const fontStacks={
     system:'-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif',
@@ -171,34 +171,52 @@
   function applyCustomTheme(color){
     const root=document.body||document.documentElement;
     const light=luminance(color)>.48;
-    const bg=light?mixHex(color,'#ffffff',.10):mixHex(color,'#050914',.22);
-    const card=light?mixHex(color,'#ffffff',.055):mixHex(color,'#0d1728',.20);
-    const input=light?mixHex(color,'#ffffff',.09):mixHex(color,'#111c2d',.25);
-    const border=light?mixHex(color,'#94a3b8',.20):mixHex(color,'#334155',.30);
+    const bg=light?mixHex(color,'#ffffff',.72):mixHex(color,'#050914',.42);
+    const card=light?mixHex(color,'#ffffff',.22):mixHex(color,'#0d1728',.34);
+    const input=light?mixHex(color,'#ffffff',.16):mixHex(color,'#111c2d',.38);
+    const border=light?mixHex(color,'#64748b',.46):mixHex(color,'#475569',.48);
     const text=light?'#101827':'#edf4ff';
-    const muted=light?'#5d6778':'#9ba9bd';
+    const muted=light?'#465267':'#9ba9bd';
+    const topbar=light?mixHex(color,'#ffffff',.14):mixHex(color,'#08111f',.32);
+    const overlay=light?'rgba(15,23,42,.28)':'rgba(3,7,18,.74)';
     if(document.body){ document.body.classList.add(light?'theme-light':'theme-dark'); }
-    root.style.setProperty('--app-gradient',`radial-gradient(120% 120% at 0% 0%, ${mixHex(color,'#ffffff',light?.28:.52)} 0%, ${bg} 58%, ${mixHex(bg,'#000000',light?.04:.72)} 100%)`);
+    root.style.setProperty('--app-gradient',`radial-gradient(120% 120% at 0% 0%, ${mixHex(color,'#ffffff',light?.78:.62)} 0%, ${bg} 58%, ${mixHex(bg,light?'#ffffff':'#000000',light?.88:.78)} 100%)`);
+    root.style.setProperty('--background-overlay','var(--app-gradient)');
     root.style.setProperty('--bg',bg);
     root.style.setProperty('--card',card);
     root.style.setProperty('--card-overlay',card);
+    root.style.setProperty('--card-border',border);
     root.style.setProperty('--input-bg',input);
+    root.style.setProperty('--input-fg',text);
     root.style.setProperty('--input-border',border);
+    root.style.setProperty('--input-placeholder',muted);
     root.style.setProperty('--btn-bg',input);
+    root.style.setProperty('--btn-fg',text);
     root.style.setProperty('--btn-bg-hover',mixHex(color,input,.20));
     root.style.setProperty('--btn-border',border);
+    root.style.setProperty('--btn-shadow',light?'0 14px 32px rgba(30,50,70,.16)':'0 14px 32px rgba(3,7,18,.42)');
+    root.style.setProperty('--topbar-bg',topbar);
+    root.style.setProperty('--topbar-border',border);
+    root.style.setProperty('--overlay',overlay);
     root.style.setProperty('--text',text);
     root.style.setProperty('--text-base',text);
     root.style.setProperty('--muted',muted);
+    root.style.setProperty('--muted-base',muted);
     root.style.setProperty('--body-color',text);
     root.style.setProperty('--heading-color',text);
     root.style.setProperty('--app-surface',card);
     root.style.setProperty('--app-border',border);
     root.style.setProperty('--app-soft',mixHex(color,card,.16));
+    if(root!==document.documentElement){
+      customThemeProperties.forEach((property)=>{
+        const value=root.style.getPropertyValue(property);
+        if(value){ document.documentElement.style.setProperty(property,value); }
+      });
+    }
   }
 
   function applyCustomAccent(color){
-    const root=document.body||document.documentElement;
+    const root=document.documentElement;
     const foreground=luminance(color)>.46?'#07111f':'#ffffff';
     root.style.setProperty('--accent',color);
     root.style.setProperty('--primary-bg',color);

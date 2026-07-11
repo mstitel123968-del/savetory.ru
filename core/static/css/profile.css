@@ -146,6 +146,9 @@ body.theme-sepia .pe-dialog{box-shadow:0 20px 44px rgba(62,34,18,0.36);}
 .profile-panel{border:1px solid var(--card-border);border-radius:16px;background:color-mix(in srgb,var(--card) 88%,transparent);box-shadow:0 20px 48px rgba(5,7,18,.22);padding:18px;min-width:0}
 .profile-panel__header{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px}
 .profile-panel__header h2{margin:0;color:var(--heading-color);font-size:18px;line-height:1.2}
+.profile-center-section>.profile-panel__header h2{display:none}
+.profile-center-section>.profile-panel__header:has(h2:only-child){display:none}
+.profile-center-section>.profile-panel__header{justify-content:flex-end}
 .profile-panel__link{flex:0 0 auto;color:var(--accent);font-size:13px;font-weight:800;text-decoration:none}
 .profile-panel__link:hover,.profile-panel__link:focus-visible{outline:none;text-decoration:underline}
 .profile-rubric-carousel-wrap{position:relative;overflow:hidden;margin-inline:-2px;padding-inline:2px}
