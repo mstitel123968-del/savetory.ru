@@ -26,8 +26,6 @@ class EmailRegistrationTests(TestCase):
             'email': 'USER@Example.com',
             'password1': self.password,
             'password2': self.password,
-            'terms_accepted': '1',
-            'terms_version': settings.TERMS_VERSION,
         }
         data.update(overrides)
         return data
@@ -40,13 +38,20 @@ class EmailRegistrationTests(TestCase):
         self.assertIsNotNone(match)
         return match.group(1)
 
-    def test_terms_are_required_and_version_must_be_current(self):
-        response = self.start(terms_accepted='0')
+    def verify(self, code, **overrides):
+        data = {'code': code, 'terms_accepted': '1', 'terms_version': settings.TERMS_VERSION}
+        data.update(overrides)
+        return self.client.post(reverse('core:register-verify'), data)
+
+    def test_terms_are_required_and_version_must_be_current_at_verification(self):
+        self.start()
+        code = self.sent_code()
+        response = self.verify(code, terms_accepted='0')
         self.assertEqual(response.status_code, 400)
-        self.assertFalse(mail.outbox)
-        response = self.start(terms_version='old')
+        self.assertFalse(get_user_model().objects.filter(username='new_user').exists())
+        response = self.verify(code, terms_version='old')
         self.assertEqual(response.status_code, 400)
-        self.assertFalse(PendingRegistration.objects.exists())
+        self.assertTrue(PendingRegistration.objects.exists())
 
     def test_invalid_email_duplicate_identity_and_bad_password_are_rejected(self):
         User = get_user_model()
@@ -76,9 +81,9 @@ class EmailRegistrationTests(TestCase):
     def test_wrong_code_locks_after_five_attempts(self):
         self.start()
         for _ in range(4):
-            response = self.client.post(reverse('core:register-verify'), {'code': '000000'})
+            response = self.verify('000000')
             self.assertEqual(response.status_code, 400)
-        response = self.client.post(reverse('core:register-verify'), {'code': '000000'})
+        response = self.verify('000000')
         self.assertEqual(response.status_code, 429)
         self.assertTrue(response.json()['blocked'])
         self.assertFalse(get_user_model().objects.filter(username='new_user').exists())
@@ -86,7 +91,7 @@ class EmailRegistrationTests(TestCase):
     def test_expired_code_is_rejected(self):
         self.start()
         PendingRegistration.objects.update(expires_at=timezone.now() - timedelta(seconds=1))
-        response = self.client.post(reverse('core:register-verify'), {'code': self.sent_code()})
+        response = self.verify(self.sent_code())
         self.assertEqual(response.status_code, 400)
         self.assertTrue(response.json()['expired'])
 
@@ -117,7 +122,7 @@ class EmailRegistrationTests(TestCase):
     def test_correct_code_creates_profile_accepts_terms_and_logs_in_once(self):
         self.start()
         code = self.sent_code()
-        response = self.client.post(reverse('core:register-verify'), {'code': code})
+        response = self.verify(code)
         self.assertEqual(response.status_code, 200)
         user = get_user_model().objects.get(username='new_user')
         self.assertEqual(user.email, 'user@example.com')
@@ -125,7 +130,7 @@ class EmailRegistrationTests(TestCase):
         profile = Profile.objects.get(user=user)
         self.assertEqual(profile.terms_version_accepted, settings.TERMS_VERSION)
         self.assertIn('_auth_user_id', self.client.session)
-        replay = self.client.post(reverse('core:register-verify'), {'code': code})
+        replay = self.verify(code)
         self.assertEqual(replay.status_code, 400)
         self.assertEqual(get_user_model().objects.filter(username='new_user').count(), 1)
 

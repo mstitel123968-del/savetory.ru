@@ -765,14 +765,6 @@ def check_auth_availability(request: HttpRequest) -> JsonResponse:
 
 @require_POST
 def register_user(request: HttpRequest) -> JsonResponse:
-    terms_accepted = str(request.POST.get('terms_accepted') or '').lower() in {'1', 'true', 'yes', 'on'}
-    terms_version = str(request.POST.get('terms_version') or '').strip()
-    if not terms_accepted or terms_version != django_settings.TERMS_VERSION:
-        return JsonResponse(
-            {'success': False, 'errors': {'terms': ['Для регистрации необходимо принять актуальную версию пользовательского соглашения.']}},
-            status=400,
-        )
-
     form = RegistrationForm(request.POST)
     if not form.is_valid():
         return JsonResponse({'success': False, 'errors': form.errors}, status=400)
@@ -788,7 +780,7 @@ def register_user(request: HttpRequest) -> JsonResponse:
         email=form.cleaned_data['email'],
         password_hash=make_password(form.cleaned_data['password1']),
         code_hash=make_password(code),
-        terms_version=terms_version,
+        terms_version=django_settings.TERMS_VERSION,
         terms_ip=request.META.get('REMOTE_ADDR') or None,
         expires_at=now + timedelta(minutes=10),
         resend_available_at=now + timedelta(seconds=60),
@@ -844,6 +836,13 @@ def verify_registration(request: HttpRequest) -> JsonResponse:
     if pending.terms_version != django_settings.TERMS_VERSION:
         pending.delete()
         return JsonResponse({'success': False, 'error': 'Версия пользовательского соглашения изменилась. Начните регистрацию заново.'}, status=400)
+    terms_accepted = str(request.POST.get('terms_accepted') or '').lower() in {'1', 'true', 'yes', 'on'}
+    terms_version = str(request.POST.get('terms_version') or '').strip()
+    if not terms_accepted or terms_version != django_settings.TERMS_VERSION:
+        return JsonResponse(
+            {'success': False, 'errors': {'terms': ['Для регистрации необходимо принять актуальную версию пользовательского соглашения.']}},
+            status=400,
+        )
     code = str(request.POST.get('code') or '').strip()
     if not re.fullmatch(r'\d{6}', code) or not check_password(code, pending.code_hash):
         pending.failed_attempts += 1
@@ -864,7 +863,7 @@ def verify_registration(request: HttpRequest) -> JsonResponse:
         user = User(username=locked.username, email=locked.email, password=locked.password_hash)
         user.save(force_insert=True)
         profile, _ = Profile.objects.get_or_create(user=user)
-        profile.mark_terms_accepted(ip=locked.terms_ip)
+        profile.mark_terms_accepted(ip=request.META.get('REMOTE_ADDR') or locked.terms_ip)
         locked.delete()
     login(request, user, backend='django.contrib.auth.backends.ModelBackend')
     _touch_user_last_seen(user)

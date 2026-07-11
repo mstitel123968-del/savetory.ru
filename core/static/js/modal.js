@@ -293,12 +293,12 @@
       setTermsModalBusy(true);
       showTermsModalError('');
       const body = new URLSearchParams({
-        ...pendingRegistrationPayload,
+        code: pendingRegistrationPayload.code,
         terms_accepted: '1',
         terms_version: termsVersion,
       });
       try {
-        const resp = await fetch('/api/auth/register/', {
+        const resp = await fetch('/api/auth/register/verify/', {
           method: 'POST',
           credentials: 'same-origin',
           headers: { 'X-CSRFToken': csrf(), 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -307,16 +307,16 @@
         const data = await resp.json().catch(() => ({ success: false }));
 
         if (!resp.ok || !data.success){
-          console.error('[auth] register failed after terms accept', { status: resp.status, data });
-          closeRegistrationTermsModal();
-          showRegisterErrors(data, regLoginErr, regPassErr, regEmailErr);
+          console.error('[auth] verification failed after terms accept', { status: resp.status, data });
+          showTermsModalError(data.error || Object.values(data.errors || {}).flat()[0] || 'Не удалось подтвердить код.');
+          setTermsModalBusy(false);
           return;
         }
 
         closeRegistrationTermsModal();
-        showModal();
-        activateTab('register');
-        showVerification(data.email || pendingRegistrationPayload?.email, data.resend_in, data.expires_in);
+        if (countdownTimer) clearInterval(countdownTimer);
+        hideModal();
+        window.location.assign('/archive/');
       } catch (err){
         console.error('[auth] register request error after terms accept', err);
         showTermsModalError('Не удалось завершить регистрацию. Попробуйте ещё раз.');
@@ -368,34 +368,13 @@
     });
 
     if (verifyBtn){
-      verifyBtn.addEventListener('click', async ()=>{
+      verifyBtn.addEventListener('click', ()=>{
         const code = codeValue();
         if (verificationBusy || !/^\d{6}$/.test(code)) return;
-        verificationBusy = true;
-        syncCodeButton();
-        if (resendBtn) resendBtn.disabled = true;
         if (codeError) codeError.textContent = '';
-        try {
-          const resp = await fetch('/api/auth/register/verify/', {
-            method: 'POST', credentials: 'same-origin',
-            headers: { 'X-CSRFToken': csrf(), 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: new URLSearchParams({ code }),
-          });
-          const data = await resp.json().catch(()=>({ success:false }));
-          if (!resp.ok || !data.success){
-            if (codeError) codeError.textContent = data.error || Object.values(data.errors || {}).flat()[0] || 'Не удалось подтвердить код.';
-            if (data.expired || data.blocked) verifyBtn.disabled = true;
-            return;
-          }
-          if (countdownTimer) clearInterval(countdownTimer);
-          hideModal();
-          window.location.assign('/archive/');
-        } catch (err){
-          if (codeError) codeError.textContent = 'Не удалось проверить код. Попробуйте ещё раз.';
-        } finally {
-          verificationBusy = false;
-          updateCountdowns();
-          syncCodeButton();
+        const opened = openRegistrationTermsModal({ code });
+        if (!opened){
+          if (codeError) codeError.textContent = 'Не удалось открыть пользовательское соглашение.';
         }
       });
     }
@@ -599,9 +578,25 @@
           return;
         }
 
-        const opened = openRegistrationTermsModal({ username, email, password1, password2 });
-        if (!opened){
-          if (regLoginErr) regLoginErr.textContent = 'Не удалось открыть пользовательское соглашение.';
+        regBtn.disabled = true;
+        try {
+          const resp = await fetch('/api/auth/register/', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: { 'X-CSRFToken': csrf(), 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ username, email, password1, password2 }),
+          });
+          const data = await resp.json().catch(() => ({ success: false }));
+          if (!resp.ok || !data.success){
+            showRegisterErrors(data, regLoginErr, regPassErr, regEmailErr);
+            return;
+          }
+          showVerification(data.email || email, data.resend_in, data.expires_in);
+        } catch (err){
+          console.error('[auth] registration code request error', err);
+          if (regEmailErr) regEmailErr.textContent = 'Не удалось отправить код. Попробуйте ещё раз.';
+        } finally {
+          syncRegisterButtonState();
         }
       });
     }

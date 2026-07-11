@@ -274,7 +274,8 @@ class ArchiveApiModerationTests(TestCase):
 
 
 class RegistrationTermsFlowTests(TestCase):
-    def test_register_requires_terms_acceptance(self):
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_code_request_precedes_terms_acceptance(self):
         response = self.client.post(
             reverse("core:register"),
             data={
@@ -284,8 +285,8 @@ class RegistrationTermsFlowTests(TestCase):
                 "password2": "StrongPass!123",
             },
         )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("terms", response.json().get("errors", {}))
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json().get("success"))
         self.assertFalse(get_user_model().objects.filter(username="terms_required_user").exists())
 
     @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
