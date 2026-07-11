@@ -16,14 +16,14 @@ class RegistrationForm(UserCreationForm):
         model = User
         fields = ('username', 'password1', 'password2', 'email')
 
+    email = forms.EmailField(required=True)
+
     def clean_email(self):
         email = self.cleaned_data.get('email', '')
-        if email:
-            email_norm = User.objects.normalize_email(email)
-            if User.objects.filter(email__iexact=email_norm).exists():
-                raise forms.ValidationError('Email уже используется')
-            return email_norm
-        return email
+        email_norm = User.objects.normalize_email(email).strip().lower()
+        if User.objects.filter(email__iexact=email_norm).exists():
+            raise forms.ValidationError('Email уже используется')
+        return email_norm
 
     def clean_username(self):
         username = self.cleaned_data.get('username')

@@ -84,6 +84,29 @@ class Profile(models.Model):
         return (self.terms_version_accepted or '') == settings.TERMS_VERSION
 
 
+class PendingRegistration(models.Model):
+    """Session-bound registration data awaiting email-code verification."""
+
+    session_key = models.CharField(max_length=40, unique=True, db_index=True)
+    username = models.CharField(max_length=150)
+    email = models.EmailField()
+    password_hash = models.CharField(max_length=128)
+    code_hash = models.CharField(max_length=128)
+    terms_version = models.CharField(max_length=20)
+    terms_ip = models.GenericIPAddressField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    resend_available_at = models.DateTimeField()
+    failed_attempts = models.PositiveSmallIntegerField(default=0)
+    send_count = models.PositiveSmallIntegerField(default=1)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f'Pending registration for {self.email}'
+
+
 class Friendship(models.Model):
     """Stores a normalized friendship or friendship request between two users."""
 

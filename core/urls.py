@@ -33,6 +33,8 @@ urlpatterns = [
     path('news.html', RedirectView.as_view(url='/news/', permanent=True), name='news-redirect'),
     path('reviews.html', RedirectView.as_view(url='/reviews/', permanent=True), name='reviews-redirect'),
     path('api/auth/register/', views.register_user, name='register'),
+    path('api/auth/register/verify/', views.verify_registration, name='register-verify'),
+    path('api/auth/register/resend/', views.resend_registration_code, name='register-resend'),
     path('api/auth/login/', views.login_user, name='login'),
     path('api/auth/logout/', views.logout_user, name='logout'),
     path('api/subscription/checkout/', views.subscription_checkout, name='subscription-checkout'),

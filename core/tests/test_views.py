@@ -7,7 +7,7 @@ import zipfile
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from core.models import ArchiveState, Profile, Rubric
@@ -288,7 +288,8 @@ class RegistrationTermsFlowTests(TestCase):
         self.assertIn("terms", response.json().get("errors", {}))
         self.assertFalse(get_user_model().objects.filter(username="terms_required_user").exists())
 
-    def test_register_with_terms_creates_user_profile_and_marks_acceptance(self):
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_register_with_terms_waits_for_email_verification(self):
         response = self.client.post(
             reverse("core:register"),
             data={
@@ -302,8 +303,4 @@ class RegistrationTermsFlowTests(TestCase):
         )
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json().get("success"))
-
-        user = get_user_model().objects.get(username="terms_ok_user")
-        profile = Profile.objects.get(user=user)
-        self.assertEqual(profile.terms_version_accepted, settings.TERMS_VERSION)
-        self.assertIsNotNone(profile.terms_accepted_at)
+        self.assertFalse(get_user_model().objects.filter(username="terms_ok_user").exists())

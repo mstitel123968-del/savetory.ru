@@ -143,6 +143,12 @@ input[type="number"]{
 
 /* note under the send code button during countdown */
 .resend-note { width: 90%; margin: 6px auto 0; text-align: center; font-size: 12px; color: var(--muted); }
+.registration-verification{text-align:center;}
+.registration-verification[hidden],#registrationFields[hidden]{display:none!important;}
+.registration-verification__message{margin:4px 0 12px;color:var(--text);overflow-wrap:anywhere;}
+.registration-verification__error{display:block;min-height:18px;margin:4px 0;}
+.registration-verification .code-container{justify-content:center;}
+.registration-verification .ios-button{width:100%;}
 
 /* password strength meter */
 .strength-wrap { width: 90%; margin: 4px auto 0; }

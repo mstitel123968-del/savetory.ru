@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import secrets
 from pathlib import Path
 from datetime import timedelta
 from urllib.parse import unquote
@@ -15,12 +16,15 @@ from django.db.models import Q
 
 from django.conf import settings as django_settings
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.hashers import check_password, make_password
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.core.files.storage import default_storage
+from django.core.mail import EmailMultiAlternatives
 from django.http import Http404, HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import redirect, render
+from django.template.loader import render_to_string
 from django.utils.crypto import get_random_string
 from django.urls import reverse
 from django.utils.text import slugify
@@ -63,10 +67,11 @@ from core.services.profile_page import (
 )
 from core.services import subscriptions
 from .forms import ArchiveFileForm, LoginForm, RegistrationForm, RubricForm
-from .models import ArchiveFile, ArchiveState, DirectMessage, Friendship, NewsArticle, Profile, Review, Rubric, SubscriptionPayment
+from .models import ArchiveFile, ArchiveState, DirectMessage, Friendship, NewsArticle, PendingRegistration, Profile, Review, Rubric, SubscriptionPayment
 
 logger = logging.getLogger("core.moderation")
 payment_logger = logging.getLogger("core.payments")
+auth_logger = logging.getLogger("core.auth")
 
 FILE_STATUS_LABELS = {
     'keep': 'Храню',
@@ -772,24 +777,126 @@ def register_user(request: HttpRequest) -> JsonResponse:
     if not form.is_valid():
         return JsonResponse({'success': False, 'errors': form.errors}, status=400)
 
-    with transaction.atomic():
-        user = form.save()
-        profile, _ = Profile.objects.get_or_create(user=user)
-        profile.mark_terms_accepted(ip=request.META.get('REMOTE_ADDR'))
-
-    authenticated = authenticate(
-        request,
-        username=user.get_username(),
-        password=form.cleaned_data.get('password1'),
+    if not request.session.session_key:
+        request.session.create()
+    session_key = request.session.session_key
+    code = f'{secrets.randbelow(1_000_000):06d}'
+    now = timezone.now()
+    pending = PendingRegistration(
+        session_key=session_key,
+        username=form.cleaned_data['username'],
+        email=form.cleaned_data['email'],
+        password_hash=make_password(form.cleaned_data['password1']),
+        code_hash=make_password(code),
+        terms_version=terms_version,
+        terms_ip=request.META.get('REMOTE_ADDR') or None,
+        expires_at=now + timedelta(minutes=10),
+        resend_available_at=now + timedelta(seconds=60),
+        failed_attempts=0,
+        send_count=1,
     )
-    if authenticated is None:
+    PendingRegistration.objects.filter(session_key=session_key).delete()
+    pending.save()
+    try:
+        _send_registration_code(pending.email, code)
+    except Exception:
+        pending.delete()
+        auth_logger.exception('Registration email delivery failed for pending registration.')
         return JsonResponse(
-            {'success': False, 'errors': {'__all__': ['Не удалось создать сессию пользователя.']}},
-            status=500,
+            {'success': False, 'errors': {'email': ['Не удалось отправить письмо. Попробуйте позже.']}},
+            status=503,
         )
-    login(request, authenticated)
-    _touch_user_last_seen(authenticated)
+    return JsonResponse({'success': True, 'email': pending.email, 'expires_in': 600, 'resend_in': 60})
+
+
+def _send_registration_code(email: str, code: str) -> None:
+    context = {'code': code}
+    text_body = render_to_string('emails/registration_code.txt', context)
+    html_body = render_to_string('emails/registration_code.html', context)
+    message = EmailMultiAlternatives(
+        subject='Код подтверждения регистрации в СКлад',
+        body=text_body,
+        from_email=django_settings.DEFAULT_FROM_EMAIL,
+        to=[email],
+    )
+    message.attach_alternative(html_body, 'text/html')
+    message.send(fail_silently=False)
+
+
+def _pending_for_request(request: HttpRequest):
+    session_key = request.session.session_key
+    if not session_key:
+        return None
+    return PendingRegistration.objects.filter(session_key=session_key).first()
+
+
+@require_POST
+def verify_registration(request: HttpRequest) -> JsonResponse:
+    pending = _pending_for_request(request)
+    if pending is None:
+        return JsonResponse({'success': False, 'error': 'Регистрацию необходимо начать заново.'}, status=400)
+    now = timezone.now()
+    if pending.failed_attempts >= 5:
+        return JsonResponse({'success': False, 'error': 'Лимит попыток исчерпан. Начните регистрацию заново.', 'blocked': True}, status=429)
+    if pending.expires_at <= now:
+        pending.delete()
+        return JsonResponse({'success': False, 'error': 'Срок действия кода истёк. Начните регистрацию заново.', 'expired': True}, status=400)
+    if pending.terms_version != django_settings.TERMS_VERSION:
+        pending.delete()
+        return JsonResponse({'success': False, 'error': 'Версия пользовательского соглашения изменилась. Начните регистрацию заново.'}, status=400)
+    code = str(request.POST.get('code') or '').strip()
+    if not re.fullmatch(r'\d{6}', code) or not check_password(code, pending.code_hash):
+        pending.failed_attempts += 1
+        pending.save(update_fields=['failed_attempts'])
+        blocked = pending.failed_attempts >= 5
+        return JsonResponse(
+            {'success': False, 'error': 'Неверный код.' if not blocked else 'Лимит попыток исчерпан. Начните регистрацию заново.', 'attempts_left': max(0, 5 - pending.failed_attempts), 'blocked': blocked},
+            status=429 if blocked else 400,
+        )
+    if User.objects.filter(username__iexact=pending.username).exists():
+        return JsonResponse({'success': False, 'errors': {'username': ['Этот логин уже занят.']}}, status=409)
+    if User.objects.filter(email__iexact=pending.email).exists():
+        return JsonResponse({'success': False, 'errors': {'email': ['Этот email уже используется.']}}, status=409)
+    with transaction.atomic():
+        locked = PendingRegistration.objects.select_for_update().get(pk=pending.pk)
+        if User.objects.filter(username__iexact=locked.username).exists() or User.objects.filter(email__iexact=locked.email).exists():
+            return JsonResponse({'success': False, 'error': 'Логин или email уже используется.'}, status=409)
+        user = User(username=locked.username, email=locked.email, password=locked.password_hash)
+        user.save(force_insert=True)
+        profile, _ = Profile.objects.get_or_create(user=user)
+        profile.mark_terms_accepted(ip=locked.terms_ip)
+        locked.delete()
+    login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+    _touch_user_last_seen(user)
     return JsonResponse({'success': True})
+
+
+@require_POST
+def resend_registration_code(request: HttpRequest) -> JsonResponse:
+    pending = _pending_for_request(request)
+    if pending is None:
+        return JsonResponse({'success': False, 'error': 'Регистрацию необходимо начать заново.'}, status=400)
+    now = timezone.now()
+    if pending.failed_attempts >= 5 or pending.send_count >= 5:
+        pending.delete()
+        return JsonResponse({'success': False, 'error': 'Лимит отправок исчерпан. Начните регистрацию заново.', 'blocked': True}, status=429)
+    if pending.resend_available_at > now:
+        retry_after = max(1, int((pending.resend_available_at - now).total_seconds()))
+        return JsonResponse({'success': False, 'error': 'Повторная отправка пока недоступна.', 'retry_after': retry_after}, status=429)
+    code = f'{secrets.randbelow(1_000_000):06d}'
+    pending.code_hash = make_password(code)
+    pending.expires_at = now + timedelta(minutes=10)
+    pending.resend_available_at = now + timedelta(seconds=60)
+    pending.failed_attempts = 0
+    pending.send_count += 1
+    pending.save(update_fields=['code_hash', 'expires_at', 'resend_available_at', 'failed_attempts', 'send_count'])
+    try:
+        _send_registration_code(pending.email, code)
+    except Exception:
+        pending.delete()
+        auth_logger.exception('Registration email resend failed for pending registration.')
+        return JsonResponse({'success': False, 'error': 'Не удалось отправить письмо. Попробуйте позже.'}, status=503)
+    return JsonResponse({'success': True, 'expires_in': 600, 'resend_in': 60})
 
 
 @require_POST

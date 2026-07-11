@@ -159,6 +159,16 @@
     const regLoginErr = document.getElementById('loginError');
     const regPassErr = document.getElementById('passError');
     const regEmailErr = document.getElementById('emailError');
+    const registrationFields = document.getElementById('registrationFields');
+    const verification = document.getElementById('registrationVerification');
+    const codeMessage = document.getElementById('registrationCodeMessage');
+    const codeInputs = verification ? Array.from(verification.querySelectorAll('.code-input')) : [];
+    const codeError = document.getElementById('registrationCodeError');
+    const verifyBtn = document.getElementById('registrationVerify');
+    const resendBtn = document.getElementById('registrationResend');
+    const resendNote = document.getElementById('registrationResendNote');
+    const expiresNote = document.getElementById('registrationExpiresNote');
+    const changeEmailBtn = document.getElementById('registrationChangeEmail');
 
     mountPasswordTools(regPass, regPass2, regPassErr);
 
@@ -187,6 +197,61 @@
     const termsVersion = regTermsModal ? String(regTermsModal.dataset.termsVersion || '') : '';
 
     let pendingRegistrationPayload = null;
+    let verificationEmail = '';
+    let verificationBusy = false;
+    let resendDeadline = 0;
+    let expiryDeadline = 0;
+    let countdownTimer = null;
+
+    function codeValue(){ return codeInputs.map((input)=>input.value).join(''); }
+
+    function syncCodeButton(){
+      if (verifyBtn) verifyBtn.disabled = verificationBusy || !/^\d{6}$/.test(codeValue());
+    }
+
+    function updateCountdowns(){
+      const now = Date.now();
+      const resendSeconds = Math.max(0, Math.ceil((resendDeadline - now) / 1000));
+      const expirySeconds = Math.max(0, Math.ceil((expiryDeadline - now) / 1000));
+      if (resendBtn) resendBtn.disabled = verificationBusy || resendSeconds > 0;
+      if (resendNote) resendNote.textContent = resendSeconds > 0 ? `Повторная отправка через ${resendSeconds} сек.` : 'Код можно отправить повторно.';
+      if (expiresNote) expiryNoteText(expirySeconds);
+    }
+
+    function expiryNoteText(seconds){
+      if (!expiresNote) return;
+      const minutes = Math.floor(seconds / 60);
+      const rest = seconds % 60;
+      expiresNote.textContent = seconds > 0 ? `Код действует ещё ${minutes}:${String(rest).padStart(2, '0')}.` : 'Срок действия кода истёк.';
+    }
+
+    function startCountdowns(resendIn, expiresIn){
+      resendDeadline = Date.now() + Number(resendIn || 60) * 1000;
+      expiryDeadline = Date.now() + Number(expiresIn || 600) * 1000;
+      if (countdownTimer) clearInterval(countdownTimer);
+      updateCountdowns();
+      countdownTimer = setInterval(updateCountdowns, 1000);
+    }
+
+    function showVerification(email, resendIn, expiresIn){
+      verificationEmail = email || (regEmail ? regEmail.value.trim() : '');
+      if (registrationFields) registrationFields.hidden = true;
+      if (verification) verification.hidden = false;
+      if (codeMessage) codeMessage.textContent = `Мы отправили код на адрес ${verificationEmail}`;
+      if (codeError) codeError.textContent = '';
+      codeInputs.forEach((input)=>{ input.value = ''; });
+      startCountdowns(resendIn, expiresIn);
+      syncCodeButton();
+      if (codeInputs[0]) codeInputs[0].focus();
+    }
+
+    function showRegistrationFields(){
+      if (verification) verification.hidden = true;
+      if (registrationFields) registrationFields.hidden = false;
+      if (countdownTimer) clearInterval(countdownTimer);
+      verificationBusy = false;
+      if (regEmail) regEmail.focus();
+    }
 
     function setTermsModalBusy(isBusy){
       if (regTermsAcceptBtn) regTermsAcceptBtn.disabled = isBusy;
@@ -249,8 +314,9 @@
         }
 
         closeRegistrationTermsModal();
-        hideModal();
-        window.location.assign(getAuthRedirectUrl());
+        showModal();
+        activateTab('register');
+        showVerification(data.email || pendingRegistrationPayload?.email, data.resend_in, data.expires_in);
       } catch (err){
         console.error('[auth] register request error after terms accept', err);
         showTermsModalError('Не удалось завершить регистрацию. Попробуйте ещё раз.');
@@ -280,6 +346,92 @@
         }
       });
     }
+
+    codeInputs.forEach((input, index)=>{
+      input.addEventListener('input', ()=>{
+        input.value = input.value.replace(/\D/g, '').slice(-1);
+        if (input.value && codeInputs[index + 1]) codeInputs[index + 1].focus();
+        if (codeError) codeError.textContent = '';
+        syncCodeButton();
+      });
+      input.addEventListener('keydown', (event)=>{
+        if (event.key === 'Backspace' && !input.value && codeInputs[index - 1]) codeInputs[index - 1].focus();
+      });
+      input.addEventListener('paste', (event)=>{
+        const digits = String(event.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 6);
+        if (!digits) return;
+        event.preventDefault();
+        codeInputs.forEach((field, i)=>{ field.value = digits[i] || ''; });
+        (codeInputs[Math.min(digits.length, 6) - 1] || input).focus();
+        syncCodeButton();
+      });
+    });
+
+    if (verifyBtn){
+      verifyBtn.addEventListener('click', async ()=>{
+        const code = codeValue();
+        if (verificationBusy || !/^\d{6}$/.test(code)) return;
+        verificationBusy = true;
+        syncCodeButton();
+        if (resendBtn) resendBtn.disabled = true;
+        if (codeError) codeError.textContent = '';
+        try {
+          const resp = await fetch('/api/auth/register/verify/', {
+            method: 'POST', credentials: 'same-origin',
+            headers: { 'X-CSRFToken': csrf(), 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ code }),
+          });
+          const data = await resp.json().catch(()=>({ success:false }));
+          if (!resp.ok || !data.success){
+            if (codeError) codeError.textContent = data.error || Object.values(data.errors || {}).flat()[0] || 'Не удалось подтвердить код.';
+            if (data.expired || data.blocked) verifyBtn.disabled = true;
+            return;
+          }
+          if (countdownTimer) clearInterval(countdownTimer);
+          hideModal();
+          window.location.assign('/archive/');
+        } catch (err){
+          if (codeError) codeError.textContent = 'Не удалось проверить код. Попробуйте ещё раз.';
+        } finally {
+          verificationBusy = false;
+          updateCountdowns();
+          syncCodeButton();
+        }
+      });
+    }
+
+    if (resendBtn){
+      resendBtn.addEventListener('click', async ()=>{
+        if (verificationBusy || Date.now() < resendDeadline) return;
+        verificationBusy = true;
+        updateCountdowns();
+        try {
+          const resp = await fetch('/api/auth/register/resend/', {
+            method:'POST', credentials:'same-origin',
+            headers:{'X-CSRFToken':csrf(),'Content-Type':'application/x-www-form-urlencoded'},
+            body:new URLSearchParams(),
+          });
+          const data = await resp.json().catch(()=>({success:false}));
+          if (!resp.ok || !data.success){
+            if (data.retry_after) resendDeadline = Date.now() + Number(data.retry_after) * 1000;
+            if (codeError) codeError.textContent = data.error || 'Не удалось отправить код.';
+            return;
+          }
+          if (codeError) codeError.textContent = '';
+          codeInputs.forEach((input)=>{ input.value=''; });
+          startCountdowns(data.resend_in, data.expires_in);
+          syncCodeButton();
+          if (codeInputs[0]) codeInputs[0].focus();
+        } catch (err){
+          if (codeError) codeError.textContent = 'Не удалось отправить код. Попробуйте ещё раз.';
+        } finally {
+          verificationBusy = false;
+          updateCountdowns();
+        }
+      });
+    }
+
+    if (changeEmailBtn) changeEmailBtn.addEventListener('click', showRegistrationFields);
 
     let debounceTimer = null;
     let availabilityRequestId = 0;

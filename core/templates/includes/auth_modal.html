@@ -1,0 +1,40 @@
+<div id="authModal" class="modal"{% if auth_redirect %} data-auth-redirect="{{ auth_redirect|escape }}"{% endif %}>
+  <div class="modal-content">
+    <div class="tabs">
+      <button class="tab active" data-tab="login">Войти</button>
+      <button class="tab" data-tab="register">Регистрация</button>
+    </div>
+    <div class="tab-content active" id="login">
+      <input type="text" id="loginUser" placeholder="Логин">
+      <small id="loginAuthError" class="error"></small>
+      <input type="password" id="loginPass" placeholder="Пароль">
+      <button class="btn">Войти</button>
+    </div>
+    <div class="tab-content" id="register">
+      <div id="registrationFields">
+        <input type="text" id="regLogin" placeholder="Логин">
+        <small id="loginError" class="error"></small>
+        <input type="password" id="regPass" placeholder="Пароль">
+        <input type="password" id="regPass2" placeholder="Повторите пароль">
+        <small id="passError" class="error"></small>
+        <input type="email" id="regEmail" placeholder="Введите ваш Email" aria-label="Введите ваш Email" required>
+        <small id="emailError" class="error"></small>
+        <div class="modal-footer">
+          <button id="registerSubmit" type="button" class="btn ios-button">Зарегистрироваться</button>
+        </div>
+      </div>
+      <div id="registrationVerification" class="registration-verification" hidden>
+        <p id="registrationCodeMessage" class="registration-verification__message"></p>
+        <div class="code-container" aria-label="Шестизначный код подтверждения">
+          {% for _ in '123456' %}<input class="code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Цифра кода {{ forloop.counter }}">{% endfor %}
+        </div>
+        <small id="registrationCodeError" class="error registration-verification__error" aria-live="polite"></small>
+        <button id="registrationVerify" type="button" class="btn ios-button" disabled>Подтвердить</button>
+        <button id="registrationResend" type="button" class="ios-button ghost" disabled>Отправить код повторно</button>
+        <p id="registrationResendNote" class="resend-note"></p>
+        <p id="registrationExpiresNote" class="resend-note"></p>
+        <button id="registrationChangeEmail" type="button" class="ios-button ghost">Изменить email</button>
+      </div>
+    </div>
+  </div>
+</div>

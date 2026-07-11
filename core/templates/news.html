@@ -43,33 +43,7 @@
 
   {% include 'includes/app_footer.html' %}
 
-  <div id="authModal" class="modal">
-    <div class="modal-content">
-      <div class="tabs">
-        <button class="tab active" data-tab="login">Войти</button>
-        <button class="tab" data-tab="register">Регистрация</button>
-      </div>
-      <div class="tab-content active" id="login">
-        <input type="text" id="loginUser" placeholder="Логин">
-        <small id="loginAuthError" class="error"></small>
-        <input type="password" id="loginPass" placeholder="Пароль">
-        <button class="btn">Войти</button>
-      </div>
-      <div class="tab-content" id="register">
-        <input type="text" id="regLogin" placeholder="Логин">
-        <small id="loginError" class="error"></small>
-        <input type="password" id="regPass" placeholder="Пароль">
-        <input type="password" id="regPass2" placeholder="Повторите пароль">
-        <small id="passError" class="error"></small>
-        <input type="email" id="regEmail" placeholder="Введите ваш Email" aria-label="Введите ваш Email">
-        <small id="emailError" class="error"></small>
-
-        <div class="modal-footer">
-          <button id="registerSubmit" type="button" class="btn ios-button">Зарегистрироваться</button>
-        </div>
-      </div>
-    </div>
-  </div>
+  {% include 'includes/auth_modal.html' %}
 
   {% include 'includes/registration_terms_modal.html' %}
 
