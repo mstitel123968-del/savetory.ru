@@ -1,0 +1,26 @@
+{% load static %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  {% include 'includes/seo_meta.html' %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+</head>
+<body class="terms-body">
+  <main class="collector-service-page">
+    {% include 'includes/site_logo.html' with brand_class='collector-service-page__brand' brand_label='СКлад' %}
+    <article class="card collector-service-page__content">
+      <h1>СКлад — сервис коллекционера</h1>
+      <p>СКлад помогает организовать хранение информации о коллекционных предметах и собрать личный онлайн-архив коллекции в одном месте.</p>
+      <h2>Рубрики и карточки предметов</h2>
+      <p>Создавайте рубрики по темам и направлениям коллекционирования. Для каждого предмета оформляйте отдельную карточку с фотографиями, описанием, характеристиками и заметками.</p>
+      <h2>Электронный каталог коллекции</h2>
+      <p>Сервис для коллекционеров упрощает учёт коллекции: сведения о предметах остаются систематизированными, а историю собрания удобно дополнять по мере его развития.</p>
+      <h2>Маркет и аукцион</h2>
+      <p>Когда предмет нужно продать, обменять или выставить на торги, его можно опубликовать в маркете или создать аукционный лот.</p>
+      <a class="ios-button collector-service-page__action" href="{% url 'core:landing' %}" data-open-auth>Начать пользоваться</a>
+    </article>
+  </main>
+</body>
+</html>

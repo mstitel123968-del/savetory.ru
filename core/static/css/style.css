@@ -2938,6 +2938,22 @@ body.sidebar-collapsed .sidebar-tariff{display:none;}
   font-weight:700;
   line-height:13px;
   text-align:center;
+  flex-direction:column;
+  gap:18px;
+}
+
+.landing-seo-copy{
+  margin:0 auto;
+  max-width:640px;
+  color:var(--muted);
+  font-size:clamp(.92rem,2vw,1.05rem);
+  line-height:1.55;
+}
+
+.landing-seo-title{
+  margin:0;
+  font-size:clamp(1.65rem,4vw,2.5rem);
+  line-height:1.2;
 }
 
 .profile-menu{position:relative;z-index:210;}
@@ -3664,3 +3680,14 @@ body.app-shell-page.topbar-hidden .archive-main{padding-top:12px!important;}
   body.app-shell-page.topbar-static .archive-main,
   body.app-shell-page.topbar-hidden .archive-main{padding-top:12px!important;}
 }
+.collector-service-page{
+  width:min(920px,calc(100% - 32px));
+  margin:0 auto;
+  padding:32px 0 56px;
+}
+.collector-service-page__brand{display:inline-flex;margin-bottom:24px}
+.collector-service-page__content{padding:clamp(24px,5vw,48px)}
+.collector-service-page__content h1{margin-top:0;font-size:clamp(1.8rem,5vw,3rem)}
+.collector-service-page__content h2{margin:30px 0 10px;font-size:clamp(1.2rem,3vw,1.55rem)}
+.collector-service-page__content p{line-height:1.65}
+.collector-service-page__action{display:inline-flex;margin-top:20px;text-decoration:none}

@@ -13,6 +13,7 @@ class StaticViewSitemap(Sitemap):
     def items(self):
         return [
             "core:landing",
+            "core:collector-service",
             "core:news",
             "core:reviews",
             "core:terms",

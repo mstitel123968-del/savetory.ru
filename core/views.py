@@ -330,8 +330,8 @@ def landing(request: HttpRequest) -> HttpResponse:
         'index.html',
         _seo_context(
             request,
-            title='СКлад - хранение информации о вещах и подготовка к продаже',
-            description='СКлад помогает хранить фото, характеристики, заметки и историю вещей в одном месте, а также готовить их к продаже.',
+            title='СКлад — сервис коллекционера для хранения и учёта коллекций',
+            description='СКлад — сервис коллекционера для хранения, учёта и систематизации коллекций. Добавляйте фотографии, описания, характеристики и историю предметов.',
             indexable=True,
             canonical_path=reverse('core:landing'),
         ),
@@ -620,6 +620,20 @@ def terms(request: HttpRequest) -> HttpResponse:
     )
 
 
+def collector_service(request: HttpRequest) -> HttpResponse:
+    return render(
+        request,
+        'collector_service.html',
+        _seo_context(
+            request,
+            title='Сервис коллекционера для учёта коллекций — СКлад',
+            description='СКлад — сервис для коллекционеров: создавайте рубрики и карточки предметов, храните фотографии и ведите электронный каталог коллекции.',
+            indexable=True,
+            canonical_path=reverse('core:collector-service'),
+        ),
+    )
+
+
 def about(request: HttpRequest) -> HttpResponse:
     return render(
         request,
@@ -685,8 +699,8 @@ def news(request: HttpRequest) -> HttpResponse:
     published = NewsArticle.objects.filter(is_published=True, publish_at__lte=now)
     context = _seo_context(
         request,
-        title='Инструкции и новости проекта - СКлад',
-        description='Инструкции по использованию СКлада, новости проекта, обновления функциональности и полезная информация о сервисе.',
+        title='Инструкции по работе с сервисом коллекционера — СКлад',
+        description='Инструкции, новости и полезные материалы о сервисе для коллекционеров, учёте коллекции и ведении электронного каталога.',
         indexable=True,
         canonical_path=reverse('core:news'),
     )
@@ -701,8 +715,8 @@ def reviews(request: HttpRequest) -> HttpResponse:
         'reviews.html',
         _seo_context(
             request,
-            title='Отзывы о проекте - СКлад',
-            description='Отзывы пользователей о проекте СКлад, оценки сервиса и обратная связь о работе сайта.',
+            title='Отзывы о сервисе коллекционера СКлад',
+            description='Отзывы пользователей о сервисе коллекционера СКлад, учёте коллекций и работе электронного каталога.',
             indexable=True,
             canonical_path=reverse('core:reviews'),
         ),
@@ -720,8 +734,10 @@ def robots_txt(request: HttpRequest) -> HttpResponse:
         'Disallow: /api/',
         'Disallow: /archive/',
         'Disallow: /profile/',
+        'Disallow: /profile/edit/',
         'Disallow: /settings/',
         'Disallow: /messages/',
+        'Disallow: /accounts/',
         'Disallow: /market/api/',
         f'Sitemap: {sitemap_url}',
     ]
