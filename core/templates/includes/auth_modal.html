@@ -20,7 +20,7 @@
         <input type="email" id="regEmail" placeholder="Введите ваш Email" aria-label="Введите ваш Email" required>
         <small id="emailError" class="error"></small>
         <div class="modal-footer">
-          <button id="registerSubmit" type="button" class="btn ios-button">Зарегистрироваться</button>
+          <button id="registerSubmit" type="button" class="btn ios-button">Отправить код</button>
         </div>
       </div>
       <div id="registrationVerification" class="registration-verification" hidden>
@@ -29,7 +29,7 @@
           {% for _ in '123456' %}<input class="code-input" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="1" aria-label="Цифра кода {{ forloop.counter }}">{% endfor %}
         </div>
         <small id="registrationCodeError" class="error registration-verification__error" aria-live="polite"></small>
-        <button id="registrationVerify" type="button" class="btn ios-button" disabled>Подтвердить</button>
+        <button id="registrationVerify" type="button" class="btn ios-button" disabled>Зарегистрироваться</button>
         <button id="registrationResend" type="button" class="ios-button ghost" disabled>Отправить код повторно</button>
         <p id="registrationResendNote" class="resend-note"></p>
         <p id="registrationExpiresNote" class="resend-note"></p>
