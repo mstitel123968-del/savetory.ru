@@ -216,7 +216,7 @@
   }
 
   function applyCustomAccent(color){
-    const root=document.documentElement;
+    const root=document.body||document.documentElement;
     const foreground=luminance(color)>.46?'#07111f':'#ffffff';
     root.style.setProperty('--accent',color);
     root.style.setProperty('--primary-bg',color);
@@ -224,6 +224,12 @@
     root.style.setProperty('--primary-fg',foreground);
     root.style.setProperty('--accent-bg',`color-mix(in srgb,${color} 25%,transparent)`);
     root.style.setProperty('--accent-fg',foreground);
+    if(root!==document.documentElement){
+      customAccentProperties.forEach((property)=>{
+        const value=root.style.getPropertyValue(property);
+        if(value){ document.documentElement.style.setProperty(property,value); }
+      });
+    }
   }
 
   function apply(p){
