@@ -83,7 +83,7 @@
   const cardValues=Object.values(cardClasses);
   const topbarClasses={floating:'topbar-floating',static:'topbar-static',hidden:'topbar-hidden'};
   const topbarValues=Object.values(topbarClasses);
-  const backgroundClasses={gradient:'background-style-gradient',mesh:'background-style-mesh',soft:'background-style-soft'};
+  const backgroundClasses={gradient:'background-style-mesh',mesh:'background-style-gradient',soft:'background-style-soft'};
   const backgroundValues=Object.values(backgroundClasses);
   const bodyWeightClasses={regular:'text-weight-regular',medium:'text-weight-medium',strong:'text-weight-strong'};
   const bodyWeightValues=Object.values(bodyWeightClasses);
@@ -171,16 +171,16 @@
   function applyCustomTheme(color){
     const root=document.body||document.documentElement;
     const light=luminance(color)>.48;
-    const bg=light?mixHex(color,'#ffffff',.18):mixHex(color,'#050914',.22);
-    const card=light?mixHex(color,'#ffffff',.68):mixHex(color,'#0d1728',.62);
-    const input=light?mixHex(color,'#ffffff',.48):mixHex(color,'#111c2d',.52);
+    const bg=light?mixHex(color,'#ffffff',.48):mixHex(color,'#050914',.38);
+    const card=light?mixHex(color,'#ffffff',.44):mixHex(color,'#0d1728',.54);
+    const input=light?mixHex(color,'#ffffff',.34):mixHex(color,'#111c2d',.46);
     const border=light?mixHex(color,'#64748b',.46):mixHex(color,'#475569',.48);
     const text=light?'#101827':'#edf4ff';
     const muted=light?'#465267':'#9ba9bd';
-    const topbar=light?mixHex(color,'#ffffff',.58):mixHex(color,'#08111f',.58);
+    const topbar=light?mixHex(color,'#ffffff',.46):mixHex(color,'#08111f',.52);
     const overlay=light?'rgba(15,23,42,.28)':'rgba(3,7,18,.74)';
     if(document.body){ document.body.classList.add(light?'theme-light':'theme-dark'); }
-    root.style.setProperty('--app-gradient',`radial-gradient(120% 120% at 0% 0%, ${mixHex(color,light?'#ffffff':'#111827',light?.34:.38)} 0%, ${bg} 58%, ${mixHex(bg,light?'#ffffff':'#000000',light?.72:.72)} 100%)`);
+    root.style.setProperty('--app-gradient',`radial-gradient(120% 120% at 0% 0%, ${mixHex(color,light?'#ffffff':'#111827',light?.58:.48)} 0%, ${bg} 58%, ${mixHex(bg,light?'#ffffff':'#000000',light?.82:.76)} 100%)`);
     root.style.setProperty('--bg',bg);
     root.style.setProperty('--card',card);
     root.style.setProperty('--card-overlay',card);
