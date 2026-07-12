@@ -353,7 +353,8 @@
 
     // Toggles
     body.classList.toggle('reduce-motion', !!prefs.reduceMotion);
-    body.classList.toggle('plain-background', !!prefs.plainBackground);
+    const hasSelectedBackgroundEffect=Object.prototype.hasOwnProperty.call(backgroundClasses,prefs.backgroundStyle);
+    body.classList.toggle('plain-background', !!prefs.plainBackground && !hasSelectedBackgroundEffect);
     body.classList.toggle('focus-strong', !!prefs.focusStrong);
     body.classList.toggle('hide-hints', prefs.showHints === false);
     body.classList.toggle('news-auto-expand', !!prefs.expandNews);
