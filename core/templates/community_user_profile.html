@@ -17,6 +17,9 @@
     <section class="profile-showcase" aria-label="Профиль пользователя">
       <article class="profile-hero{% if profile_page.profile.background %} profile-hero--has-bg{% endif %}"{% if profile_page.profile.background %} style="--profile-bg-image:url('{{ profile_page.profile.background.url }}')"{% endif %}>
         <div class="profile-hero__overlay" aria-hidden="true"></div>
+        {% if profile_subscription_plan %}
+          <div class="profile-hero__tariff">Тариф: {{ profile_subscription_plan.name }}</div>
+        {% endif %}
         {% if profile_page.is_owner %}
           <button id="profileHeroMenuBtn" class="profile-cover-edit" type="button" aria-expanded="false" aria-controls="profileHeroMenu" aria-label="Действия профиля" title="Действия профиля">
             <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="19" cy="12" r="2"></circle></svg>
@@ -28,10 +31,17 @@
           </div>
         {% endif %}
         <div class="profile-hero__content">
-          <div class="profile-hero__avatar{% if profile_page.profile.avatar_data %} has-img{% endif %}">
-            <span>{{ profile_page.profile.display_name|first|default:"?" }}</span>
-            {% if profile_page.profile.avatar_data %}
-              <img src="{{ profile_page.profile.avatar_data }}" alt="" draggable="false" />
+          <div class="profile-hero__avatar-wrap">
+            <div class="profile-hero__avatar{% if profile_page.profile.avatar_data %} has-img{% endif %}">
+              <span>{{ profile_page.profile.display_name|first|default:"?" }}</span>
+              {% if profile_page.profile.avatar_data %}
+                <img src="{{ profile_page.profile.avatar_data }}" alt="" draggable="false" />
+              {% endif %}
+            </div>
+            {% if profile_subscription_plan %}
+              <span class="profile-hero__tariff-crown" title="Тариф: {{ profile_subscription_plan.name }}" aria-label="Тариф: {{ profile_subscription_plan.name }}">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 7 4.5 4L12 4l4.5 7L21 7l-2 11H5L3 7Z"/><path d="M6 21h12"/></svg>
+              </span>
             {% endif %}
           </div>
 

@@ -3052,6 +3052,8 @@ body.sidebar-collapsed .sidebar-tariff{display:none;}
 .archive-toolbar__primary,
 .archive-toolbar__secondary{display:flex;align-items:center;gap:10px;min-width:0;}
 .archive-toolbar__secondary{margin-left:auto;}
+.archive-total-count{display:flex;align-items:baseline;gap:7px;margin-inline:auto;color:var(--muted);font-size:14px;font-weight:700;white-space:nowrap;}
+.archive-total-count strong{color:var(--accent);font-size:18px;font-variant-numeric:tabular-nums;}
 
 .archive-action{
   min-height:46px;
@@ -3543,6 +3545,7 @@ body.theme-light .file-card:hover{box-shadow:0 8px 22px rgba(30,50,90,.08);}
   .archive-main{padding-inline:12px!important;}
   .archive-toolbar{align-items:flex-start;flex-direction:column;}
   .archive-toolbar__secondary{width:100%;margin-left:0;justify-content:flex-end;}
+  .archive-total-count{margin-inline:0;align-self:flex-start;}
   .rubric-files-grid,.rubrics .rubric-card--all .rubric-files-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));}
   .profile-menu__name{display:none;}
 }

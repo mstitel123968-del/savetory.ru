@@ -405,11 +405,13 @@ def public_collection(request: HttpRequest, username: str, rubric_slug: str) -> 
 def profile(request: HttpRequest) -> HttpResponse:
     profile_page = build_extended_profile_context(request.user, request.user.get_username())
     profile_data = profile_page['profile']
+    profile_subscription_plan = subscriptions.current_tariff(request.user)
     return render(
         request,
         'community_user_profile.html',
         {
             'profile_page': profile_page,
+            'profile_subscription_plan': profile_subscription_plan,
             'profile_nav_section': 'profile',
             'profile_canonical_path': reverse('core:profile'),
             **_seo_context(
@@ -585,11 +587,13 @@ def community_user_profile(request: HttpRequest, username: str) -> HttpResponse:
     if not profile_page.get('found'):
         raise Http404("Пользователь не найден")
     profile_data = profile_page['profile']
+    profile_subscription_plan = subscriptions.current_tariff(viewed_user)
     return render(
         request,
         'community_user_profile.html',
         {
             'profile_page': profile_page,
+            'profile_subscription_plan': profile_subscription_plan,
             'profile_nav_section': 'community',
             'profile_canonical_path': reverse('core:community-user-profile', kwargs={'username': profile_data['username']}),
             **_seo_context(
