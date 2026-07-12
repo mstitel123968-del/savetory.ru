@@ -3052,9 +3052,9 @@ body.sidebar-collapsed .sidebar-tariff{display:none;}
 .archive-toolbar__primary,
 .archive-toolbar__secondary{display:flex;align-items:center;gap:10px;min-width:0;}
 .archive-toolbar__secondary{margin-left:auto;}
-.archive-total-count{display:flex;align-items:baseline;gap:7px;margin-inline:auto;color:var(--muted);font-size:14px;font-weight:700;white-space:nowrap;}
-.archive-total-count strong{color:var(--accent);font-size:18px;font-variant-numeric:tabular-nums;}
-.archive-total-count__separator{display:inline-block;margin-inline:3px;color:var(--muted);}
+.archive-total-count{display:flex;align-items:baseline;gap:7px;margin-inline:auto;color:var(--accent);font-size:14px;font-weight:700;white-space:nowrap;}
+.archive-total-count strong{color:inherit;font:inherit;font-variant-numeric:tabular-nums;}
+.archive-total-count__separator{display:inline-block;margin-inline:3px;color:inherit;}
 
 .archive-action{
   min-height:46px;

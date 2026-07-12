@@ -30,7 +30,7 @@
 
         <div class="archive-total-count" aria-live="polite">
           <span>Всего файлов:</span>
-          <strong><span data-sidebar-archive-used>{{ app_archive_used }}</span><span class="archive-total-count__separator">/</span><span>{{ app_archive_limit_label }}</span></strong>
+          <strong><span data-sidebar-archive-used>{{ app_archive_used }}</span><span class="archive-total-count__separator">/</span><span>{% if app_archive_limit %}{{ app_archive_limit }}{% else %}∞{% endif %}</span></strong>
         </div>
 
         <div class="archive-toolbar__secondary">
