@@ -171,16 +171,16 @@
   function applyCustomTheme(color){
     const root=document.body||document.documentElement;
     const light=luminance(color)>.48;
-    const bg=light?mixHex(color,'#ffffff',.48):mixHex(color,'#050914',.38);
-    const card=light?mixHex(color,'#ffffff',.44):mixHex(color,'#0d1728',.54);
-    const input=light?mixHex(color,'#ffffff',.34):mixHex(color,'#111c2d',.46);
+    const bg=color;
+    const card=light?mixHex(color,'#ffffff',.78):mixHex(color,'#0d1728',.76);
+    const input=light?mixHex(color,'#ffffff',.66):mixHex(color,'#111c2d',.64);
     const border=light?mixHex(color,'#64748b',.46):mixHex(color,'#475569',.48);
     const text=light?'#101827':'#edf4ff';
     const muted=light?'#465267':'#9ba9bd';
-    const topbar=light?mixHex(color,'#ffffff',.46):mixHex(color,'#08111f',.52);
+    const topbar=light?mixHex(color,'#ffffff',.86):mixHex(color,'#08111f',.82);
     const overlay=light?'rgba(15,23,42,.28)':'rgba(3,7,18,.74)';
     if(document.body){ document.body.classList.add(light?'theme-light':'theme-dark'); }
-    root.style.setProperty('--app-gradient',`radial-gradient(120% 120% at 0% 0%, ${mixHex(color,light?'#ffffff':'#111827',light?.58:.48)} 0%, ${bg} 58%, ${mixHex(bg,light?'#ffffff':'#000000',light?.82:.76)} 100%)`);
+    root.style.setProperty('--app-gradient',`radial-gradient(120% 120% at 0% 0%, ${mixHex(color,light?'#ffffff':'#111827',light?.88:.82)} 0%, ${color} 58%, ${mixHex(color,light?'#000000':'#000000',light?.86:.72)} 100%)`);
     root.style.setProperty('--bg',bg);
     root.style.setProperty('--card',card);
     root.style.setProperty('--card-overlay',card);
