@@ -83,7 +83,7 @@
   const cardValues=Object.values(cardClasses);
   const topbarClasses={floating:'topbar-floating',static:'topbar-static',hidden:'topbar-hidden'};
   const topbarValues=Object.values(topbarClasses);
-  const backgroundClasses={gradient:'background-style-mesh',mesh:'background-style-gradient',soft:'background-style-soft'};
+  const backgroundClasses={gradient:'background-style-gradient',mesh:'background-style-mesh',soft:'background-style-soft'};
   const backgroundValues=Object.values(backgroundClasses);
   const bodyWeightClasses={regular:'text-weight-regular',medium:'text-weight-medium',strong:'text-weight-strong'};
   const bodyWeightValues=Object.values(bodyWeightClasses);
