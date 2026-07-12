@@ -231,6 +231,19 @@
     }
   }
 
+  function applyBackgroundStyle(style){
+    const body=document.body;
+    if(!body) return;
+    body.style.removeProperty('--background-overlay');
+    if(style==='gradient'){
+      body.style.setProperty('--background-overlay','linear-gradient(135deg,color-mix(in srgb,var(--bg) 72%,var(--accent) 28%) 0%,var(--bg) 46%,color-mix(in srgb,var(--bg) 52%,var(--accent) 48%) 100%)');
+    } else if(style==='mesh'){
+      body.style.setProperty('--background-overlay','radial-gradient(circle at 12% 12%,color-mix(in srgb,var(--accent) 52%,transparent) 0%,transparent 38%),radial-gradient(circle at 88% 8%,color-mix(in srgb,var(--accent) 38%,transparent) 0%,transparent 42%),radial-gradient(circle at 54% 92%,color-mix(in srgb,var(--bg) 44%,var(--accent) 30%) 0%,transparent 48%),var(--app-gradient)');
+    } else if(style==='soft'){
+      body.style.setProperty('--background-overlay','linear-gradient(160deg,color-mix(in srgb,var(--bg) 76%,#ffffff 24%) 0%,color-mix(in srgb,var(--bg) 84%,#000000 16%) 100%),radial-gradient(200% 220% at 50% 120%,color-mix(in srgb,var(--accent) 18%,transparent) 0%,transparent 70%),var(--app-gradient)');
+    }
+  }
+
   function apply(p){
     const body=document.body;
     if(!body) return;
@@ -301,6 +314,7 @@
     body.classList.remove(...backgroundValues);
     const backgroundClass=backgroundClasses[prefs.backgroundStyle] || backgroundClasses[DEFAULTS.backgroundStyle];
     body.classList.add(backgroundClass);
+    applyBackgroundStyle(backgroundClasses[prefs.backgroundStyle] ? prefs.backgroundStyle : DEFAULTS.backgroundStyle);
 
     body.classList.remove(...bodyWeightValues);
     const bodyWeightClass=bodyWeightClasses[prefs.bodyWeight] || bodyWeightClasses[DEFAULTS.bodyWeight];
