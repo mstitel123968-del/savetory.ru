@@ -89,6 +89,7 @@ MIDDLEWARE = [
     'core.middleware.TermsAcceptanceMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'core.middleware.MetrikaMiddleware',
 ]
 
 if USE_WHITENOISE:
@@ -142,6 +143,12 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'core' / 'static']
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Yandex Metrica is loaded by ``MetrikaMiddleware`` only after analytics
+# consent. Keeping the counter id in settings gives the whole project one
+# source of truth and prevents templates from embedding duplicate snippets.
+YANDEX_METRIKA_COUNTER_ID = int(os.environ.get('YANDEX_METRIKA_COUNTER_ID', '111189704'))
+YANDEX_METRIKA_CONSENT_COOKIE = 'savetory_analytics_consent'
 
 # --- User media storage --------------------------------------------------------
 # User-uploaded media defaults to the local filesystem. Yandex Object Storage

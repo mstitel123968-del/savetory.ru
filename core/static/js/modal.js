@@ -1,4 +1,10 @@
 (function(){
+  function reachGoal(goal){
+    if (typeof window.savetoryReachGoal === 'function'){
+      window.savetoryReachGoal(goal);
+    }
+  }
+
   function csrf(){
     const m = document.cookie.match(/csrftoken=([^;]+)/);
     return m ? decodeURIComponent(m[1]) : '';
@@ -316,6 +322,7 @@
         closeRegistrationTermsModal();
         if (countdownTimer) clearInterval(countdownTimer);
         hideModal();
+        reachGoal('registration_complete');
         window.location.assign('/archive/');
       } catch (err){
         console.error('[auth] register request error after terms accept', err);
@@ -400,6 +407,7 @@
           codeInputs.forEach((input)=>{ input.value=''; });
           startCountdowns(data.resend_in, data.expires_in);
           syncCodeButton();
+          reachGoal('registration_code_sent');
           if (codeInputs[0]) codeInputs[0].focus();
         } catch (err){
           if (codeError) codeError.textContent = 'Не удалось отправить код. Попробуйте ещё раз.';
@@ -423,7 +431,11 @@
       regBtn.disabled = !usernameAvailable || !emailAvailable;
     }
 
-    function showModal(){ if (modal) modal.style.display = 'flex'; }
+    function showModal(){
+      if (!modal) return false;
+      modal.style.display = 'flex';
+      return true;
+    }
     function hideModal(){ if (modal) modal.style.display = 'none'; }
 
     function clearErrors(){
@@ -501,7 +513,9 @@
       if (targetTab){
         activateTab(targetTab);
       }
-      showModal();
+      const opened = showModal();
+      if (opened && btn.hasAttribute('data-metrika-start')) reachGoal('start_click');
+      if (opened && targetTab === 'register') reachGoal('registration_open');
     }));
     if (modal){
       window.addEventListener('click', (e)=>{ if (e.target === modal) hideModal(); });
@@ -509,7 +523,9 @@
 
     tabs.forEach((tab)=>{
       tab.addEventListener('click', ()=>{
-        activateTab(tab.getAttribute('data-tab'));
+        const targetTab = tab.getAttribute('data-tab');
+        activateTab(targetTab);
+        if (targetTab === 'register') reachGoal('registration_open');
       });
     });
 
@@ -545,6 +561,7 @@
           }
 
           hideModal();
+          reachGoal('login_complete');
           window.location.assign(getAuthRedirectUrl());
         } catch (err){
           console.error('[auth] login request error', err);
@@ -592,6 +609,7 @@
             return;
           }
           showVerification(data.email || email, data.resend_in, data.expires_in);
+          reachGoal('registration_code_sent');
         } catch (err){
           console.error('[auth] registration code request error', err);
           if (regEmailErr) regEmailErr.textContent = 'Не удалось отправить код. Попробуйте ещё раз.';

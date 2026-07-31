@@ -1,6 +1,10 @@
 (function () {
   'use strict';
 
+  function reachGoal(goal) {
+    if (typeof window.savetoryReachGoal === 'function') window.savetoryReachGoal(goal);
+  }
+
   function getCookie(name) {
     const match = document.cookie.match('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)');
     return match ? decodeURIComponent(match.pop()) : '';
@@ -434,7 +438,11 @@
         try {
           const { ok, data } = await saveDraftAndMaybePublish(mode);
           btn.disabled = false;
-          if (ok) { window.location.href = (data && (data.redirect || data.published_url || data.lot_url)) || '/market/auction/'; return; }
+          if (ok) {
+            if (mode !== 'draft') reachGoal('market_publish');
+            window.location.href = (data && (data.redirect || data.published_url || data.lot_url)) || '/market/auction/';
+            return;
+          }
           showStep('preview'); showError(firstError(data));
         } catch (e) {
           btn.disabled = false;

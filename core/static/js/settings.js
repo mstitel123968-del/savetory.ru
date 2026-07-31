@@ -772,6 +772,50 @@ function __settingsRefreshAuthUI(){
 document.addEventListener('DOMContentLoaded', __settingsRefreshAuthUI);
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) __settingsRefreshAuthUI(); });
 
+(function bindSubscriptionAnalytics(){
+  const plans = document.getElementById('subscriptionPlans');
+  const reachGoal = (goal) => {
+    if (typeof window.savetoryReachGoal === 'function') window.savetoryReachGoal(goal);
+  };
+
+  if (plans){
+    plans.addEventListener('toggle', () => {
+      if (plans.open) reachGoal('tariff_open');
+    });
+    if (window.location.hash === '#subscriptionPlans') reachGoal('tariff_open');
+  }
+
+  document.querySelectorAll('form[data-subscription-checkout]').forEach((form) => {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const submit = form.querySelector('[type="submit"]');
+      if (submit && submit.disabled) return;
+      if (submit) submit.disabled = true;
+      try {
+        const response = await fetch(form.action, {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+          body: new FormData(form),
+        });
+        const data = await response.json().catch(() => null);
+        const redirectUrl = data && (data.confirmation_url || data.redirect_url);
+        if (!response.ok || !data || !data.success || !redirectUrl){
+          const errors = data && data.errors ? Object.values(data.errors).flat().join(' ') : '';
+          window.alert(errors || 'Не удалось перейти к оплате. Попробуйте ещё раз.');
+          if (submit) submit.disabled = false;
+          return;
+        }
+        reachGoal('payment_started');
+        window.location.assign(redirectUrl);
+      } catch (error){
+        if (submit) submit.disabled = false;
+        HTMLFormElement.prototype.submit.call(form);
+      }
+    });
+  });
+})();
+
 (async function(){
   try {
     const r = await fetch('/api/auth/status/', { credentials: 'include' });

@@ -1,0 +1,73 @@
+.cookie-consent[hidden] {
+  display: none !important;
+}
+
+.cookie-consent {
+  position: fixed;
+  z-index: 10000;
+  right: 16px;
+  bottom: 16px;
+  width: min(520px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--card-border, rgba(255, 255, 255, .18));
+  border-radius: 14px;
+  color: var(--text, #f4f6ff);
+  background: var(--card, #151a2c);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .38);
+  font: 14px/1.45 var(--font-body, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+.cookie-consent p {
+  flex: 1 1 auto;
+  margin: 0;
+}
+
+.cookie-consent a {
+  color: var(--accent, #89a3ff);
+  text-underline-offset: 3px;
+}
+
+.cookie-consent__actions {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+}
+
+.cookie-consent button {
+  min-height: 38px;
+  padding: 7px 13px;
+  border: 1px solid var(--btn-border, rgba(255, 255, 255, .18));
+  border-radius: 10px;
+  color: var(--btn-fg, #fff);
+  background: var(--btn-bg, rgba(255, 255, 255, .08));
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cookie-consent button:hover,
+.cookie-consent button:focus-visible {
+  background: var(--btn-bg-hover, rgba(255, 255, 255, .14));
+}
+
+.cookie-consent__accept {
+  border-color: var(--primary-bg, #7b9bff) !important;
+  background: var(--primary-bg, #7b9bff) !important;
+  color: var(--primary-fg, #fff) !important;
+}
+
+@media (max-width: 620px) {
+  .cookie-consent {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .cookie-consent__actions,
+  .cookie-consent button {
+    width: 100%;
+  }
+}

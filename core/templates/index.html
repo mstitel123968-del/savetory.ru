@@ -2,80 +2,68 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   {% include 'includes/seo_meta.html' %}
-  <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
   <link rel="stylesheet" href="{% static 'css/modal.css' %}">
-  <script>
-    (function(){
-      fetch('/api/auth/status/', { credentials: 'include' })
-        .then(function(resp){ return resp.json(); })
-        .then(function(data){
-          if (data && data.authenticated) {
-            window.location.replace('/archive/');
-          }
-        })
-        .catch(function(){});
-    })();
-  </script>
+  <link rel="stylesheet" href="{% static 'css/landing.css' %}">
 </head>
-<body class="landing-page">
-  <script src="{% static 'js/prefs.js' %}"></script>
-
-  <button class="landing-theme-toggle" id="landingThemeToggle" type="button" role="switch" aria-checked="false" aria-label="Переключить светлую и тёмную тему">
-    <span class="landing-theme-toggle__track" aria-hidden="true">
-      <span class="landing-theme-toggle__icon landing-theme-toggle__icon--sun">☀</span>
-      <span class="landing-theme-toggle__icon landing-theme-toggle__icon--moon">☾</span>
-      <span class="landing-theme-toggle__knob"></span>
-    </span>
-  </button>
-
-  <div class="landing-shell">
-    <header class="landing-top">
+<body class="landing-page landing-page--minimal">
+  <header class="landing-header">
+    <div class="landing-container landing-header__inner">
       {% include 'includes/site_logo.html' with brand_class='landing-brand' brand_label='СКлад' %}
-    </header>
+      <nav class="landing-nav" aria-label="Основная навигация">
+        <a href="{% url 'core:collector-service' %}">О сервисе</a>
+        <a href="{% url 'core:news' %}">Новости</a>
+      </nav>
+      <button class="landing-login" type="button" data-open-auth data-auth-tab="login">Войти</button>
+    </div>
+  </header>
 
-    <main class="landing-main">
-      <section class="landing-hero" aria-label="Приветственный слоган">
-        <h1 class="landing-seo-title">СКлад — сервис коллекционера</h1>
-        <p class="landing-hero-line" data-landing-slogan aria-live="polite">Память создаётся здесь.</p>
-        <p class="landing-seo-copy">Храните информацию о коллекционных предметах в одном месте. Создавайте рубрики, добавляйте фотографии, характеристики и заметки, ведите историю своей коллекции и при необходимости публикуйте предметы в маркете.</p>
-      </section>
-    </main>
+  <main>
+    <section class="landing-hero" aria-labelledby="landing-title">
+      <div class="landing-container landing-hero__grid">
+        <div class="landing-intro">
+          <h1 id="landing-title">Ваша коллекция.<br>В одном месте.</h1>
+          <p>Сохраняйте фотографии и информацию о важных предметах. Просто, аккуратно и всегда под рукой.</p>
+          <div class="landing-actions">
+            <button class="landing-primary" type="button" data-open-auth data-auth-tab="register" data-metrika-start>Начать бесплатно</button>
+            <a class="landing-example-link" href="#collection-example">Посмотреть пример</a>
+          </div>
+        </div>
 
-    <footer class="landing-footer">
-      <a class="landing-top-link" href="/news/">Инструкции по пользованию</a>
-      <button class="ios-button landing-start" type="button" data-open-auth>Начать</button>
-    </footer>
-  </div>
+        <section class="collection-preview" id="collection-example" aria-labelledby="collection-preview-title">
+          <h2 id="collection-preview-title">Моя коллекция</h2>
+          <img
+            class="collection-preview__image"
+            src="{% static 'img/landing/collection-preview.png' %}"
+            alt="Коллекция: старинная монета, космическая почтовая марка и ретроавтомобиль"
+          >
+        </section>
+      </div>
+    </section>
+
+    <section class="landing-benefits" aria-label="Преимущества сервиса">
+      <div class="landing-container landing-benefits__grid">
+        <div class="landing-benefit">
+          <img src="{% static 'img/landing/archive.png' %}" alt="" aria-hidden="true">
+          <span>Личный архив</span>
+        </div>
+        <div class="landing-benefit">
+          <img src="{% static 'img/landing/cards.png' %}" alt="" aria-hidden="true">
+          <span>Удобные карточки</span>
+        </div>
+        <div class="landing-benefit">
+          <img src="{% static 'img/landing/share.png' %}" alt="" aria-hidden="true">
+          <span>Можно поделиться</span>
+        </div>
+      </div>
+    </section>
+  </main>
 
   {% include 'includes/auth_modal.html' %}
-
   {% include 'includes/registration_terms_modal.html' %}
-
-
-  <script src="{% static 'js/landing.js' %}"></script>
-  <script>
-    (function(){
-      var btn = document.getElementById('landingThemeToggle');
-      if(!btn || !window.TrezoUIPrefs) return;
-      function isLight(){ return document.body.classList.contains('theme-light'); }
-      function sync(){
-        var light = isLight();
-        btn.classList.toggle('is-light', light);
-        btn.setAttribute('aria-checked', light ? 'true' : 'false');
-      }
-      sync();
-      btn.addEventListener('click', function(){
-        var prefs = window.TrezoUIPrefs.load();
-        prefs.theme = isLight() ? 'dark' : 'light';
-        window.TrezoUIPrefs.save(prefs);
-        window.TrezoUIPrefs.apply(prefs);
-        sync();
-      });
-    })();
-  </script>
   <script src="{% static 'js/modal.js' %}"></script>
 </body>
 </html>

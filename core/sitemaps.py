@@ -17,6 +17,7 @@ class StaticViewSitemap(Sitemap):
             "core:news",
             "core:reviews",
             "core:terms",
+            "core:privacy",
             "market_shop",
             "market_free",
             "market_wanted",

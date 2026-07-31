@@ -13,7 +13,7 @@
   {% include 'includes/app_sidebar.html' with current_section='settings' %}
   {% include 'includes/app_topbar.html' with page_title='Статус платежа' %}
 
-  <main class="main subscriptions-main">
+  <main class="main subscriptions-main"{% if payment_success_confirmed %} data-metrika-payment-success="{{ payment.internal_uuid }}"{% endif %}>
     <section class="subscription-account">
       <div class="subscription-account__summary">
         <div>

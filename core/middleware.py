@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 
 from django.conf import settings
@@ -17,6 +18,95 @@ logger = logging.getLogger("core.moderation")
 SAFE_METHODS: tuple[str, ...] = ("GET", "HEAD", "OPTIONS", "TRACE")
 LAST_SEEN_SESSION_KEY = "profile_last_seen_update_at"
 LAST_SEEN_UPDATE_INTERVAL_SECONDS = 60
+
+METRIKA_MARKER = 'data-savetory-metrika'
+METRIKA_EXCLUDED_PREFIXES = ('/admin/', '/studio/')
+METRIKA_WEBVISOR_PATHS = frozenset({
+    '/',
+    '/about/',
+    '/contacts/',
+    '/news/',
+    '/privacy/',
+    '/requisites/',
+    '/service-kollekcionera/',
+    '/terms/',
+})
+
+
+class MetrikaMiddleware:
+    """Inject the consent-controlled analytics shell into every site HTML page.
+
+    The project intentionally has several independent root templates, so a
+    response middleware is the only global, non-duplicated insertion point.
+    The external Yandex script is never requested by this middleware; the
+    local loader does that only after explicit consent.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        response = self.get_response(request)
+        return self._inject(request, response)
+
+    def _inject(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
+        if (
+            response.status_code != 200
+            or getattr(response, 'streaming', False)
+            or any(request.path_info.startswith(prefix) for prefix in METRIKA_EXCLUDED_PREFIXES)
+            or not response.get('Content-Type', '').lower().startswith('text/html')
+        ):
+            return response
+
+        try:
+            html = response.content.decode(response.charset or 'utf-8')
+        except (AttributeError, UnicodeDecodeError):
+            return response
+        if METRIKA_MARKER in html or not re.search(r'</head\s*>', html, re.IGNORECASE):
+            return response
+
+        body_match = re.search(r'<body\b[^>]*>', html, re.IGNORECASE)
+        if body_match is None:
+            return response
+
+        counter_id = int(settings.YANDEX_METRIKA_COUNTER_ID)
+        consent_cookie = settings.YANDEX_METRIKA_CONSENT_COOKIE
+        consent = request.COOKIES.get(consent_cookie, '')
+        webvisor_enabled = request.path_info in METRIKA_WEBVISOR_PATHS
+        static_prefix = settings.STATIC_URL.rstrip('/')
+        head = (
+            f'<link rel="stylesheet" href="{static_prefix}/css/cookie-consent.css" {METRIKA_MARKER}>'
+            f'<script src="{static_prefix}/js/metrika.js" {METRIKA_MARKER} '
+            f'data-counter-id="{counter_id}" data-consent-cookie="{consent_cookie}" '
+            f'data-consent="{consent}" data-webvisor="{str(webvisor_enabled).lower()}"></script>'
+        )
+        html = re.sub(r'</head\s*>', f'{head}</head>', html, count=1, flags=re.IGNORECASE)
+        body_match = re.search(r'<body\b[^>]*>', html, re.IGNORECASE)
+        if body_match is None:  # pragma: no cover - guarded before head injection
+            return response
+
+        noscript_pixel = ''
+        if consent == 'accepted' and webvisor_enabled:
+            noscript_pixel = (
+                f'<img src="https://mc.yandex.ru/watch/{counter_id}" '
+                'style="position:absolute;left:-9999px" alt="" referrerpolicy="no-referrer">'
+            )
+        body = (
+            f'<noscript {METRIKA_MARKER}>{noscript_pixel}</noscript>'
+            '<aside class="cookie-consent" data-cookie-consent hidden '
+            'aria-label="Настройки аналитических cookie">'
+            '<p>Мы используем cookie и Яндекс Метрику, чтобы анализировать работу сайта и улучшать сервис. '
+            '<a href="/privacy/">Политика обработки персональных данных</a></p>'
+            '<div class="cookie-consent__actions">'
+            '<button type="button" class="cookie-consent__accept" data-cookie-consent-accept>Принять</button>'
+            '<button type="button" class="cookie-consent__decline" data-cookie-consent-decline>Отклонить</button>'
+            '</div></aside>'
+        )
+        insert_at = body_match.end()
+        html = f'{html[:insert_at]}{body}{html[insert_at:]}'
+        response.content = html.encode(response.charset or 'utf-8')
+        response['Content-Length'] = str(len(response.content))
+        return response
 
 
 class LastSeenMiddleware:

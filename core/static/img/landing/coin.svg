@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-labelledby="title">
+  <title id="title">Коллекционная монета</title>
+  <defs>
+    <radialGradient id="coin-fill" cx="38%" cy="32%" r="70%">
+      <stop offset="0" stop-color="#ddd3c0"/>
+      <stop offset=".5" stop-color="#877764"/>
+      <stop offset="1" stop-color="#3b332a"/>
+    </radialGradient>
+  </defs>
+  <circle cx="120" cy="120" r="91" fill="url(#coin-fill)" stroke="#d3c5aa" stroke-width="5"/>
+  <circle cx="120" cy="120" r="78" fill="none" stroke="#40372d" stroke-width="3" stroke-dasharray="3 5"/>
+  <path d="M120 57v126M88 84c18-14 46-14 64 0M84 141c20 18 52 18 72 0M94 110h52M104 96v47M136 96v47" fill="none" stroke="#302921" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="120" cy="120" r="12" fill="#c8b99f" stroke="#302921" stroke-width="4"/>
+  <text x="120" y="202" fill="#ded4c2" font-family="Georgia,serif" font-size="15" text-anchor="middle">1868</text>
+</svg>

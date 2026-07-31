@@ -208,8 +208,8 @@
             <p>{{ plan.description }}</p>
             <span>Архив: {{ plan.archive_limit_label }}</span><span>Аукционы: {{ plan.active_auction_limit }}</span>
             {% if plan.is_paid and payment_enabled %}<div class="subscription-plan__actions">
-              <form method="post" action="{% url 'core:subscription-checkout' %}">{% csrf_token %}<input type="hidden" name="plan" value="{{ plan.code }}" /><input type="hidden" name="period" value="month" /><button class="settings-action" type="submit">{{ plan.monthly_price_label }}</button></form>
-              <form method="post" action="{% url 'core:subscription-checkout' %}">{% csrf_token %}<input type="hidden" name="plan" value="{{ plan.code }}" /><input type="hidden" name="period" value="year" /><button class="settings-action" type="submit">{{ plan.yearly_price_label }}</button></form>
+              <form method="post" action="{% url 'core:subscription-checkout' %}" data-subscription-checkout>{% csrf_token %}<input type="hidden" name="plan" value="{{ plan.code }}" /><input type="hidden" name="period" value="month" /><button class="settings-action" type="submit">{{ plan.monthly_price_label }}</button></form>
+              <form method="post" action="{% url 'core:subscription-checkout' %}" data-subscription-checkout>{% csrf_token %}<input type="hidden" name="plan" value="{{ plan.code }}" /><input type="hidden" name="period" value="year" /><button class="settings-action" type="submit">{{ plan.yearly_price_label }}</button></form>
             </div>{% endif %}
           </article>
           {% endfor %}

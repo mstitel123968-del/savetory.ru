@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 220" role="img" aria-labelledby="title">
+  <title id="title">Коллекционная модель автомобиля</title>
+  <defs>
+    <linearGradient id="car-fill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e6a316"/>
+      <stop offset="1" stop-color="#a95d08"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="151" cy="177" rx="112" ry="12" fill="#06090a" opacity=".58"/>
+  <path d="M43 126l28-12 32-48c6-8 14-12 25-12h57c12 0 22 4 29 13l29 39 25 8c8 3 13 10 13 19v23H35v-17c0-6 3-11 8-13z" fill="url(#car-fill)" stroke="#f2b43a" stroke-width="4"/>
+  <path d="M112 70h25v40H84l25-36c1-2 2-3 3-4zm40 0h31c7 0 12 2 16 7l25 33h-72z" fill="#223137" stroke="#cde0df" stroke-width="3"/>
+  <path d="M42 131h230M68 113l-8 40M242 109l8 44" fill="none" stroke="#713d0c" stroke-width="4"/>
+  <circle cx="85" cy="156" r="25" fill="#111719" stroke="#c5bdaa" stroke-width="6"/>
+  <circle cx="85" cy="156" r="9" fill="#77736a"/>
+  <circle cx="223" cy="156" r="25" fill="#111719" stroke="#c5bdaa" stroke-width="6"/>
+  <circle cx="223" cy="156" r="9" fill="#77736a"/>
+  <rect x="37" y="130" width="27" height="15" rx="5" fill="#f2e7ba"/>
+  <rect x="245" y="124" width="28" height="14" rx="5" fill="#d94a32"/>
+  <path d="M136 119h34M150 76v35" stroke="#63370b" stroke-width="3"/>
+</svg>

@@ -38,7 +38,11 @@ class YooKassaWebhookTests(TestCase):
     def _payment_result_response(self, payment, user):
         request = self.factory.get(reverse('core:payment-result'), data={'payment': str(payment.internal_uuid)})
         request.user = user
-        with patch('core.views.render', return_value=HttpResponse('payment result')):
+        def capture_render(_request, _template, context):
+            self.payment_result_context = context
+            return HttpResponse('payment result')
+
+        with patch('core.views.render', side_effect=capture_render):
             return views.subscription_payment_result(request)
 
     def _payment(self, tariff=None, period=SubscriptionPayment.Period.MONTH, amount=None):
@@ -257,6 +261,7 @@ class YooKassaWebhookTests(TestCase):
         self.assertEqual(payment.status, SubscriptionPayment.Status.PENDING)
         self.assertFalse(payment.subscription_activated)
         self.assertFalse(UserSubscription.objects.filter(user=self.user, tariff__is_paid=True).exists())
+        self.assertFalse(self.payment_result_context['payment_success_confirmed'])
 
     def test_return_url_activates_succeeded_paid_payment(self):
         payment = self._payment()
@@ -270,6 +275,7 @@ class YooKassaWebhookTests(TestCase):
         self.assertTrue(payment.subscription_activated)
         active = UserSubscription.objects.get(user=self.user, status=UserSubscription.Status.ACTIVE)
         self.assertEqual(active.tariff, self.plus)
+        self.assertTrue(self.payment_result_context['payment_success_confirmed'])
 
     def test_succeeded_without_paid_flag_does_not_activate_subscription(self):
         payment = self._payment()

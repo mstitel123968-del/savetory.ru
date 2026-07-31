@@ -330,8 +330,8 @@ def landing(request: HttpRequest) -> HttpResponse:
         'index.html',
         _seo_context(
             request,
-            title='СКлад — сервис коллекционера для хранения и учёта коллекций',
-            description='СКлад — сервис коллекционера для хранения, учёта и систематизации коллекций. Добавляйте фотографии, описания, характеристики и историю предметов.',
+            title='СКлад — онлайн-каталог для вашей коллекции',
+            description='Сохраняйте фотографии и информацию о важных предметах в личном онлайн-каталоге СКлад — аккуратно, удобно и всегда под рукой.',
             indexable=True,
             canonical_path=reverse('core:landing'),
         ),
@@ -621,6 +621,20 @@ def terms(request: HttpRequest) -> HttpResponse:
                 canonical_path=reverse('core:terms'),
             ),
         },
+    )
+
+
+def privacy(request: HttpRequest) -> HttpResponse:
+    return render(
+        request,
+        'privacy.html',
+        _seo_context(
+            request,
+            title='Политика обработки персональных данных - СКлад',
+            description='Информация об обработке персональных данных, cookie и аналитике в сервисе СКлад.',
+            indexable=True,
+            canonical_path=reverse('core:privacy'),
+        ),
     )
 
 
@@ -1044,6 +1058,10 @@ def subscription_payment_result(request: HttpRequest) -> HttpResponse:
             'payment': payment,
             'result_status': result_status,
             'result_message': result_message,
+            'payment_success_confirmed': (
+                payment.status == SubscriptionPayment.Status.SUCCEEDED
+                and payment.subscription_activated
+            ),
             **_seo_context(
                 request,
                 title='Статус платежа - СКлад',

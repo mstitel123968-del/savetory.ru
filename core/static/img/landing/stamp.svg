@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-labelledby="title">
+  <title id="title">Почтовая марка</title>
+  <path d="M40 47h12l6-8 7 8h12l6-8 7 8h12l6-8 7 8h12l6-8 7 8h12l6-8 7 8h12l6-8 7 8h12v12l8 6-8 7v12l8 6-8 7v12l8 6-8 7v12l8 6-8 7v12l8 6-8 7v12l8 6-8 7v12h-12l-6 8-7-8h-12l-6 8-7-8h-12l-6 8-7-8h-12l-6 8-7-8H77l-6 8-7-8H52l-6-8-6 8H28v-12l-8-6 8-7v-12l-8-6 8-7v-12l-8-6 8-7v-12l-8-6 8-7V97l-8-6 8-7V72l-8-6 8-7V47z" fill="#d8c8a9"/>
+  <rect x="43" y="62" width="154" height="116" rx="3" fill="#173f59" stroke="#ede2c9" stroke-width="5"/>
+  <circle cx="112" cy="113" r="36" fill="#d2bc94"/>
+  <path d="M91 140c7-17 17-25 30-25 14 0 24 8 31 25M101 102c0-13 8-23 19-23s19 10 19 23-8 23-19 23-19-10-19-23z" fill="#274e62"/>
+  <text x="54" y="81" fill="#f3e7ce" font-family="Arial,sans-serif" font-size="14" font-weight="700">СССР</text>
+  <text x="169" y="163" fill="#f3e7ce" font-family="Georgia,serif" font-size="26" font-weight="700">6к</text>
+</svg>

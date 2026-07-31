@@ -1,4 +1,10 @@
 (function(){
+  function reachGoal(goal){
+    if (typeof window.savetoryReachGoal === 'function'){
+      window.savetoryReachGoal(goal);
+    }
+  }
+
   const ARCHIVE_STATE_API = '/api/archive/state/';
   const MAX_IMAGE_COUNT = 5;
   const MAX_IMAGE_DIMENSION = 1280;
@@ -2013,6 +2019,7 @@
     toggleCreateForm(false);
     nameError.textContent = '';
     setArchiveStatus('');
+    reachGoal('rubric_created');
     openFieldSelectionModal(rubric.id);
   }
 
@@ -3108,7 +3115,10 @@
         }
       });
 
-      persistAndRender();
+      const wasCreated = !isEdit;
+      persistAndRender().then((saved) => {
+        if (saved && wasCreated) reachGoal('card_created');
+      });
       modal.close();
     });
 
@@ -6654,6 +6664,7 @@
         submitBtn.classList.remove('is-loading');
         submitBtn.textContent = restoreText;
         if (!ok){ applyServerErrors(data); return; } // keep modal open on error
+        if (!isEdit) reachGoal('market_publish');
         modal.close();
         refreshOpenCardAuctionStatus(file);
         const lotUrl = data.lot_url || (data.lot && data.lot.lot_url);
@@ -6711,6 +6722,7 @@
     }
     createMarketListingRequest(payload)
       .then((data) => {
+        reachGoal('market_publish');
         if (data && data.redirect){
           window.location.href = data.redirect;
         } else if (modal && typeof modal.close === 'function'){
