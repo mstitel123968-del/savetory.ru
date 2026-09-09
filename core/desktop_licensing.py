@@ -37,7 +37,11 @@ def license_for(order):
 
 def limited(request, scope, maximum):
     # Back this with a shared cache or reverse-proxy rate limit in production.
-    key = 'desktop:' + scope + ':' + request.META.get('REMOTE_ADDR', 'unknown')
+    address = request.META.get('REMOTE_ADDR', 'unknown')
+    # Only enabled when web is private and nginx overwrites this header.
+    if settings.SKLAD_TRUST_PROXY_IP:
+        address = request.META.get('HTTP_X_REAL_IP') or address
+    key = 'desktop:' + scope + ':' + address
     if cache.add(key, 1, timeout=60):
         return False
     try:

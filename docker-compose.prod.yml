@@ -10,6 +10,11 @@ services:
       - .env.prod
     environment:
       YOOKASSA_RETURN_URL: ${YOOKASSA_RETURN_URL:-https://savetory.ru/desktop/payment/result/}
+      SKLAD_LICENSE_PRIVATE_KEY_FILE: /run/secrets/sklad-license.pem
+      SKLAD_TRUST_PROXY_IP: "1"
+    secrets:
+      - source: sklad_license
+        target: sklad-license.pem
     depends_on:
       - db
     volumes:
@@ -47,3 +52,7 @@ services:
 volumes:
   pg_data:
   static_data:
+
+secrets:
+  sklad_license:
+    file: ${SKLAD_LICENSE_KEY_HOST_FILE:-/opt/savetory/secrets/license-private.pem}

@@ -72,3 +72,24 @@ class DesktopLicenseTests(TestCase):
 
     def test_unknown_code_cannot_restore(self):
         self.assertEqual(self.post('status', purchase_code=str(uuid.uuid4())).status_code, 404)
+
+    @override_settings(SKLAD_TRUST_PROXY_IP=True)
+    def test_proxy_limits_do_not_block_other_customers(self):
+        from django.test import RequestFactory
+        from core.desktop_licensing import limited
+        factory = RequestFactory()
+        first = factory.post('/', REMOTE_ADDR='172.18.0.2', HTTP_X_REAL_IP='192.0.2.1')
+        second = factory.post('/', REMOTE_ADDR='172.18.0.2', HTTP_X_REAL_IP='192.0.2.2')
+        self.assertFalse(limited(first, 'test-proxy', 1))
+        self.assertTrue(limited(first, 'test-proxy', 1))
+        self.assertFalse(limited(second, 'test-proxy', 1))
+
+    @override_settings(SKLAD_TRUST_PROXY_IP=False)
+    def test_untrusted_header_cannot_bypass_limit(self):
+        from django.test import RequestFactory
+        from core.desktop_licensing import limited
+        factory = RequestFactory()
+        first = factory.post('/', REMOTE_ADDR='192.0.2.1', HTTP_X_REAL_IP='192.0.2.2')
+        second = factory.post('/', REMOTE_ADDR='192.0.2.1', HTTP_X_REAL_IP='192.0.2.3')
+        self.assertFalse(limited(first, 'test-untrusted', 1))
+        self.assertTrue(limited(second, 'test-untrusted', 1))
