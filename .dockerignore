@@ -3,6 +3,11 @@ __pycache__/
 *.pyc
 *.pyo
 .env
+.env.*
+.desktop-license-keys/
+.agents/
+_sklad_windows_build/
+downloads/
 venv/
 staticfiles/
 media/

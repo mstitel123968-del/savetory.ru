@@ -1,0 +1,4 @@
+Pillow>=11.0
+cryptography>=43.0
+reportlab>=4.0
+openpyxl>=3.1

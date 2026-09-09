@@ -12,6 +12,7 @@ venv/
 .venv_check/
 staticfiles/
 media/
+.desktop-license-keys/
 
 # Environment files
 .env
@@ -19,4 +20,9 @@ media/
 !.env.example
 
 # Deployment backups
+/downloads/
+_sklad_windows_build/.venv/
+_sklad_windows_build/build/
+_sklad_windows_build/release*/
+_sklad_windows_build/dist/
 deploy/*.bak_*

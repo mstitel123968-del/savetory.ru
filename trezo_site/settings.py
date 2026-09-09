@@ -1,250 +1,60 @@
-"""Replaces the former Java Spring configuration with Django project settings."""
-from pathlib import Path
+"""Download page and application licensing only."""
 import os
-
-try:  # WhiteNoise is optional; fall back to Django's static handler if missing.
-    import whitenoise  # noqa: F401
-except ImportError:
-    USE_WHITENOISE = False
-else:
-    USE_WHITENOISE = True
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
+from pathlib import Path
 from django.core.exceptions import ImproperlyConfigured
 
-_INSECURE_SECRET_KEY = 'django-insecure-change-me'
-SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY', _INSECURE_SECRET_KEY)
-# Secure by default: DEBUG is only enabled when explicitly requested via the
-# environment. Local development should set DJANGO_DEBUG=1 (or DEBUG=1).
-DEBUG = os.environ.get('DJANGO_DEBUG', os.environ.get('DEBUG', '0')) == '1'
-
-# Refuse to boot a production (DEBUG=0) instance that still relies on the
-# placeholder secret key — this prevents accidental deploys with a known key.
-if not DEBUG and SECRET_KEY in {_INSECURE_SECRET_KEY, '', 'changeme'}:
-    raise ImproperlyConfigured(
-        'A strong DJANGO_SECRET_KEY must be set when DEBUG is disabled.'
-    )
-_allowed_hosts = os.environ.get('DJANGO_ALLOWED_HOSTS')
-if _allowed_hosts:
-    ALLOWED_HOSTS: list[str] = _allowed_hosts.split()
+BASE_DIR = Path(__file__).resolve().parent.parent
+def flag(name, default=False):
+    return os.environ.get(name, '1' if default else '0').lower() in ('1', 'true', 'yes')
+DEBUG = flag('DJANGO_DEBUG', flag('DEBUG'))
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or os.environ.get('SECRET_KEY', '')
+if not SECRET_KEY or SECRET_KEY in ('django-insecure-change-me', 'changeme'):
+    if not DEBUG:
+        raise ImproperlyConfigured('Set DJANGO_SECRET_KEY for production.')
+    SECRET_KEY = 'local-download-site-development-only'
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost 127.0.0.1 [::1]').split()
+INSTALLED_APPS = ['django.contrib.staticfiles', 'core']
+MIDDLEWARE = ['django.middleware.security.SecurityMiddleware', 'django.middleware.common.CommonMiddleware',
+              'django.middleware.csrf.CsrfViewMiddleware', 'django.middleware.clickjacking.XFrameOptionsMiddleware']
+try:
+    import whitenoise
+except ImportError:
+    pass
 else:
-    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]']
-
-
-_csrf_origins = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '')
-if _csrf_origins.strip():
-    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in _csrf_origins.replace(',', ' ').split() if origin.strip()]
-else:
-    _default_origins: list[str] = []
-    for host in ALLOWED_HOSTS:
-        if host in {'localhost', '127.0.0.1', '[::1]'}:
-            _default_origins.extend(['http://localhost', 'http://127.0.0.1'])
-            continue
-        _default_origins.extend([f'http://{host}', f'https://{host}'])
-    CSRF_TRUSTED_ORIGINS = list(dict.fromkeys(_default_origins))
-
-if os.environ.get('DJANGO_SECURE_PROXY_SSL_HEADER', '0') == '1':
-    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-
-USE_X_FORWARDED_HOST = os.environ.get('DJANGO_USE_X_FORWARDED_HOST', '0') == '1'
-SESSION_COOKIE_SECURE = os.environ.get('DJANGO_SESSION_COOKIE_SECURE', '0') == '1'
-CSRF_COOKIE_SECURE = os.environ.get('DJANGO_CSRF_COOKIE_SECURE', '0') == '1'
-
-# Hardening headers. Sensible defaults that do not break HTTP-only local dev;
-# HTTPS-only behaviour (redirect/HSTS) stays opt-in via the environment so it
-# cannot lock out a deployment that is not fully on TLS yet.
-SECURE_CONTENT_TYPE_NOSNIFF = True
-SESSION_COOKIE_HTTPONLY = True
-# NB: CSRF cookie must stay readable by JS — the frontend reads the csrftoken
-# cookie to send the X-CSRFToken header, so CSRF_COOKIE_HTTPONLY is left False.
-X_FRAME_OPTIONS = os.environ.get('DJANGO_X_FRAME_OPTIONS', 'DENY')
-SECURE_SSL_REDIRECT = os.environ.get('DJANGO_SECURE_SSL_REDIRECT', '0') == '1'
-SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_SECURE_HSTS_SECONDS', '0') or '0')
-SECURE_HSTS_INCLUDE_SUBDOMAINS = os.environ.get('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS', '0') == '1'
-SECURE_HSTS_PRELOAD = os.environ.get('DJANGO_SECURE_HSTS_PRELOAD', '0') == '1'
-
-INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.sitemaps',
-    'django.contrib.staticfiles',
-    'storages',
-    'core',
-    'market',
-    'auction',
-]
-
-MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'core.middleware.BlockedUserMiddleware',
-    'core.middleware.LastSeenMiddleware',
-    'core.middleware.TermsAcceptanceMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    'core.middleware.MetrikaMiddleware',
-]
-
-if USE_WHITENOISE:
     MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
-
 ROOT_URLCONF = 'trezo_site.urls'
-
-TEMPLATES = [
-    {
-        'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'core' / 'templates'],
-        'APP_DIRS': True,
-        'OPTIONS': {
-            'context_processors': [
-                'django.template.context_processors.debug',
-                'django.template.context_processors.request',
-                'django.contrib.auth.context_processors.auth',
-                'django.contrib.messages.context_processors.messages',
-                'core.context_processors.terms',
-            ],
-        },
-    },
-]
-
+TEMPLATES = [{'BACKEND': 'django.template.backends.django.DjangoTemplates', 'DIRS': [BASE_DIR/'core'/'templates'],
+              'APP_DIRS': True, 'OPTIONS': {'context_processors': ['django.template.context_processors.request']}}]
 WSGI_APPLICATION = 'trezo_site.wsgi.application'
 ASGI_APPLICATION = 'trezo_site.asgi.application'
-
-DATABASES = {
-    'default': {
-        'ENGINE': os.environ.get('POSTGRES_ENGINE', 'django.db.backends.postgresql'),
-        'NAME': os.environ.get('POSTGRES_DB', 'user_bd'),
-        'USER': os.environ.get('POSTGRES_USER', 'user_bd'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD', 'user123968'),
-        'HOST': os.environ.get('POSTGRES_HOST', 'db'),
-        'PORT': os.environ.get('POSTGRES_PORT', '5432'),
-    }
-}
-
-AUTH_PASSWORD_VALIDATORS = [
-    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
-    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
-]
-
+DATABASES = {'default': {'ENGINE': os.environ.get('POSTGRES_ENGINE', 'django.db.backends.postgresql'),
+    'NAME': os.environ.get('POSTGRES_DB', 'sklad'), 'USER': os.environ.get('POSTGRES_USER', 'sklad'),
+    'PASSWORD': os.environ.get('POSTGRES_PASSWORD', ''), 'HOST': os.environ.get('POSTGRES_HOST', 'db'),
+    'PORT': os.environ.get('POSTGRES_PORT', '5432')}}
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LANGUAGE_CODE = 'ru-ru'
 TIME_ZONE = 'Europe/Moscow'
 USE_I18N = True
 USE_TZ = True
-
 STATIC_URL = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'core' / 'static']
-STATIC_ROOT = BASE_DIR / 'staticfiles'
-
-# Yandex Metrica is loaded by ``MetrikaMiddleware`` only after analytics
-# consent. Keeping the counter id in settings gives the whole project one
-# source of truth and prevents templates from embedding duplicate snippets.
-YANDEX_METRIKA_COUNTER_ID = int(os.environ.get('YANDEX_METRIKA_COUNTER_ID', '111189704'))
-YANDEX_METRIKA_CONSENT_COOKIE = 'savetory_analytics_consent'
-
-# --- User media storage --------------------------------------------------------
-# User-uploaded media defaults to the local filesystem. Yandex Object Storage
-# (S3-compatible API) is an opt-in alternative, enabled only when
-# YANDEX_STORAGE_ENABLED=1 and the AWS_* credentials below are provided via the
-# environment. Static files are intentionally left untouched — they keep using
-# WhiteNoise / the manifest storage backend and are never moved to S3.
-YANDEX_STORAGE_ENABLED = os.environ.get('YANDEX_STORAGE_ENABLED', '0') == '1'
-
-if YANDEX_STORAGE_ENABLED:
-    _MEDIA_STORAGE = {
-        'BACKEND': 'storages.backends.s3.S3Storage',
-        'OPTIONS': {
-            'access_key': os.environ.get('AWS_ACCESS_KEY_ID'),
-            'secret_key': os.environ.get('AWS_SECRET_ACCESS_KEY'),
-            'bucket_name': os.environ.get('AWS_STORAGE_BUCKET_NAME'),
-            'endpoint_url': os.environ.get('AWS_S3_ENDPOINT_URL'),
-            'region_name': os.environ.get('AWS_S3_REGION_NAME'),
-            'location': 'media',
-            'default_acl': None,
-            'querystring_auth': True,
-            'querystring_expire': 3600,
-            'file_overwrite': False,
-            'signature_version': 's3v4',
-            'addressing_style': 'path',
-        },
-    }
-else:
-    _MEDIA_STORAGE = {
-        'BACKEND': 'django.core.files.storage.FileSystemStorage',
-    }
-
-STORAGES = {
-    'default': _MEDIA_STORAGE,
-    'staticfiles': {
-        'BACKEND': 'core.storage.SafeManifestStaticFilesStorage',
-    },
-}
-
-if USE_WHITENOISE:
-    WHITENOISE_USE_FINDERS = True
-
-MEDIA_URL = '/media/'
-MEDIA_ROOT = BASE_DIR / 'media'
-SERVE_MEDIA_FILES = DEBUG or os.environ.get('DJANGO_SERVE_MEDIA', '0') == '1'
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-LOGIN_URL = '/'
-LOGIN_REDIRECT_URL = '/archive/'
-
-# --- Transactional email (Resend SMTP-compatible endpoint) ------------------
-def _env_bool(name: str, default: bool = False) -> bool:
-    return str(os.environ.get(name, '1' if default else '0')).strip().lower() in {'1', 'true', 'yes', 'on'}
-
-
-EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
-EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.resend.com')
-EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
-EMAIL_USE_TLS = _env_bool('EMAIL_USE_TLS', True)
-EMAIL_USE_SSL = _env_bool('EMAIL_USE_SSL', False)
-if EMAIL_USE_TLS and EMAIL_USE_SSL:
-    raise ImproperlyConfigured('EMAIL_USE_TLS and EMAIL_USE_SSL cannot both be enabled.')
-EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'resend')
-EMAIL_HOST_PASSWORD = os.environ.get('RESEND_API_KEY') or os.environ.get('EMAIL_HOST_PASSWORD', '')
-DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'СКлад <no-reply@savetory.ru>')
-SERVER_EMAIL = os.environ.get('SERVER_EMAIL', 'no-reply@savetory.ru')
-EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '20'))
-
-# --- Moderation and compliance -------------------------------------------------
-# Update these lists when policies change. Settings administrators can adjust
-# banned vocabulary, file types and size limits in one place without touching
-# business logic.
-BANNED_WORDS = [
-    'спам',
-    'spam',
-    'мошенничество',
-    'fraud',
-    'экстремизм',
-    'extremism',
-]
-BANNED_MIME_TYPES = [
-    'application/x-msdownload',
-    'text/javascript',
-]
-BANNED_EXTENSIONS = ['.exe', '.js', '.bat', '.cmd']
-MAX_FILE_SIZE_MB = int(os.environ.get('MAX_UPLOAD_MB', '10'))
-
-# Bump this version whenever the public terms text changes. Users must re-accept
-# the latest version before continuing to use interactive features.
-TERMS_VERSION = os.environ.get('TERMS_VERSION', '2024-01')
-
-# --- YooKassa payments --------------------------------------------------------
+STATICFILES_DIRS = [BASE_DIR/'core'/'static']
+STATIC_ROOT = BASE_DIR/'staticfiles'
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_SSL_REDIRECT = flag('DJANGO_SECURE_SSL_REDIRECT')
+SECURE_HSTS_SECONDS = int(os.environ.get('DJANGO_SECURE_HSTS_SECONDS', '0'))
+SECURE_HSTS_INCLUDE_SUBDOMAINS = flag('DJANGO_SECURE_HSTS_INCLUDE_SUBDOMAINS')
+SECURE_HSTS_PRELOAD = flag('DJANGO_SECURE_HSTS_PRELOAD')
+CSRF_COOKIE_SECURE = flag('DJANGO_CSRF_COOKIE_SECURE')
+CSRF_TRUSTED_ORIGINS = os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').replace(',', ' ').split()
+if flag('DJANGO_SECURE_PROXY_SSL_HEADER'):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = flag('DJANGO_USE_X_FORWARDED_HOST')
+SKLAD_WINDOWS_FILE = os.environ.get('SKLAD_WINDOWS_FILE', '')
+SKLAD_ANDROID_FILE = os.environ.get('SKLAD_ANDROID_FILE', '')
+SKLAD_PAYMENTS_ENABLED = flag('SKLAD_PAYMENTS_ENABLED')
+SKLAD_LICENSE_PRIVATE_KEY_FILE = os.environ.get('SKLAD_LICENSE_PRIVATE_KEY_FILE', '')
 YOOKASSA_SHOP_ID = os.environ.get('YOOKASSA_SHOP_ID', '')
 YOOKASSA_SECRET_KEY = os.environ.get('YOOKASSA_SECRET_KEY', '')
 YOOKASSA_RETURN_URL = os.environ.get('YOOKASSA_RETURN_URL', '')
-# Receipt (54-ФЗ) settings for YooKassa. VAT code 1 = "без НДС".
 YOOKASSA_VAT_CODE = int(os.environ.get('YOOKASSA_VAT_CODE', '1'))
-YOOKASSA_PAYMENT_MODE = os.environ.get('YOOKASSA_PAYMENT_MODE', 'full_prepayment')
