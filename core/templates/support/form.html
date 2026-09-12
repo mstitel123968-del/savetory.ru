@@ -1,0 +1,5 @@
+<form action="{% url 'support:submit' %}" method="post" class="support-form" data-support-form>
+{% csrf_token %}{{ form.as_p }}
+<p class="support-muted">Ваши данные используются для обработки обращения и ответа по Email.</p>
+<p role="status" data-form-status></p><button type="submit" class="primary">Отправить</button>
+</form>

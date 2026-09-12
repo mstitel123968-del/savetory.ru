@@ -1,0 +1,1 @@
+{% extends 'support/base.html' %}{% block content %}<section class="support-panel support-narrow"><h1>Вход для сотрудников</h1><form method="post" class="support-form">{% csrf_token %}{{ form.as_p }}<input type="hidden" name="next" value="{{ next }}"><button class="primary">Войти</button></form></section>{% endblock %}

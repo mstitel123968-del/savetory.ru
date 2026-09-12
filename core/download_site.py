@@ -18,9 +18,11 @@ def package(platform):
 
 @require_GET
 def home(request):
+    from .support import TicketForm
     return render(request, 'downloads/home.html', {
         'windows_ready': package('windows').is_file(),
         'android_ready': package('android').is_file(),
+        'support_form': TicketForm(),
     })
 
 

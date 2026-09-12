@@ -13,8 +13,9 @@ if not SECRET_KEY or SECRET_KEY in ('django-insecure-change-me', 'changeme'):
         raise ImproperlyConfigured('Set DJANGO_SECRET_KEY for production.')
     SECRET_KEY = 'local-download-site-development-only'
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost 127.0.0.1 [::1]').split()
-INSTALLED_APPS = ['django.contrib.staticfiles', 'core']
+INSTALLED_APPS = ['django.contrib.auth', 'django.contrib.contenttypes', 'django.contrib.sessions', 'django.contrib.staticfiles', 'core']
 MIDDLEWARE = ['django.middleware.security.SecurityMiddleware', 'django.middleware.common.CommonMiddleware',
+              'django.contrib.sessions.middleware.SessionMiddleware', 'django.contrib.auth.middleware.AuthenticationMiddleware',
               'django.middleware.csrf.CsrfViewMiddleware', 'django.middleware.clickjacking.XFrameOptionsMiddleware']
 try:
     import whitenoise
@@ -59,3 +60,20 @@ YOOKASSA_SHOP_ID = os.environ.get('YOOKASSA_SHOP_ID', '')
 YOOKASSA_SECRET_KEY = os.environ.get('YOOKASSA_SECRET_KEY', '')
 YOOKASSA_RETURN_URL = os.environ.get('YOOKASSA_RETURN_URL', '')
 YOOKASSA_VAT_CODE = int(os.environ.get('YOOKASSA_VAT_CODE', '1'))
+
+# Support uses Django's existing SMTP integration; no credentials in source control.
+LOGIN_URL = '/support/login'
+LOGIN_REDIRECT_URL = '/support'
+SESSION_COOKIE_SECURE = flag('DJANGO_SESSION_COOKIE_SECURE', not DEBUG)
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', '')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = flag('EMAIL_USE_TLS', True)
+EMAIL_USE_SSL = flag('EMAIL_USE_SSL')
+EMAIL_TIMEOUT = 15
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', '')
+SUPPORT_EMAIL = os.environ.get('SUPPORT_EMAIL', '')

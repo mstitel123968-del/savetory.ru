@@ -1,0 +1,1 @@
+{% extends 'support/base.html' %}{% block content %}<section class="support-panel support-narrow"><h1>Техподдержка</h1>{% if sent %}<p role="status">Сообщение отправлено</p><a href="/">На главную</a>{% else %}{% include 'support/form.html' %}{% endif %}</section>{% endblock %}
